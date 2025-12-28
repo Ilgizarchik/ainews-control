@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+  }
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+  }
+}
+
+/* FullCalendar Dark Theme Customization */
+.fc {
+  --fc-border-color: #27272a;
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: #18181b;
+  --fc-neutral-text-color: #fafafa;
+  --fc-button-bg-color: #3f3f46;
+  --fc-button-border-color: #52525b;
+  --fc-button-hover-bg-color: #52525b;
+  --fc-button-hover-border-color: #71717a;
+  --fc-button-active-bg-color: #71717a;
+  --fc-button-active-border-color: #a1a1aa;
+}
+
+.fc .fc-button-primary {
+  background-color: var(--fc-button-bg-color);
+  border-color: var(--fc-button-border-color);
+  color: #fafafa;
+}
+
+.fc .fc-button-primary:hover {
+  background-color: var(--fc-button-hover-bg-color);
+  border-color: var(--fc-button-hover-border-color);
+}
+
+.fc .fc-button-primary:not(:disabled):active,
+.fc .fc-button-primary:not(:disabled).fc-button-active {
+  background-color: var(--fc-button-active-bg-color);
+  border-color: var(--fc-button-active-border-color);
+}
+
+.fc .fc-col-header-cell {
+  background-color: #18181b;
+  border-color: var(--fc-border-color);
+}
+
+.fc .fc-daygrid-day-number,
+.fc .fc-col-header-cell-cushion {
+  color: #a1a1aa;
+}
+
+.fc .fc-daygrid-day.fc-day-today {
+  background-color: #1e293b !important;
+}
+
+.fc-theme-standard td,
+.fc-theme-standard th {
+  border-color: var(--fc-border-color);
+}
+
+.fc .fc-toolbar-title {
+  color: #fafafa;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
