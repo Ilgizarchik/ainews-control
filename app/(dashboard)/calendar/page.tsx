@@ -9,16 +9,37 @@ import { useCalendarJobs } from '@/hooks/useCalendarJobs'
 import { useRealtime } from '@/hooks/useRealtime'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { StatusBadge } from '@/components/StatusBadge'
+
+type Recipe = {
+  is_active: boolean
+  is_main: boolean
+  platform: string
+  delay_hours: number
+}
+
+type BatchUpdate =
+  | { id: string; publish_at: string }
+  | { news_id: string; platform: string; publish_at: string }
+
+type CalendarExtendedProps = {
+  status: string
+  platform: string
+  newsId: string
+}
 
 export default function CalendarPage() {
   const calendarRef = useRef<FullCalendar>(null)
   const { jobs, fetchJobs, updateJobTime, updateBatchJobs } = useCalendarJobs()
   const supabase = useMemo(() => createClient(), [])
-  const [recipes, setRecipes] = useState<any[]>([])
+  const [recipes, setRecipes] = useState<Recipe[]>([])
 
   useEffect(() => {
-    supabase.from('publish_recipes').select('*').then(({ data }) => { if (data) setRecipes(data) })
+    supabase
+      .from('publish_recipes')
+      .select('*')
+      .then(({ data }) => {
+        if (data) setRecipes(data as Recipe[])
+      })
   }, [supabase])
 
   const refreshCalendar = useCallback(() => {
@@ -30,53 +51,79 @@ export default function CalendarPage() {
 
   const handleEventDrop = async (info: any) => {
     const { event, revert } = info
-    const { status, platform, newsId } = event.extendedProps
-    const newDate = event.start!
+
+    const ext = (event.extendedProps || {}) as CalendarExtendedProps
+    const status = String(ext.status || '')
+    const platform = String(ext.platform || '')
+    const newsId = String(ext.newsId || '')
+
+    const newDate: Date | null = event.start ?? null
+    if (!newDate) {
+      revert()
+      return toast.error('No start date')
+    }
 
     if (['published', 'processing'].includes(status)) {
-      revert(); return toast.error('Cannot move published/processing jobs')
+      revert()
+      return toast.error('Cannot move published/processing jobs')
     }
 
     const mainRecipe = recipes.find(r => r.is_active && r.is_main)
-    const isMain = mainRecipe && mainRecipe.platform === platform
+    const isMain = !!mainRecipe && mainRecipe.platform === platform
 
     if (isMain) {
       if (confirm('Move ALL linked jobs? Cancel to move only this one.')) {
-        // Smart Recalc
-        const updates = [{ id: event.id, publish_at: newDate.toISOString() }]
+        const updates: BatchUpdate[] = [{ id: String(event.id), publish_at: newDate.toISOString() }]
         const baseTime = newDate.getTime()
-        recipes.filter(r => r.is_active && !r.is_main).forEach(r => {
-          updates.push({
-            news_id: newsId,
-            platform: r.platform,
-            publish_at: new Date(baseTime + (r.delay_hours * 3600000)).toISOString()
+
+        recipes
+          .filter(r => r.is_active && !r.is_main)
+          .forEach(r => {
+            updates.push({
+              news_id: newsId,
+              platform: r.platform,
+              publish_at: new Date(baseTime + (Number(r.delay_hours) * 3600000)).toISOString(),
+            })
           })
-        })
-        try { await updateBatchJobs(updates); toast.success('Flow recalculated'); refreshCalendar(); }
-        catch { revert(); toast.error('Failed'); }
+
+        try {
+          await updateBatchJobs(updates as any)
+          toast.success('Flow recalculated')
+          refreshCalendar()
+        } catch {
+          revert()
+          toast.error('Failed')
+        }
       } else {
-        // Move only one
-        try { await updateJobTime(event.id, newDate); toast.success('Moved'); }
-        catch { revert(); }
+        try {
+          await updateJobTime(String(event.id), newDate)
+          toast.success('Moved')
+        } catch {
+          revert()
+        }
       }
     } else {
-      try { await updateJobTime(event.id, newDate); toast.success('Moved'); }
-      catch { revert(); }
+      try {
+        await updateJobTime(String(event.id), newDate)
+        toast.success('Moved')
+      } catch {
+        revert()
+      }
     }
   }
 
-  const events = jobs.map(j => ({
+  const events = jobs.map((j: any) => ({
     id: j.id,
     title: `${j.platform}: ${j.news_items?.title || 'Untitled'}`,
     start: j.publish_at,
     backgroundColor:
-      j.status === 'published' ? '#059669' : // Emerald 600
-        j.status === 'error' ? '#dc2626' :     // Red 600
-          j.status === 'processing' ? '#7c3aed' : // Violet 600
-            '#2563eb',                             // Blue 600 (Queued)
+      j.status === 'published' ? '#059669' :
+      j.status === 'error' ? '#dc2626' :
+      j.status === 'processing' ? '#7c3aed' :
+      '#2563eb',
     borderColor: 'transparent',
     extendedProps: { status: j.status, platform: j.platform, newsId: j.news_id },
-    editable: ['queued', 'error'].includes(j.status)
+    editable: ['queued', 'error'].includes(j.status),
   }))
 
   return (
@@ -96,7 +143,7 @@ export default function CalendarPage() {
             hour: '2-digit',
             minute: '2-digit',
             meridiem: false,
-            hour12: false
+            hour12: false,
           }}
           slotEventOverlap={false}
           eventContent={(eventInfo) => (

@@ -34,3 +34,13 @@ next-env.d.ts
 
 # Antigravity/Gemini
 .gemini/
+
+# env
+.env
+.env.*
+!.env.example
+
+# env
+.env
+.env.*
+!.env.example
