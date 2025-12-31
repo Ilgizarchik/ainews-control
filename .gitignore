@@ -48,3 +48,6 @@ next-env.d.ts
 # logs
 logs/
 *.log
+
+# schema dumps
+schema-dump.sql
