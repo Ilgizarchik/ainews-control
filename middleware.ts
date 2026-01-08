@@ -33,7 +33,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user && request.nextUrl.pathname.startsWith('/login')) {
-    return NextResponse.redirect(new URL('/calendar', request.url))
+    return NextResponse.redirect(new URL('/publications', request.url))
   }
 
   return response

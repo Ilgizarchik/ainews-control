@@ -12,24 +12,28 @@ export default function ContentPage() {
   const supabase = createClient()
   const fetch = async () => {
     const { data } = await supabase.from('news_items').select('*').order('created_at', { ascending: false }).limit(50)
-    if(data) setData(data)
+    if (data) setData(data)
   }
-  useEffect(() => { fetch() }, [])
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    setMounted(true)
+    fetch()
+  }, [])
   useRealtime('news_items', fetch)
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Content Feed</h1>
-      <div className="border border-zinc-800 rounded-md bg-zinc-900/50">
+      <h1 className="text-2xl font-bold text-foreground">Content Feed</h1>
+      <div className="border border-border rounded-md bg-card overflow-hidden">
         <table className="w-full text-sm text-left">
-          <thead className="bg-zinc-900 text-zinc-400 border-b border-zinc-800">
+          <thead className="bg-muted text-muted-foreground border-b border-border">
             <tr><th className="p-4">Date</th><th className="p-4">Title</th><th className="p-4">Status</th></tr>
           </thead>
-          <tbody>
-            {data.map(i => (
-              <tr key={i.id} className="border-b border-zinc-800 hover:bg-zinc-800/50">
-                <td className="p-4 text-zinc-500">{format(new Date(i.created_at), 'MM/dd HH:mm')}</td>
-                <td className="p-4">{i.title}</td>
+          <tbody className="divide-y divide-border">
+            {mounted && data.map(i => (
+              <tr key={i.id} className="hover:bg-muted/50 transition-colors">
+                <td className="p-4 text-muted-foreground">{format(new Date(i.created_at), 'MM/dd HH:mm')}</td>
+                <td className="p-4 text-foreground">{i.title}</td>
                 <td className="p-4"><StatusBadge status={i.status} /></td>
               </tr>
             ))}

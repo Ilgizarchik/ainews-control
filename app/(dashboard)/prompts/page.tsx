@@ -26,7 +26,9 @@ export default function PromptsPage() {
     if (data) setPrompts(data as any[])
   }, [supabase])
 
+  const [mounted, setMounted] = useState(false)
   useEffect(() => {
+    setMounted(true)
     fetchPrompts()
   }, [fetchPrompts])
 
@@ -69,8 +71,8 @@ export default function PromptsPage() {
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">System Prompts</h1>
-        <p className="text-zinc-400 text-sm">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">System Prompts</h1>
+        <p className="text-muted-foreground text-sm">
           Manage AI system prompts for content generation
         </p>
       </div>
@@ -85,20 +87,20 @@ export default function PromptsPage() {
           return (
             <div
               key={idStr}
-              className="bg-zinc-900/50 backdrop-blur rounded-lg border border-zinc-800 hover:border-zinc-700 transition-all duration-200 overflow-hidden"
+              className="bg-card backdrop-blur rounded-lg border border-border hover:border-accent transition-all duration-200 overflow-hidden"
             >
-              <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-900/80">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/50">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-blue-500/10 rounded-lg">
-                    <FileText className="h-5 w-5 text-blue-400" />
+                    <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-lg text-blue-400">
+                    <h3 className="font-semibold text-lg text-blue-600 dark:text-blue-400">
                       {p.key}
                     </h3>
-                    <p className="text-xs text-zinc-500">
+                    <p className="text-xs text-muted-foreground">
                       Last updated:{' '}
-                      {p.updated_at
+                      {mounted && p.updated_at
                         ? new Date(p.updated_at).toLocaleString('ru-RU')
                         : 'Never'}
                     </p>
@@ -111,8 +113,8 @@ export default function PromptsPage() {
                   className={`
                     transition-all duration-200 px-4 py-2 h-9
                     ${isEdited
-                      ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                      : 'bg-zinc-800 text-zinc-400 cursor-not-allowed'
+                      ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                      : 'bg-muted text-muted-foreground cursor-not-allowed'
                     }
                   `}
                 >
@@ -125,21 +127,21 @@ export default function PromptsPage() {
                 <textarea
                   className="
                     w-full h-64
-                    bg-zinc-950/50
-                    text-zinc-100
+                    bg-muted/30
+                    text-foreground
                     p-4
                     text-sm
                     font-mono
                     rounded-lg
-                    border border-zinc-800
-                    focus:border-blue-500
+                    border border-border
+                    focus:border-primary
                     focus:ring-2
-                    focus:ring-blue-500/20
+                    focus:ring-primary/20
                     focus:outline-none
                     transition-all
                     duration-200
                     resize-y
-                    placeholder:text-zinc-600
+                    placeholder:text-muted-foreground
                   "
                   value={currentValue}
                   onChange={(e) => handleChange(p.id, e.target.value)}
