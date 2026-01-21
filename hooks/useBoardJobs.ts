@@ -5,6 +5,7 @@ import { Database } from '@/types/database.types'
 export type JobWithNews = Database['public']['Tables']['publish_jobs']['Row'] & {
   news_items: {
     title: string
+    draft_title: string | null
     canonical_url: string
     image_url: string | null
   } | null
@@ -13,13 +14,27 @@ export type JobWithNews = Database['public']['Tables']['publish_jobs']['Row'] & 
 export function useBoardJobs() {
   const [jobs, setJobs] = useState<JobWithNews[]>([])
   const [loading, setLoading] = useState(false)
+  const [mainPlatform, setMainPlatform] = useState<string>('site')
   const supabase = useMemo(() => createClient(), [])
 
   const fetchJobs = useCallback(async () => {
     setLoading(true)
+
+    // Fetch main platform
+    const { data: mainRecipe } = await supabase
+      .from('publish_recipes')
+      .select('platform')
+      .eq('is_main', true)
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (mainRecipe) {
+      setMainPlatform(mainRecipe.platform)
+    }
+
     const { data, error } = await supabase
       .from('publish_jobs')
-      .select(`*, news_items (title, canonical_url, image_url)`)
+      .select(`*, news_items (title, draft_title, canonical_url, image_url)`)
       .eq('status', 'queued')
       .order('publish_at', { ascending: true })
 
@@ -37,5 +52,5 @@ export function useBoardJobs() {
     await fetchJobs() // Refresh after update
   }
 
-  return { jobs, loading, fetchJobs, updateJobTime }
+  return { jobs, loading, fetchJobs, updateJobTime, mainPlatform }
 }

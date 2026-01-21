@@ -6,6 +6,7 @@ import { BoardView } from './BoardView'
 import { cn } from '@/lib/utils'
 import { LayoutGrid, Calendar as CalendarIcon, Filter, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { PLATFORM_CONFIG } from '@/lib/platform-config'
 
 type Tab = 'board' | 'calendar'
 
@@ -27,24 +28,14 @@ export function PublicationsPage() {
                 <div className="flex flex-wrap items-center gap-2 sm:gap-3">
 
                     {/* 1. Improved Legend (Hidden on very small screens, Visible on desktop) */}
+                    {/* 1. Improved Legend (Hidden on very small screens, Visible on desktop) */}
                     <div className="hidden md:flex items-center gap-3 px-3 py-1.5 bg-muted/30 rounded-md border border-border mr-2">
-                        <div className="flex items-center gap-1.5" title="Telegram">
-                            <span className="w-2 h-2 rounded-full bg-blue-500 shadow-sm" />
-                            <span className="text-xs font-medium text-foreground">TG</span>
-                        </div>
-                        <div className="flex items-center gap-1.5" title="VKontakte">
-                            <span className="w-2 h-2 rounded-full bg-blue-700 shadow-sm" />
-                            <span className="text-xs font-medium text-foreground">VK</span>
-                        </div>
-                        <div className="flex items-center gap-1.5" title="Odnoklassniki">
-                            <span className="w-2 h-2 rounded-full bg-orange-500 shadow-sm" />
-                            <span className="text-xs font-medium text-foreground">OK</span>
-                        </div>
-                        {/* Added Website */}
-                        <div className="flex items-center gap-1.5" title="Website">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm" />
-                            <span className="text-xs font-medium text-foreground">Site</span>
-                        </div>
+                        {Object.values(PLATFORM_CONFIG).map((platform) => (
+                            <div key={platform.label} className="flex items-center gap-1.5" title={platform.label}>
+                                <span className={cn("w-2 h-2 rounded-full shadow-sm", platform.color.replace('text-', 'bg-'))} />
+                                <span className="text-xs font-medium text-foreground">{platform.label}</span>
+                            </div>
+                        ))}
                     </div>
 
                     {/* Separator */}
