@@ -26,6 +26,16 @@ echo "[6/8] Git push..."
 git push
 
 echo "[7/8] Deploy on server..."
-ssh -o StrictHostKeyChecking=accept-new "$SERVER" "bash -lc 'chmod 755 /root/deploy.sh 2>/dev/null || true; bash /root/deploy.sh'"
+ssh -o StrictHostKeyChecking=accept-new "$SERVER" "
+  set -e
+  echo 'Updating repo...'
+  cd /opt/khc/dashboard
+  git pull
+  
+  echo 'Rebuilding container...'
+  cd /opt/khc
+  docker compose build dashboard
+  docker compose up -d --force-recreate dashboard
+"
 
 echo "[8/8] Done."
