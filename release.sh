@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SERVER="root@31.169.125.155"
+SERVER="root@166.1.60.87"
 
 MSG="${1:-auto deploy $(date '+%Y-%m-%d %H:%M:%S')}"
 
