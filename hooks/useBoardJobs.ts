@@ -8,6 +8,7 @@ export type JobWithNews = Database['public']['Tables']['publish_jobs']['Row'] & 
     draft_title: string | null
     canonical_url: string
     image_url: string | null
+    gate1_tags: string[] | null
   } | null
 }
 
@@ -34,7 +35,7 @@ export function useBoardJobs() {
 
     const { data, error } = await supabase
       .from('publish_jobs')
-      .select(`*, news_items (title, draft_title, canonical_url, image_url)`)
+      .select(`*, news_items (title, draft_title, canonical_url, image_url, gate1_tags)`)
       .eq('status', 'queued')
       .order('publish_at', { ascending: true })
 

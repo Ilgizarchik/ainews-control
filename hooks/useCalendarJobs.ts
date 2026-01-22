@@ -5,6 +5,7 @@ import { Database } from '@/types/database.types'
 type JobWithNews = Database['public']['Tables']['publish_jobs']['Row'] & {
   news_items: {
     title: string
+    draft_title: string | null
     canonical_url: string
     image_url: string | null
   } | null
@@ -19,7 +20,7 @@ export function useCalendarJobs() {
     setLoading(true)
     const { data, error } = await supabase
       .from('publish_jobs')
-      .select(`*, news_items (title, canonical_url, image_url)`)
+      .select(`*, news_items (title, draft_title, canonical_url, image_url)`)
       .gte('publish_at', start.toISOString())
       .lt('publish_at', end.toISOString())
 

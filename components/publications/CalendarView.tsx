@@ -158,7 +158,7 @@ export function CalendarView() {
 
     const events = jobs.map((j: any) => ({
         id: j.id,
-        title: j.news_items?.title || 'Untitled',
+        title: j.news_items?.draft_title || j.news_items?.title || 'Untitled',
         start: j.publish_at,
         backgroundColor: 'transparent', // Убираем дефолтный фон, так как у нас свой компонент карточки
         borderColor: 'transparent',
