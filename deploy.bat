@@ -8,7 +8,7 @@ for /f %%i in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd-HHmmss
 set "LOG=logs\deploy-%TS%.log"
 
 set "SERVER=root@166.1.60.87"
-set "REMOTE=set -e && echo Updating repo... && cd /opt/khc/dashboard && git pull && echo Rebuilding container... && cd /opt/khc && docker compose build dashboard && docker compose up -d --force-recreate dashboard"
+set "REMOTE=/root/deploy.sh"
 
 echo Deploying on server: %SERVER%
 echo Log: %LOG%
