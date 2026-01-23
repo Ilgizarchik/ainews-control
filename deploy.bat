@@ -7,8 +7,8 @@ if not exist "logs" mkdir "logs"
 for /f %%i in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd-HHmmss"') do set "TS=%%i"
 set "LOG=logs\deploy-%TS%.log"
 
-set "SERVER=root@31.169.125.155"
-set "REMOTE=chmod 755 /root/deploy.sh 2>/dev/null || true; bash /root/deploy.sh"
+set "SERVER=root@166.1.60.87"
+set "REMOTE=set -e && echo Updating repo... && cd /opt/khc/dashboard && git pull && echo Rebuilding container... && cd /opt/khc && docker compose build dashboard && docker compose up -d --force-recreate dashboard"
 
 echo Deploying on server: %SERVER%
 echo Log: %LOG%

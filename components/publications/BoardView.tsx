@@ -130,8 +130,8 @@ export function BoardView() {
     if (loading) return <BoardSkeleton />
 
     return (
-        <div className="p-6 space-y-6 h-full overflow-y-auto">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="h-full overflow-y-auto">
+            <div className="sticky top-0 z-50 px-6 py-4 bg-card border-b flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div className="flex items-center gap-4">
                     <h2 className="text-2xl font-bold tracking-tight">Publication Queue</h2>
 
@@ -300,86 +300,88 @@ export function BoardView() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 pb-20">
-                {groupedNews.length === 0 && (
-                    <div className="col-span-full flex flex-col items-center justify-center py-20 text-center border-2 border-dashed border-border/50 rounded-xl bg-card/30">
-                        <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
-                            <CalendarDays className="h-6 w-6 text-muted-foreground" />
+            <div className="p-6 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 pb-20">
+                    {groupedNews.length === 0 && (
+                        <div className="col-span-full flex flex-col items-center justify-center py-20 text-center border-2 border-dashed border-border/50 rounded-xl bg-card/30">
+                            <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
+                                <CalendarDays className="h-6 w-6 text-muted-foreground" />
+                            </div>
+                            <h3 className="text-lg font-medium text-foreground">No scheduled posts</h3>
+                            <p className="text-sm text-muted-foreground max-w-xs mt-1">
+                                Your queue is empty. Create a new post to get started.
+                            </p>
                         </div>
-                        <h3 className="text-lg font-medium text-foreground">No scheduled posts</h3>
-                        <p className="text-sm text-muted-foreground max-w-xs mt-1">
-                            Your queue is empty. Create a new post to get started.
-                        </p>
-                    </div>
-                )}
+                    )}
 
-                {groupedNews.map(group => (
-                    <NewsGroupCard
-                        key={group.newsId}
-                        group={group}
-                        onEdit={(job) => setEditingJob(job)}
-                        onOpenEditor={() => setEditingNewsId(group.newsId)}
-                    />
-                ))}
+                    {groupedNews.map(group => (
+                        <NewsGroupCard
+                            key={group.newsId}
+                            group={group}
+                            onEdit={(job) => setEditingJob(job)}
+                            onOpenEditor={() => setEditingNewsId(group.newsId)}
+                        />
+                    ))}
 
-                {editingJob && (
-                    <EditDateDialog
-                        job={editingJob}
-                        onClose={() => setEditingJob(null)}
-                        onSave={async (date) => {
-                            try {
-                                await updateJobTime(editingJob.id, date)
-                                toast.success('Date updated')
-                                setEditingJob(null)
-                                fetchJobs()
-                            } catch (e) {
-                                toast.error('Failed to update date')
-                            }
-                        }}
-                        onDelete={async () => {
-                            try {
-                                const supabase = createClient()
-                                const { error } = await supabase.from('publish_jobs').delete().eq('id', editingJob.id)
-                                if (error) throw error
+                    {editingJob && (
+                        <EditDateDialog
+                            job={editingJob}
+                            onClose={() => setEditingJob(null)}
+                            onSave={async (date) => {
+                                try {
+                                    await updateJobTime(editingJob.id, date)
+                                    toast.success('Date updated')
+                                    setEditingJob(null)
+                                    fetchJobs()
+                                } catch (e) {
+                                    toast.error('Failed to update date')
+                                }
+                            }}
+                            onDelete={async () => {
+                                try {
+                                    const supabase = createClient()
+                                    const { error } = await supabase.from('publish_jobs').delete().eq('id', editingJob.id)
+                                    if (error) throw error
 
-                                setEditingJob(null)
-                                fetchJobs()
+                                    setEditingJob(null)
+                                    fetchJobs()
 
-                                toast('Scheduled post deleted', {
-                                    description: 'You can undo this action within 5 seconds',
-                                    action: {
-                                        label: 'Undo',
-                                        onClick: async () => {
-                                            // Remove the joined news_items data before re-inserting
-                                            const { news_items, ...jobToRestore } = editingJob
-                                            const { error: restoreError } = await supabase.from('publish_jobs').insert(jobToRestore as any)
-                                            if (restoreError) {
-                                                toast.error('Failed to restore post')
-                                            } else {
-                                                toast.success('Post restored')
-                                                fetchJobs()
+                                    toast('Scheduled post deleted', {
+                                        description: 'You can undo this action within 5 seconds',
+                                        action: {
+                                            label: 'Undo',
+                                            onClick: async () => {
+                                                // Remove the joined news_items data before re-inserting
+                                                const { news_items, ...jobToRestore } = editingJob
+                                                const { error: restoreError } = await supabase.from('publish_jobs').insert(jobToRestore as any)
+                                                if (restoreError) {
+                                                    toast.error('Failed to restore post')
+                                                } else {
+                                                    toast.success('Post restored')
+                                                    fetchJobs()
+                                                }
                                             }
-                                        }
-                                    },
-                                    duration: 5000,
-                                })
-                            } catch (e) {
-                                toast.error('Failed to delete post')
-                            }
-                        }}
-                    />
-                )}
+                                        },
+                                        duration: 5000,
+                                    })
+                                } catch (e) {
+                                    toast.error('Failed to delete post')
+                                }
+                            }}
+                        />
+                    )}
 
-                {editingNewsId && (
-                    <NewsEditorDialog
-                        newsId={editingNewsId}
-                        isOpen={!!editingNewsId}
-                        onClose={() => setEditingNewsId(null)}
-                        onSaved={() => {
-                            fetchJobs()
-                        }}
-                    />
-                )}
+                    {editingNewsId && (
+                        <NewsEditorDialog
+                            newsId={editingNewsId}
+                            isOpen={!!editingNewsId}
+                            onClose={() => setEditingNewsId(null)}
+                            onSaved={() => {
+                                fetchJobs()
+                            }}
+                        />
+                    )}
+                </div>
             </div>
         </div>
     )
