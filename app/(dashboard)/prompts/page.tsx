@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import { Save, FileText, GripVertical } from 'lucide-react'
+import { Save, FileText, GripVertical, Send, Globe } from 'lucide-react'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useSearchParams, useRouter } from 'next/navigation'
 import {
   DndContext,
   closestCenter,
@@ -22,6 +24,120 @@ import {
   useSortable
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+
+// --- БРЕНДОВЫЕ ИКОНКИ СОЦСЕТЕЙ ---
+
+function VkIcon({ className, style }: { className?: string, style?: React.CSSProperties }) {
+  return (
+    <svg role="img" viewBox="0 0 24 24" fill="currentColor" className={className} style={style} xmlns="http://www.w3.org/2000/svg">
+      <path d="M15.6 21.3c-6.6 0-10.4-4.5-10.5-12h3.3c.1 4.2 1.9 6 3.4 6.3V9.3h3.3v3.6c2-.2 4.1-2.5 4.8-5h3.1c-.6 2.5-2.2 4.4-3.5 5.2 1.3.6 3.3 2.1 4.1 5.2h-3.4c-.9-2.2-2.5-3.8-4.9-4v3.9h-.7z" />
+    </svg>
+  )
+}
+
+function OkIcon({ className, style }: { className?: string, style?: React.CSSProperties }) {
+  return (
+    <svg role="img" viewBox="0 0 24 24" fill="currentColor" className={className} style={style} xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 12.3c-1.6 0-3.3 0-3.8-1.7 0 0-.4-1.6 1.9-1.6 2.3 0 1.9 1.6 1.9 1.6.5 1.7-1.2 1.7-2.8 1.7zm0-6.8c1.6 0 2.9 1.3 2.9 2.9S13.6 11.3 12 11.3s-2.9-1.3-2.9-2.9 1.3-2.9 2.9-2.9zm5 11c1.3 0 1.7-1.8 1.7-1.8.3-1.3-1.4-1.3-1.4-1.3-2.3 0-3.9 0-5.3-.1-1.4.1-3 .1-5.3.1 0 0-1.7 0-1.4 1.3 0 0 .4 1.8 1.7 1.8 1.1 0 2.9 0 4.1-.1l-2.6 2.6c0 0-1.1 1.2.2 2.3.8.7 2.1-.5 2.1-.5l2.8-3 2.8 3c0 0 1.3 1.2 2.1.5 1.3-1.1.2-2.3.2-2.3l-2.6-2.6c1.2.1 3 .1 4.1.1z" />
+    </svg>
+  )
+}
+
+function FbIcon({ className, style }: { className?: string, style?: React.CSSProperties }) {
+  return (
+    <svg role="img" viewBox="0 0 24 24" fill="currentColor" className={className} style={style} xmlns="http://www.w3.org/2000/svg">
+      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+    </svg>
+  )
+}
+
+function ThreadsIcon({ className, style }: { className?: string, style?: React.CSSProperties }) {
+  return (
+    <svg role="img" viewBox="0 0 24 24" fill="currentColor" className={className} style={style} xmlns="http://www.w3.org/2000/svg">
+      <path d="M12.002 2.002c-5.522 0-9.998 4.476-9.998 9.998 0 5.522 4.476 9.998 9.998 9.998 5.522 0 9.998-4.476 9.998-9.998 0-5.522-4.476-9.998-9.998-9.998zm0 18.498c-4.69 0-8.5-3.81-8.5-8.5 0-4.69 3.81-8.5 8.5-8.5 4.69 0 8.5 3.81 8.5 8.5 0 4.69-3.81 8.5-8.5 8.5zm3.75-8.5a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0zm-3.75 2.25a2.25 2.25 0 1 0 0-4.5 2.25 2.25 0 0 0 0 4.5zm6.5-2.25h-1.5a5.25 5.25 0 0 0-10.5 0 5.25 5.25 0 0 0 10.5 0v.75a.75.75 0 0 1-1.5 0v-.75a3.75 3.75 0 0 1-7.5 0 3.75 3.75 0 0 1 7.5 0h1.5a.75.75 0 0 1 0 1.5H12a5.25 5.25 0 0 1-5.25-5.25 5.25 5.25 0 0 1 5.25-5.25 5.25 5.25 0 0 1 5.25 5.25v.75z" />
+      <path d="M17.75 12a5.75 5.75 0 0 0-4.46-5.59 6.75 6.75 0 0 1 4.46 5.59z" fill="none" />
+      <path d="M12 6.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11zm0 9.5a4 4 0 1 1 0-8 4 4 0 0 1 0 8z" />
+    </svg>
+  )
+}
+
+function XIcon({ className, style }: { className?: string, style?: React.CSSProperties }) {
+  return (
+    <svg role="img" viewBox="0 0 24 24" fill="currentColor" className={className} style={style} xmlns="http://www.w3.org/2000/svg">
+      <path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z" />
+    </svg>
+  )
+}
+
+// --- Маппинг соцсетей на иконки и цвета ---
+
+const getSocialConfig = (key: string) => {
+  const keyLower = key.toLowerCase()
+
+  if (keyLower.includes('_vk')) {
+    return {
+      icon: VkIcon,
+      color: '#0077FF',
+      bg: 'from-[#0077FF]/15 to-[#0077FF]/10',
+      borderColor: 'border-[#0077FF]/20',
+      textColor: 'text-[#0077FF]'
+    }
+  }
+  if (keyLower.includes('_tg')) {
+    return {
+      icon: Send,
+      color: '#0088CC',
+      bg: 'from-blue-500/15 to-blue-600/10',
+      borderColor: 'border-blue-500/20',
+      textColor: 'text-blue-600 dark:text-blue-400'
+    }
+  }
+  if (keyLower.includes('_fb')) {
+    return {
+      icon: FbIcon,
+      color: '#1877F2',
+      bg: 'from-[#1877F2]/15 to-[#1877F2]/10',
+      borderColor: 'border-[#1877F2]/20',
+      textColor: 'text-[#1877F2]'
+    }
+  }
+  if (keyLower.includes('_ok')) {
+    return {
+      icon: OkIcon,
+      color: '#F97400',
+      bg: 'from-[#F97400]/15 to-[#F97400]/10',
+      borderColor: 'border-[#F97400]/20',
+      textColor: 'text-[#F97400]'
+    }
+  }
+  if (keyLower.includes('_threads')) {
+    return {
+      icon: ThreadsIcon,
+      color: '#000000',
+      bg: 'from-zinc-500/15 to-zinc-600/10',
+      borderColor: 'border-zinc-500/20',
+      textColor: 'text-zinc-900 dark:text-zinc-100'
+    }
+  }
+  if (keyLower.includes('_x')) {
+    return {
+      icon: XIcon,
+      color: '#000000',
+      bg: 'from-zinc-500/15 to-zinc-600/10',
+      borderColor: 'border-zinc-500/20',
+      textColor: 'text-zinc-900 dark:text-zinc-100'
+    }
+  }
+
+  // Default для системных промптов
+  return {
+    icon: FileText,
+    color: '#3B82F6',
+    bg: 'from-blue-500/15 to-blue-600/10',
+    borderColor: 'border-blue-500/20',
+    textColor: 'text-blue-600 dark:text-blue-400'
+  }
+}
 
 // --- Sortable Item Component ---
 interface PromptCardProps {
@@ -43,10 +159,23 @@ function SortablePromptCard({ prompt, editedContent, isEdited, isSaving, onSave,
     transition,
   } = useSortable({ id: prompt.id })
 
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null)
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
   }
+
+  const { icon: Icon, color, bg, borderColor, textColor } = getSocialConfig(prompt.key)
+
+  // Auto-resize textarea
+  React.useEffect(() => {
+    const textarea = textareaRef.current
+    if (textarea) {
+      textarea.style.height = 'auto'
+      textarea.style.height = `${textarea.scrollHeight}px`
+    }
+  }, [editedContent])
 
   return (
     <div
@@ -65,11 +194,11 @@ function SortablePromptCard({ prompt, editedContent, isEdited, isSaving, onSave,
             <GripVertical className="h-5 w-5" />
           </div>
 
-          <div className="p-2.5 bg-gradient-to-br from-blue-500/15 to-blue-600/10 rounded-lg border border-blue-500/20 shadow-sm">
-            <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+          <div className={`p-2.5 bg-gradient-to-br ${bg} rounded-lg border ${borderColor} shadow-sm`}>
+            <Icon className="h-5 w-5" style={{ color }} />
           </div>
           <div>
-            <h3 className="font-bold text-lg text-blue-600 dark:text-blue-400 flex items-center gap-2">
+            <h3 className={`font-bold text-lg ${textColor} flex items-center gap-2`}>
               {prompt.key}
               {isEdited && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-400 rounded-full border border-amber-500/30">
@@ -108,8 +237,10 @@ function SortablePromptCard({ prompt, editedContent, isEdited, isSaving, onSave,
 
       <div className="p-6 bg-gradient-to-br from-background to-muted/10">
         <textarea
+          ref={textareaRef}
           className="
-            w-full h-64
+            w-full
+            min-h-[200px]
             bg-background/80
             text-foreground
             p-4
@@ -124,7 +255,7 @@ function SortablePromptCard({ prompt, editedContent, isEdited, isSaving, onSave,
             focus:outline-none
             transition-all
             duration-200
-            resize-y
+            resize-none
             placeholder:text-muted-foreground
             shadow-inner
           "
@@ -154,13 +285,18 @@ function SortablePromptCard({ prompt, editedContent, isEdited, isSaving, onSave,
   )
 }
 
-export default function PromptsPage() {
+function PromptsContent() {
   const supabase = useMemo(() => createClient(), [])
+  const searchParams = useSearchParams()
+  const router = useRouter()
 
   const [prompts, setPrompts] = useState<any[]>([])
   const [editedPrompts, setEditedPrompts] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState<Record<string, boolean>>({})
   const [mounted, setMounted] = useState(false)
+
+  const defaultTab = searchParams.get('tab') || 'system'
+  const [activeTab, setActiveTab] = useState(defaultTab)
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -169,8 +305,18 @@ export default function PromptsPage() {
     })
   )
 
+  // Разделяем промпты на системные и социальные
+  const systemPrompts = useMemo(() =>
+    prompts.filter(p => !p.key.toLowerCase().startsWith('rewrite_social_')),
+    [prompts]
+  )
+
+  const socialPrompts = useMemo(() =>
+    prompts.filter(p => p.key.toLowerCase().startsWith('rewrite_social_')),
+    [prompts]
+  )
+
   const fetchPrompts = useCallback(async () => {
-    // 1. Fetch prompts
     const { data: promptsData, error: promptsError } = await (supabase as any)
       .from('system_prompts')
       .select('*')
@@ -180,7 +326,6 @@ export default function PromptsPage() {
       return
     }
 
-    // 2. Fetch order
     const { data: settingsData } = await supabase
       .from('project_settings')
       .select('value')
@@ -194,24 +339,18 @@ export default function PromptsPage() {
     if (settings?.value) {
       try {
         const orderIds = JSON.parse(settings.value) as string[]
-        // Sort prompts based on the order array
         orderedPrompts.sort((a, b) => {
           const indexA = orderIds.indexOf(String(a.id))
           const indexB = orderIds.indexOf(String(b.id))
-          // If both are in the list, sort by index
           if (indexA !== -1 && indexB !== -1) return indexA - indexB
-          // If only A is in the list, A comes first
           if (indexA !== -1) return -1
-          // If only B is in the list, B comes first
           if (indexB !== -1) return 1
-          // If neither, keep original order (or sort by key/id)
           return a.key.localeCompare(b.key)
         })
       } catch (e) {
         console.error('Failed to parse prompts order', e)
       }
     } else {
-      // Default sort by key if no order saved
       orderedPrompts.sort((a, b) => a.key.localeCompare(b.key))
     }
 
@@ -222,6 +361,19 @@ export default function PromptsPage() {
     setMounted(true)
     fetchPrompts()
   }, [fetchPrompts])
+
+  // Синхронизируем activeTab с URL
+  useEffect(() => {
+    const tab = searchParams.get('tab')
+    if (tab && (tab === 'system' || tab === 'social')) {
+      setActiveTab(tab)
+    }
+  }, [searchParams])
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value)
+    router.push(`/prompts?tab=${value}`, { scroll: false })
+  }
 
   const handleChange = (id: any, content: string) => {
     setEditedPrompts(prev => ({ ...prev, [String(id)]: content }))
@@ -268,11 +420,8 @@ export default function PromptsPage() {
         const newIndex = items.findIndex((item) => item.id === over?.id)
 
         const newItems = arrayMove(items, oldIndex, newIndex)
-
-        // Save new order
         const newOrderIds = newItems.map(i => String(i.id))
 
-        // Persist to project_settings
         supabase
           .from('project_settings')
           .upsert({
@@ -290,55 +439,86 @@ export default function PromptsPage() {
     }
   }
 
+  const renderPrompts = (promptsList: any[]) => (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+    >
+      <SortableContext
+        items={promptsList.map(p => p.id)}
+        strategy={verticalListSortingStrategy}
+      >
+        <div className="grid gap-6">
+          {promptsList.map(p => {
+            const idStr = String(p.id)
+            const currentValue = editedPrompts[idStr] ?? p.content ?? ''
+            const isEdited = hasChanges(p.id)
+            const isSaving = !!saving[idStr]
+
+            return (
+              <SortablePromptCard
+                key={idStr}
+                prompt={p}
+                editedContent={currentValue}
+                isEdited={isEdited}
+                isSaving={isSaving}
+                onSave={save}
+                onChange={handleChange}
+                mounted={mounted}
+              />
+            )
+          })}
+        </div>
+      </SortableContext>
+    </DndContext>
+  )
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div className="space-y-2">
         <h1 className="text-3xl font-bold tracking-tight text-foreground">System Prompts</h1>
         <p className="text-muted-foreground text-sm">
-          Manage AI system prompts for content generation. Drag to reorder.
+          Управление промптами для генерации и адаптации контента
         </p>
       </div>
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext
-          items={prompts.map(p => p.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          <div className="grid gap-6">
-            {prompts.map(p => {
-              const idStr = String(p.id)
-              const currentValue = editedPrompts[idStr] ?? p.content ?? ''
-              const isEdited = hasChanges(p.id)
-              const isSaving = !!saving[idStr]
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="system">Системная логика</TabsTrigger>
+          <TabsTrigger value="social">Промпты для соц. сетей</TabsTrigger>
+        </TabsList>
 
-              return (
-                <SortablePromptCard
-                  key={idStr}
-                  prompt={p}
-                  editedContent={currentValue}
-                  isEdited={isEdited}
-                  isSaving={isSaving}
-                  onSave={save}
-                  onChange={handleChange}
-                  mounted={mounted}
-                />
-              )
-            })}
-          </div>
-        </SortableContext>
-      </DndContext>
+        <TabsContent value="system" className="mt-6">
+          {systemPrompts.length > 0 ? (
+            renderPrompts(systemPrompts)
+          ) : (
+            <div className="text-center py-12 text-zinc-500">
+              <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium">Нет системных промптов</p>
+            </div>
+          )}
+        </TabsContent>
 
-      {prompts.length === 0 && (
-        <div className="text-center py-12 text-zinc-500">
-          <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-          <p className="text-lg font-medium">No prompts found</p>
-          <p className="text-sm">Add prompts to your database to get started</p>
-        </div>
-      )}
+        <TabsContent value="social" className="mt-6">
+          {socialPrompts.length > 0 ? (
+            renderPrompts(socialPrompts)
+          ) : (
+            <div className="text-center py-12 text-zinc-500">
+              <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium">Нет промптов для соцсетей</p>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
+  )
+}
+
+export default function PromptsPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-96"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>}>
+      <PromptsContent />
+    </Suspense>
   )
 }

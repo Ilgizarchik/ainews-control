@@ -35,7 +35,6 @@ type CalendarExtendedProps = {
 export function CalendarView() {
     const calendarRef = useRef<FullCalendar>(null)
     const { jobs, fetchJobs, updateJobTime, updateBatchJobs } = useCalendarJobs()
-    const supabase = useMemo(() => createClient(), [])
     const [recipes, setRecipes] = useState<Recipe[]>([])
 
     // Состояние для отображения текущей даты в нашем кастомном хедере
@@ -43,10 +42,15 @@ export function CalendarView() {
     const [viewType, setViewType] = useState('dayGridMonth') // dayGridMonth или timeGridWeek
 
     useEffect(() => {
-        supabase.from('publish_recipes').select('*').then(({ data }) => {
+        const supabase = createClient()
+        supabase.from('publish_recipes').select('*').then(({ data, error }) => {
+            if (error) {
+                toast.error('Не удалось загрузить настройки публикаций')
+                return
+            }
             if (data) setRecipes(data as Recipe[])
         })
-    }, [supabase])
+    }, [])
 
     // ... (Логику refreshCalendar, useRealtime, handleEventDrop оставляем без изменений) ...
     const refreshCalendar = useCallback(() => {

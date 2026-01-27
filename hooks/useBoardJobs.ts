@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Database } from '@/types/database.types'
+import { toast } from 'sonner'
 
 export type JobWithNews = Database['public']['Tables']['publish_jobs']['Row'] & {
   news_items: {
@@ -27,7 +28,7 @@ export function useBoardJobs() {
       .select('platform')
       .eq('is_main', true)
       .eq('is_active', true)
-      .maybeSingle()
+      .maybeSingle() as { data: { platform: string } | null }
 
     if (mainRecipe) {
       setMainPlatform(mainRecipe.platform)
@@ -39,14 +40,19 @@ export function useBoardJobs() {
       .eq('status', 'queued')
       .order('publish_at', { ascending: true })
 
-    if (error) console.error('Error fetching jobs:', error)
-    else setJobs(data as JobWithNews[])
+    if (error) {
+      console.error('Error fetching jobs:', error)
+      toast.error('Не удалось загрузить задачи')
+    } else {
+      setJobs(data as JobWithNews[])
+    }
     setLoading(false)
   }, [supabase])
 
   const updateJobTime = async (jobId: string, newDate: Date) => {
     const { error } = await supabase
       .from('publish_jobs')
+      // @ts-expect-error - Supabase generated types are incompatible with update
       .update({ publish_at: newDate.toISOString(), updated_at: new Date().toISOString() })
       .eq('id', jobId)
     if (error) throw error

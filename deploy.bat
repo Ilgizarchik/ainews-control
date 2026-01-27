@@ -10,7 +10,9 @@ set "LOG=logs\deploy-%TS%.log"
 set "SERVER=root@166.1.60.87"
 set "REMOTE=/root/deploy.sh"
 
-echo Deploying on server: %SERVER%
+echo [deploy.bat] Starting server-only deploy...
+echo Target: %SERVER%
+echo Script: %REMOTE%
 echo Log: %LOG%
 echo.
 
@@ -19,12 +21,14 @@ set "RC=%ERRORLEVEL%"
 
 echo.
 if not "%RC%"=="0" (
-  echo FAILED (exit code %RC%)
-  echo See log: %LOG%
-  echo --- last 80 lines ---
-  powershell -NoProfile -Command "Get-Content '%LOG%' -Tail 80"
+  echo [ERROR] Deploy FAILED (exit code %RC%)
+  echo See log for details: %LOG%
+  echo.
+  echo --- Last 50 lines of log ---
+  powershell -NoProfile -Command "Get-Content '%LOG%' -Tail 50"
+  echo ---------------------------
 ) else (
-  echo OK
+  echo [SUCCESS] Deploy finished successfully.
   echo See log: %LOG%
 )
 

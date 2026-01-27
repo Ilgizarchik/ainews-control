@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Database } from '@/types/database.types'
+import { toast } from 'sonner'
 
 type JobWithNews = Database['public']['Tables']['publish_jobs']['Row'] & {
   news_items: {
@@ -24,15 +25,23 @@ export function useCalendarJobs() {
       .gte('publish_at', start.toISOString())
       .lt('publish_at', end.toISOString())
 
-    if (error) console.error('Error fetching jobs:', error)
-    else setJobs(data as JobWithNews[])
+    if (error) {
+      console.error('Error fetching jobs:', error)
+      toast.error('Не удалось загрузить задачи публикации')
+    } else {
+      setJobs(data as JobWithNews[])
+    }
     setLoading(false)
   }, [supabase])
 
   const updateJobTime = async (jobId: string, newDate: Date) => {
     const { error } = await supabase
       .from('publish_jobs')
-      .update({ publish_at: newDate.toISOString(), updated_at: new Date().toISOString() })
+      // @ts-expect-error - Supabase generated types are incompatible with update
+      .update({
+        publish_at: newDate.toISOString(),
+        updated_at: new Date().toISOString()
+      })
       .eq('id', jobId)
     if (error) throw error
   }
@@ -42,11 +51,13 @@ export function useCalendarJobs() {
       if (u.id) {
         return supabase
           .from('publish_jobs')
+          // @ts-expect-error - Supabase generated types are incompatible with update
           .update({ publish_at: u.publish_at, updated_at: new Date().toISOString() })
           .eq('id', u.id)
       } else if (u.news_id && u.platform) {
         return supabase
           .from('publish_jobs')
+          // @ts-expect-error - Supabase generated types are incompatible with update
           .update({ publish_at: u.publish_at, updated_at: new Date().toISOString() })
           .eq('news_id', u.news_id)
           .eq('platform', u.platform)

@@ -77,15 +77,16 @@ export function NewsEditorDialog({ newsId, isOpen, onClose, onSaved }: NewsEdito
     const handleSave = async () => {
         setSaving(true)
         try {
-            const { error } = await (supabase
+            const { error } = await supabase
                 .from('news_items')
+                // @ts-expect-error - Supabase generated types are incompatible
                 .update({
                     draft_title: data.draft_title,
                     draft_announce: data.draft_announce,
                     draft_longread: data.draft_longread,
                     gate1_tags: data.gate1_tags
-                } as any)
-                .eq('id', newsId) as any)
+                })
+                .eq('id', newsId)
 
             if (error) throw error
 

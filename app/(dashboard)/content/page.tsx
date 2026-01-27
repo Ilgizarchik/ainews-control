@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { format } from 'date-fns'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Button } from '@/components/ui/button'
+import { toast } from 'sonner'
 
 export default function ContentPage() {
   const [data, setData] = useState<any[]>([])
@@ -29,14 +30,14 @@ export default function ContentPage() {
         .from('news_items')
         .select('*')
         .order('created_at', { ascending: false })
-        .range(from, to)
+        .range(from, to) as any
 
       if (error) throw error
 
       if (newItems) {
         setData(prev => {
-          const existingIds = new Set(prev.map(i => i.id))
-          const uniqueNewItems = newItems.filter(i => !existingIds.has(i.id))
+          const existingIds = new Set(prev.map((i: any) => i.id))
+          const uniqueNewItems = newItems.filter((i: any) => !existingIds.has(i.id))
           return [...prev, ...uniqueNewItems]
         })
         if (newItems.length < PAGE_SIZE) {
@@ -45,6 +46,7 @@ export default function ContentPage() {
       }
     } catch (error) {
       console.error('Error fetching data:', error)
+      toast.error('Не удалось загрузить контент')
     } finally {
       loadingRef.current = false
       setLoading(false)

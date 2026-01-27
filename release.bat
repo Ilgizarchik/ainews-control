@@ -14,16 +14,18 @@ if not defined BASH if exist "%ProgramFiles(x86)%\Git\bin\bash.exe" set "BASH=%P
 if not defined BASH if exist "%ProgramFiles(x86)%\Git\usr\bin\bash.exe" set "BASH=%ProgramFiles(x86)%\Git\usr\bin\bash.exe"
 
 if not defined BASH (
-  echo Git Bash not found. Install Git for Windows. > "%LOG%"
-  echo Git Bash not found. Install Git for Windows.
-  echo Log: %LOG%
+  echo [ERROR] Git Bash not found. Please install Git for Windows.
   pause
   exit /b 1
 )
 
 set "MSG=auto deploy %date% %time%"
 
-echo Running safe release (build + push + deploy)...
+echo [release.bat] Starting full release cycle...
+echo 1. Build (local)
+echo 2. Commit & Push
+echo 3. Deploy (server)
+echo.
 echo Log: %LOG%
 echo.
 
@@ -32,12 +34,14 @@ set "RC=%ERRORLEVEL%"
 
 echo.
 if not "%RC%"=="0" (
-  echo FAILED (exit code %RC%)
-  echo See log: %LOG%
-  echo --- last 120 lines ---
-  powershell -NoProfile -Command "Get-Content '%LOG%' -Tail 120"
+  echo [ERROR] Release FAILED (exit code %RC%)
+  echo See log for details: %LOG%
+  echo.
+  echo --- Last 50 lines of log ---
+  powershell -NoProfile -Command "Get-Content '%LOG%' -Tail 50"
+  echo ---------------------------
 ) else (
-  echo OK
+  echo [SUCCESS] Release finished successfully.
   echo See log: %LOG%
 )
 

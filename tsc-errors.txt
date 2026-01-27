@@ -1,0 +1,9 @@
+app/(dashboard)/content/page.tsx(40,74): error TS2339: Property 'id' does not exist on type 'never'.
+app/(dashboard)/recipes/page.tsx(208,61): error TS2345: Argument of type '{ target_id: string; }' is not assignable to parameter of type 'undefined'.
+app/(dashboard)/recipes/page.tsx(217,66): error TS2345: Argument of type '{ target_id: string; new_state: boolean; }' is not assignable to parameter of type 'undefined'.
+app/(dashboard)/recipes/page.tsx(226,69): error TS2345: Argument of type '{ delay_hours: number; }' is not assignable to parameter of type 'never'.
+components/publications/NewsEditorDialog.tsx(82,25): error TS2345: Argument of type 'any' is not assignable to parameter of type 'never'.
+components/publications/PublicationEventCard.tsx(87,44): error TS2322: Type '{ children: (string | Element)[]; variant: string; className: string; }' is not assignable to type 'IntrinsicAttributes & HTMLAttributes<HTMLDivElement>'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & HTMLAttributes<HTMLDivElement>'.
+components/ui/calendar.tsx(77,9): error TS2353: Object literal may only specify known properties, and 'IconLeft' does not exist in type 'Partial<CustomComponents>'.
+hooks/useBoardJobs.ts(34,34): error TS2339: Property 'platform' does not exist on type 'never'.
