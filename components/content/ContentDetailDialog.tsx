@@ -17,6 +17,7 @@ import { ru } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
 import { approveContentItem, rejectContentItem } from '@/app/actions/content-actions'
+import { ensureAbsoluteUrl } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 
@@ -163,7 +164,7 @@ export function ContentDetailDialog({ item, open, onOpenChange }: ContentDetailD
 
                             {/* Original Link */}
                             <a
-                                href={item.canonical_url}
+                                href={ensureAbsoluteUrl(item.canonical_url, item.source_name)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors group"

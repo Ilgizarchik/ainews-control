@@ -202,9 +202,12 @@ async function parseOhotnikiSearch(source: IngestionSource): Promise<ParsedItem[
 
         let img = $el.find('a.read-material__img img').attr('data-src') || $el.find('a.read-material__img img').attr('src')
 
+        // Ensure absolute link
+        const fullLink = href.startsWith('http') ? href : `https://www.ohotniki.ru${href.startsWith('/') ? '' : '/'}${href}`
+
         items.push({
             title: $el.find('h3.read-material__title').text().trim(),
-            link: href, // ohotniki uses absolute usually
+            link: fullLink,
             summary: $el.find('p.read-material__text').text().trim(),
             publishedAt: null, // Need complex parsing
             imageUrl: img || null,

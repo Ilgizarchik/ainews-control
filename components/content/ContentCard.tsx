@@ -14,6 +14,7 @@ import { approveContentItem, rejectContentItem, markContentViewed } from '@/app/
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { ContentActionResultSchema } from '@/types/content-actions'
+import { ensureAbsoluteUrl } from '@/lib/utils'
 
 interface ContentCardProps {
     item: ContentItem
@@ -270,7 +271,7 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
                     {!item.approve1_decision && (
                         <div className="flex justify-center pt-1">
                             <a
-                                href={item.canonical_url}
+                                href={ensureAbsoluteUrl(item.canonical_url, item.source_name)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1.5 py-1 px-2 rounded-md hover:bg-muted"
