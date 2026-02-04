@@ -347,7 +347,7 @@ export function SocialPostEditorDialog({ job, isOpen, onClose, onUpdate }: Socia
     // --- MOCKUP RENDERERS ---
 
     const renderTelegramMockup = () => (
-        <div className="w-[520px] h-[720px] bg-[#0e1621] rounded-[24px] overflow-hidden flex flex-col shadow-2xl border border-gray-800 mockup-animation">
+        <div className="w-[480px] h-fit bg-[#0e1621] rounded-[24px] overflow-hidden flex flex-col shadow-2xl border border-gray-800 mockup-animation mb-8">
             {/* Header */}
             <div className="h-12 bg-[#17212b] flex items-center px-4 gap-3 shrink-0">
                 <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-xs">
@@ -440,7 +440,7 @@ export function SocialPostEditorDialog({ job, isOpen, onClose, onUpdate }: Socia
     )
 
     const renderThreadsMockup = () => (
-        <div className="w-[540px] bg-white dark:bg-black rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden scale-95">
+        <div className="w-[480px] bg-white dark:bg-black rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden mb-8">
             {/* Header */}
             <div className="h-14 bg-white dark:bg-black border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4">
                 <h1 className="text-xl font-bold text-black dark:text-white">Threads</h1>
@@ -540,7 +540,7 @@ export function SocialPostEditorDialog({ job, isOpen, onClose, onUpdate }: Socia
     )
 
     const renderVKMockup = () => (
-        <div className="w-[540px] bg-white dark:bg-[#19191a] rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden scale-95">
+        <div className="w-[500px] bg-white dark:bg-[#19191a] rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden mb-8">
             {/* VK Header */}
             <div className="h-14 bg-[#447bba] flex items-center px-4">
                 <h1 className="text-white text-xl font-semibold">AiNews</h1>
@@ -588,7 +588,7 @@ export function SocialPostEditorDialog({ job, isOpen, onClose, onUpdate }: Socia
     )
 
     const renderOKMockup = () => (
-        <div className="w-[540px] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden scale-95">
+        <div className="w-[500px] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden mb-8">
             {/* OK Header */}
             <div className="h-14 bg-[#ee8208] flex items-center px-4">
                 <h1 className="text-white text-xl font-semibold">Одноклассники</h1>
@@ -636,7 +636,7 @@ export function SocialPostEditorDialog({ job, isOpen, onClose, onUpdate }: Socia
     )
 
     const renderFBMockup = () => (
-        <div className="w-[540px] bg-white dark:bg-[#18191a] rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden scale-95">
+        <div className="w-[500px] bg-white dark:bg-[#18191a] rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden mb-8">
             {/* FB Header */}
             <div className="h-14 bg-[#1877f2] flex items-center px-4">
                 <h1 className="text-white text-2xl font-bold">f</h1>
@@ -689,7 +689,7 @@ export function SocialPostEditorDialog({ job, isOpen, onClose, onUpdate }: Socia
     )
 
     const renderXMockup = () => (
-        <div className="w-[540px] bg-white dark:bg-black rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden scale-95">
+        <div className="w-[500px] bg-white dark:bg-black rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden mb-8">
             {/* X Header */}
             <div className="h-14 bg-white dark:bg-black border-b border-gray-200 dark:border-gray-800 flex items-center px-4">
                 <svg className="w-7 h-7" viewBox="0 0 24 24" fill="currentColor">
@@ -756,7 +756,7 @@ export function SocialPostEditorDialog({ job, isOpen, onClose, onUpdate }: Socia
     )
 
     const renderSiteMockup = () => (
-        <div className="w-[600px] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden scale-95">
+        <div className="w-[640px] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden mb-8">
             {/* Site Header */}
             <div className="h-16 bg-gradient-to-r from-emerald-500 to-emerald-600 flex items-center px-6">
                 <div className="flex items-center gap-3">
@@ -1226,9 +1226,11 @@ export function SocialPostEditorDialog({ job, isOpen, onClose, onUpdate }: Socia
                 </div>
 
                 {/* RIGHT AREA: Preview (Gray Background like a canvas) */}
-                <div className="flex-1 bg-gray-100 dark:bg-[#09090b] flex items-center justify-center p-4 overflow-hidden relative">
-                    <div className="transition-transform origin-center">
-                        {renderPreview()}
+                <div className="flex-1 bg-gray-50/50 dark:bg-[#09090b] flex justify-center p-8 overflow-y-auto relative custom-scrollbar">
+                    <div className="h-fit w-full flex justify-center">
+                        <div className="transition-all duration-300 transform-gpu">
+                            {renderPreview()}
+                        </div>
                     </div>
                 </div>
 
