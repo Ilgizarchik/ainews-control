@@ -395,6 +395,22 @@ export default function SettingsPage() {
         }
     }
 
+    const updateSingleSetting = async (key: string, value: string) => {
+        const { error } = await supabase
+            .from('project_settings')
+            .upsert({
+                project_key: 'ainews',
+                key: key,
+                value: value,
+                is_active: true
+            } as any, { onConflict: 'project_key,key' })
+
+        if (error) {
+            console.error(error)
+            toast.error(`Ошибка при сохранении: ${key}`)
+        }
+    }
+
     const handleSave = async () => {
         setSaving(true)
 
@@ -1040,7 +1056,13 @@ export default function SettingsPage() {
                             </CardHeader>
                             <CardContent className="flex items-center justify-between">
                                 <span className="text-sm font-medium">{autoIngestion ? 'Активен' : 'Отключен'}</span>
-                                <Switch checked={autoIngestion} onCheckedChange={setAutoIngestion} />
+                                <Switch
+                                    checked={autoIngestion}
+                                    onCheckedChange={(checked) => {
+                                        setAutoIngestion(checked)
+                                        updateSingleSetting('auto_ingestion', String(checked))
+                                    }}
+                                />
                             </CardContent>
                         </Card>
 
@@ -1054,7 +1076,13 @@ export default function SettingsPage() {
                             </CardHeader>
                             <CardContent className="flex items-center justify-between">
                                 <span className="text-sm font-medium text-orange-600/80">{safePublishMode ? 'Симуляция ВКЛ' : 'Реальная публикация'}</span>
-                                <Switch checked={safePublishMode} onCheckedChange={setSafePublishMode} />
+                                <Switch
+                                    checked={safePublishMode}
+                                    onCheckedChange={(checked) => {
+                                        setSafePublishMode(checked)
+                                        updateSingleSetting('safe_publish_mode', String(checked))
+                                    }}
+                                />
                             </CardContent>
                         </Card>
                     </div>
@@ -1217,10 +1245,13 @@ export default function SettingsPage() {
                                                                 }
                                                             } else {
                                                                 // Legacy Source: Update config JSON
-                                                                setIngestionConfig(prev => ({
-                                                                    ...prev,
+                                                                const newIngestionConfig = {
+                                                                    ...ingestionConfig,
                                                                     [source.id]: { isActive: checked }
-                                                                }))
+                                                                }
+                                                                setIngestionConfig(newIngestionConfig)
+                                                                // Auto-save the whole ingestion config
+                                                                updateSingleSetting('ingestion_config', JSON.stringify(newIngestionConfig))
                                                             }
                                                         }}
                                                     />
