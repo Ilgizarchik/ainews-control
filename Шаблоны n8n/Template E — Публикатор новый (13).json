@@ -1,0 +1,3823 @@
+{
+  "name": "Template E — Публикатор новый",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  MAX(value) FILTER (WHERE key='opencart_publish_url') AS opencart_publish_url,\n  MAX(value) FILTER (WHERE key='vk_access_token')      AS vk_access_token,\n  MAX(value) FILTER (WHERE key='vk_owner_id')          AS vk_owner_id,\n  MAX(value) FILTER (WHERE key='vk_api_version')       AS vk_api_version,\n  MAX(value) FILTER (WHERE key='ok_access_token')      AS ok_access_token,\n  MAX(value) FILTER (WHERE key='ok_public_key')        AS ok_public_key,\n  MAX(value) FILTER (WHERE key='ok_app_secret')        AS ok_app_secret,\n  MAX(value) FILTER (WHERE key='ok_group_id')          AS ok_group_id\nFROM public.project_settings\nWHERE project_key = 'ainews'\n  AND is_active = true;\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -4432,
+        1072
+      ],
+      "id": "417feeb5-ef32-4545-b6ec-e444409ccdb4",
+      "name": "БД: Настройки (Supabase)",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.draft_image_file_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              },
+              "id": "4e74889c-514d-4589-9b90-f9757685d0d9"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -3104,
+        1072
+      ],
+      "id": "f30d0374-3571-474f-b1d8-779bb8840543",
+      "name": "Есть File ID?"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.draft_image_file_id }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -2928,
+        544
+      ],
+      "id": "47a7de03-ab40-404b-bb97-9196f53253ba",
+      "name": "TG: Скачать файл",
+      "webhookId": "0891c0dc-646e-49f4-8334-cd3b54b8e4f4",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -2640,
+        800
+      ],
+      "id": "a5cf021c-ae2f-4e1d-b003-717135007373",
+      "name": "Merge Context",
+      "notesInFlow": true,
+      "notes": "Сохраняем JSON + Бинарник"
+    },
+    {
+      "parameters": {
+        "operation": "sendPhoto",
+        "chatId": "={{ $('БД: Чаты Telegram5').first().json.publish_chat_id }}",
+        "file": "={{ $json.draft_image_file_id }}",
+        "additionalFields": {
+          "caption": "=<b>{{ $json.draft_title }}</b>\n\n{{ $json.draft_announce }}\n{{ $json.published_url }}",
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -16,
+        -48
+      ],
+      "id": "8da1fe58-4b13-4442-9e0e-867d1fb222b8",
+      "name": "TG: Post (Binary)",
+      "webhookId": "57137b72-3f3e-44b7-b504-e5613e039afe",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('БД: Чаты Telegram5').first().json.publish_chat_id }}",
+        "text": "={{ $json.draft_title }}\n\n{{ $json.draft_announce }}\n{{ $json.published_url }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -16,
+        224
+      ],
+      "id": "1042e1d1-9670-440d-af49-a281f05170d8",
+      "name": "TG: Post (Text)",
+      "webhookId": "b9e56f2d-e471-4199-bc1c-e5c0cadd96c1",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Определяем контекст (Platform & Job ID)\n// Ищем их во входящих данных или восстанавливаем через 'safeNode'\nfunction safeGetNode(name) {\n  try { return $(name).first().json; } catch(e) { return {}; }\n}\n\n// Пытаемся найти контекст в разных местах\nlet ctx = $json;\nif (!ctx.publish_job_id) ctx = safeGetNode(\"Куда публикуем?5\");\nif (!ctx.publish_job_id) ctx = safeGetNode(\"БД: Lock Job + FileID\");\n\nconst platform = String(ctx.platform || $json.platform || \"\").toLowerCase();\nconst publishJobId = ctx.publish_job_id || $json.publish_job_id;\n\n// 2. Основная логика\nlet ok = true;\nlet externalId = \"\";\nlet errMsg = \"\";\nconst input = $json;\n\n// Проверяем ошибки входящей ноды (HTTP Request)\nconst statusCode = Number(input.statusCode || input.status || 0);\nif (input.error || (statusCode >= 400)) {\n    ok = false;\n    errMsg = JSON.stringify(input.error || input.message || \"HTTP Error \" + statusCode);\n}\n\n// 3. Специфичный парсинг для каждой платформы\nif (ok) {\n    if (platform === 'site') {\n        // !!! ВОТ ЗДЕСЬ БЫЛА ОШИБКА. ТЕПЕРЬ МЫ БЕРЕМ ДАННЫЕ БЕЗОПАСНО !!!\n        // Если мы в ветке сайта, то нода Link точно отработала.\n        // Если вдруг нет (например, тестируете только конец) - берем input\n        let siteData = {};\n        try {\n             siteData = $('Код: Собрать Link').first().json;\n        } catch(e) {\n             siteData = input;\n        }\n        \n        externalId = String(siteData.external_id || siteData.uid || \"\");\n        \n    } else if (platform === 'vk') {\n        // VK возвращает response: { post_id: ... }\n        const body = input.body || input;\n        if (body.response && body.response.post_id) {\n            externalId = String(body.response.post_id);\n        } else if (body.error) {\n            ok = false;\n            errMsg = JSON.stringify(body.error);\n        }\n        \n    } else if (platform === 'tg') {\n        // TG возвращает result: { message_id: ... }\n        const res = input.result || input;\n        if (res.message_id) {\n            externalId = String(res.message_id);\n        } else if (input.ok === false) {\n            ok = false;\n            errMsg = input.description || \"Telegram Error\";\n        }\n        \n    } else if (platform === 'ok') {\n        // OK возвращает просто ID или error_code\n        const body = input.body || input;\n        if (body.error_code) {\n            ok = false;\n            errMsg = `Error ${body.error_code}: ${body.error_msg}`;\n        } else {\n            // Обычно возвращает ID как строку результата\n            externalId = String(body.id || body).replace(/\"/g, \"\"); \n        }\n    }\n}\n\n// 4. Финальная проверка\nif (!publishJobId) {\n    ok = false;\n    errMsg += \" (Job ID not found)\";\n}\n\nreturn [{\n    json: {\n        publish_job_id: publishJobId,\n        platform: platform,\n        is_success: ok,\n        external_id: externalId,\n        error_message: errMsg\n    }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        2240,
+        1088
+      ],
+      "id": "f100a52a-e230-430e-8cee-ec93369053ef",
+      "name": "Код: Результат",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.publish_jobs\nSET\n  status = $2,\n  published_at_actual = CASE WHEN $2 = 'published' THEN NOW() ELSE published_at_actual END,\n  external_id = $3,\n  error_message = $4,\n  retry_count = CASE WHEN $2 = 'error' THEN COALESCE(retry_count, 0) + 1 ELSE COALESCE(retry_count, 0) END,\n  updated_at = NOW()\nWHERE id = $1;\n",
+        "options": {
+          "queryReplacement": "={{ [\n  $json.publish_job_id,\n  $json.is_success ? 'published' : 'error',\n  $json.external_id || null,\n  $json.error_message || null\n] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2448,
+        1088
+      ],
+      "id": "fe5c7667-0021-40bf-acd6-e0576f291bc5",
+      "name": "БД: Обновить статус",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  MAX(chat_id) FILTER (WHERE purpose = 'rss_draft') AS rss_draft_chat_id,\n  MAX(chat_id) FILTER (WHERE purpose = 'approve')   AS approve_chat_id,\n  MAX(chat_id) FILTER (WHERE purpose = 'publish')   AS publish_chat_id\nFROM public.telegram_chats\nWHERE project_key = 'ainews'\n  AND is_active = true;\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -4240,
+        1072
+      ],
+      "id": "1e7e20e3-f0b2-48e2-9ffc-53acb36ef83e",
+      "name": "БД: Чаты Telegram5",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "tg",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "0f4b4a3e-11ae-4d7d-bc06-ecf1e1d4a6ea"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "tg"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "vk",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "5a772865-47d5-4a11-8443-5960d03ed0a1"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "vk"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "ok",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "0a7cbef1-8e86-4715-9c57-8a5af9c4ac7e"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "ok"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "site",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "1a17e3a2-51c2-413b-99f3-d36b8b62e9bb"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "site"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "ed153898-3556-42bb-a373-d89abcfe15f8",
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "FB",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "FB"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "9945adef-459a-4975-989f-a85b6c2ce94a",
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "X",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "X"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "d7df20f4-a96b-4e6a-967d-f89315fd344c",
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "Threads",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "threads"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "4722a552-3dcd-4791-a269-fbd2aa78f054",
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "Instagram",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Instagram"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -1664,
+        1008
+      ],
+      "id": "0e178ff4-8342-416c-86f5-df2529c87318",
+      "name": "Куда публикуем?5"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $binary.data }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "notEmpty",
+                "singleValue": true
+              },
+              "id": "8d380766-3829-4591-9556-32d88737229e"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -1584,
+        -48
+      ],
+      "id": "4ba3d44a-d8c6-4f64-b563-ab1bef91c32b",
+      "name": "TG: Есть бинарник?3"
+    },
+    {
+      "parameters": {
+        "dataToSave": {
+          "values": [
+            {
+              "key": "run",
+              "value": "work"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executionData",
+      "typeVersion": 1.1,
+      "position": [
+        2688,
+        1088
+      ],
+      "id": "34ab7741-179e-4b43-9c15-2e3a48c46153",
+      "name": "Execution Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Определяем входные данные (пришли от AI-агента)\nconst inputItem = $input.first();\nconst json = inputItem.json;\n\n// 2. Достаем поля\n// ВАЖНО: Сначала ищем 'text' (результат AI), потом 'response', и только потом старые поля\nconst title = json.draft_title || json.title || 'No Title';\nconst content = json.text || json.response || json.draft_longread || '<p>No content</p>'; \n\n// 3. Формируем дату\nconst now = new Date();\nconst pad = (n) => String(n).padStart(2, '0');\nconst dateStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;\n\n// 4. Проверяем наличие бинарника (картинки)\n// Бинарник мог потеряться после AI-ноды, если она его не пробрасывает.\n// Но в n8n binary обычно пролетает сквозь ноды, если не перетерт.\nconst hasImage = !!inputItem.binary && !!inputItem.binary.data;\n\nreturn [\n  {\n    json: {\n      // Ваши ID\n      feeduid: \"175116416341\",\n      projectid: \"7604066\",\n\n      // Данные статьи (уже отформатированные AI)\n      title: title,\n      articleHtml: content,\n      date: dateStr,\n      hasImage: hasImage,\n\n      // Пробрасываем ID (убедись, что AI-нода их не стерла, иначе возьми из контекста)\n      news_id: json.news_id,\n      publish_job_id: json.publish_job_id,\n\n      // Технические заголовки\n      userAgent: \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36\",\n      referer: \"https://feeds.tilda.ru/posts/?feeduid=175116416341\"\n    },\n    // Пробрасываем бинарник дальше\n    binary: inputItem.binary\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -848,
+        1552
+      ],
+      "id": "90320dc8-48f7-4b2f-bf47-cb48aa06e30a",
+      "name": "Код: Подготовка Данных"
+    },
+    {
+      "parameters": {
+        "url": "https://feeds.tilda.ru/posts/",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "feeduid",
+              "value": "={{ $json.feeduid }}"
+            },
+            {
+              "name": "projectid",
+              "value": "={{ $json.projectid }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "user-agent",
+              "value": "={{ $json.userAgent }}"
+            },
+            {
+              "name": "referer",
+              "value": "https://feeds.tilda.ru/"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -624,
+        1552
+      ],
+      "id": "ffbe86cd-8071-4251-9972-6856c2658f84",
+      "name": "HTTP: Получить ключи",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "Og6hwhT1p4jpBzDr",
+          "name": "Тильда"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\n// Берем body или data, так как формат ответа может отличаться\nconst html = raw.data || raw.body || raw || '';\n\nfunction findKey(name) {\n  let regex = new RegExp(`${name}\\\\s*[:=]\\\\s*[\\\"']([^\\\"']+)`, 'i');\n  let match = html.match(regex);\n  if (match) return match[1];\n  regex = new RegExp(`name=[\\\"']${name}[\\\"']\\\\s+value=[\\\"']([^\\\"']+)`, 'i');\n  match = html.match(regex);\n  if (match) return match[1];\n  return null;\n}\n\nconst publickey = findKey('publickey');\nconst uploadkey = findKey('uploadkey');\n\nif (!publickey || !uploadkey) {\n  throw new Error('Не удалось спарсить ключи. Сессия истекла?');\n}\n\n// Возвращаем ключи и сохраняем исходный контекст (IDs)\nreturn [{\n  json: {\n    fresh_publickey: publickey,\n    fresh_uploadkey: uploadkey,\n    ...$input.first().json // Пробрасываем IDs дальше\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        1552
+      ],
+      "id": "370abecc-4078-4246-b2bc-f6691602cec7",
+      "name": "Код: Спарсить ключи"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://feeds.tilda.ru/submit/",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "*/*"
+            },
+            {
+              "name": "origin",
+              "value": "https://feeds.tilda.ru"
+            },
+            {
+              "name": "referer",
+              "value": "={{ $('Код: Подготовка Данных').first().json.referer }}"
+            },
+            {
+              "name": "user-agent",
+              "value": "={{ $('Код: Подготовка Данных').first().json.userAgent }}"
+            },
+            {
+              "name": "x-requested-with",
+              "value": "XMLHttpRequest"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "feeduid",
+              "value": "={{ $('Код: Подготовка Данных').first().json.feeduid }}"
+            },
+            {
+              "name": "partuid"
+            },
+            {
+              "name": "title",
+              "value": "={{ $('Код: Подготовка Данных').first().json.title }}"
+            },
+            {
+              "name": "action",
+              "value": "posts_Add"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -224,
+        1552
+      ],
+      "id": "eb433616-b9c1-4da9-b353-6746d496c286",
+      "name": "HTTP: posts_Add (Создать)",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "Og6hwhT1p4jpBzDr",
+          "name": "Тильда"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nconst pickBody = (o) => o?.body?.parsedBody || o?.body || o?.data || o;\nconst body = pickBody(raw);\nlet parsed = body;\nif (typeof body === 'string') { try { parsed = JSON.parse(body); } catch (e) {} }\n\nconst postuid = parsed?.data?.uid || parsed?.data?.postuid || parsed?.uid || parsed?.postuid;\nif (!postuid) throw new Error('postuid not found');\n\n// Сохраняем postuid и восстанавливаем контекст из ноды с ключами\nreturn [{\n    json: {\n        postuid,\n        ...$('Код: Спарсить ключи').first().json // Восстанавливаем IDs\n    }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1552
+      ],
+      "id": "d8ac2ff3-8ff8-4c1e-a599-f5bd68f98bcd",
+      "name": "Код: Взять postuid"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $('Код: Подготовка Данных').first().json.hasImage }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        224,
+        1552
+      ],
+      "id": "f2739df2-f814-4aa4-8851-d1e61dad8e6f",
+      "name": "IF: Есть картинка?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://upload.tildacdn.com/api/upload/?publickey={{ $('Код: Спарсить ключи').first().json.fresh_publickey }}&uploadkey={{ $('Код: Спарсить ключи').first().json.fresh_uploadkey }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json"
+            },
+            {
+              "name": "origin",
+              "value": "https://feeds.tilda.ru"
+            },
+            {
+              "name": "referer",
+              "value": "https://feeds.tilda.ru/"
+            },
+            {
+              "name": "user-agent",
+              "value": "={{ $('Код: Подготовка Данных').first().json.userAgent }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "publickey",
+              "value": "={{ $('Код: Спарсить ключи').first().json.fresh_publickey }}"
+            },
+            {
+              "name": "uploadkey",
+              "value": "={{ $('Код: Спарсить ключи').first().json.fresh_uploadkey }}"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        576,
+        1472
+      ],
+      "id": "c79eae1e-2b11-4b96-844f-aba6b045d200",
+      "name": "HTTP: Upload (Бинарник)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nlet body = raw.body || raw.data || raw;\n\nif (typeof body === 'string') {\n  try { body = JSON.parse(body); } catch (e) {}\n}\n\n// Универсальный поиск ссылки\nconst imageUrl =\n  body?.result?.[0]?.cdnUrl ||\n  body?.result?.[0]?.url ||\n  body?.cdnUrl ||\n  body?.url ||\n  body?.file || \n  \"\";\n\nif (!imageUrl) {\n    throw new Error(\"Не удалось найти ссылку на картинку в ответе Тильды\");\n}\n\n// Сохраняем URL и контекст из предыдущей ноды (там лежали IDs)\nreturn [{\n    json: {\n        imageUrl,\n        ...$('Код: Взять postuid').first().json // Восстанавливаем данные\n    }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        736,
+        1472
+      ],
+      "id": "89604112-87f6-44a0-8730-299332cc9775",
+      "name": "Код: Взять URL"
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputJson = $input.first().json;\nconst ctx = $('Код: Подготовка Данных').first().json;\n\nconst postuid = inputJson.postuid;\nconst imageUrl = inputJson.imageUrl;\n\n// Текст, подготовленный AI\nconst rawText = ctx.articleHtml || '';\n\n// --- ФОРМИРОВАНИЕ КОНТЕНТА ---\n\nconst contentBlocks = [];\n\n// 1. Блок Картинки\nif (imageUrl) {\n    contentBlocks.push({\n        \"ty\": \"image\",\n        \"url\": imageUrl, \n        \"zoomin\": \"y\" \n    });\n}\n\n// 2. Разбивка на абзацы (FIX)\n// Используем Regex, чтобы ловить и \\n\\n, и \\r\\n\\r\\n, и три энтера подряд\n// Это решит проблему \"слипшегося\" текста\nconst paragraphs = rawText.split(/\\n\\s*\\n/); \n\n// 3. Формирование блоков\nparagraphs.forEach(paragraph => {\n    const cleanParagraph = paragraph.trim();\n    \n    if (cleanParagraph.length > 0) {\n        // Меняем одиночные переносы внутри абзаца на <br>\n        const htmlReady = cleanParagraph.replace(/\\n/g, '<br>');\n        \n        contentBlocks.push({\n            \"ty\": \"text\",\n            \"te\": htmlReady\n        });\n    }\n});\n\nconst textPayload = JSON.stringify(contentBlocks);\n\n// -------------------------------------\n\nreturn [{\n  json: {\n    postuid: postuid,\n    feeduid: ctx.feeduid,\n    title: ctx.title, // Теперь заголовок вернется (после Merge)\n    \n    mediatype: 'image',\n    mediadata: '',\n    image: imageUrl,\n    thumb: imageUrl,\n    \n    text: textPayload,\n    action: 'posts_Edit',\n    \n    // Проброс ID\n    news_id: inputJson.news_id,\n    publish_job_id: inputJson.publish_job_id\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        912,
+        1472
+      ],
+      "id": "e7631daa-11a9-42a8-8dba-b3b923f0d5ba",
+      "name": "Payload: С картинкой"
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputJson = $input.first().json;\nconst ctx = $('Код: Подготовка Данных').first().json;\n\nconst postuid = inputJson.postuid;\n\n// Без картинки (только текст)\nconst textPayload = JSON.stringify([ { \"ty\": \"text\", \"te\": ctx.articleHtml || '' } ]);\n\nreturn [{\n  json: {\n    postuid: postuid,\n    feeduid: ctx.feeduid,\n    title: ctx.title,\n    mediatype: '',\n    mediadata: '',\n    image: '',\n    thumb: '',\n    text: textPayload,\n    action: 'posts_Edit',\n\n    // ПРОБРОС ДАННЫХ ВАЖЕН ЗДЕСЬ\n    news_id: inputJson.news_id,\n    publish_job_id: inputJson.publish_job_id\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        432,
+        1712
+      ],
+      "id": "525335e3-d9c8-47f3-959b-faf4006e8a7d",
+      "name": "Payload: Только текст"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst ctx = $('Код: Подготовка Данных').first().json;\n\n// === БЕЗОПАСНО достаем картинку ===\nlet draftImageUrl = null;\n\ntry {\n  // Пытаемся найти ноду с картинкой. \n  // Если workflow шёл по ветке \"Только текст\", n8n выкинет ошибку, и мы попадем в catch.\n  const payloadNode = $('Payload: С картинкой').first();\n  \n  if (payloadNode && payloadNode.json && payloadNode.json.image) {\n      draftImageUrl = payloadNode.json.image;\n  }\n} catch (e) {\n  // Если ноды нет в контексте выполнения, просто оставляем draftImageUrl = null\n}\n\n// === Парсим ответ от Тильды ===\nlet data = {};\nconst rawBody = response.body || response.data || response;\n\ntry {\n  if (typeof rawBody === 'string') {\n     data = JSON.parse(rawBody);\n  } else {\n     data = rawBody || {};\n  }\n} catch (e) {}\n\nconst post = data.post || data.data || data || {};\nconst slug = post.postdefaulturl || post.slug || post.postalias || \"\";\nconst uid = post.uid || \"\";\n\n// === Собираем ссылку ===\nconst domain = \"https://khc-ammunition.ru\"; \nconst partUrl = \"tpost\"; \nlet finalUrl = \"\";\n\nif (slug) {\n    finalUrl = `${domain}/${partUrl}/${slug}`;\n} else if (uid) {\n    finalUrl = `${domain}/${partUrl}/${uid}`;\n}\n\n// === Возвращаем результат ===\nreturn [{\n  json: {\n    published_url: finalUrl,\n    post_slug: slug,\n    raw_post_data: post,\n    \n    // Ссылка на картинку (или null)\n    draft_image_url: draftImageUrl, \n\n    // Восстановленные ID\n    news_id: ctx.news_id,\n    publish_job_id: ctx.publish_job_id,\n    platform: 'site', \n    external_id: uid || slug\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        1696
+      ],
+      "id": "44ddbbb1-3c01-49a9-8943-2ea23b464a0e",
+      "name": "Код: Собрать Link"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.news_items\nSET \n  published_url = $1,\n  draft_image_url = $3\nWHERE id = $2\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [ $json.published_url, $json.news_id, $json.draft_image_url ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2128,
+        1696
+      ],
+      "id": "f4d7d4aa-4491-4092-bcb1-9bc4c4f3560e",
+      "name": "БД: Сохранить URL",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        400,
+        1472
+      ],
+      "id": "0dd86004-c667-475d-9992-3484e40866b7",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH \n-- 1. ГЛОБАЛЬНЫЙ ТОРМОЗ\nactive_jobs AS (\n  SELECT id \n  FROM public.publish_jobs \n  WHERE status = 'processing' \n    AND updated_at > NOW() - interval '5 minutes'\n  LIMIT 1\n),\n\n-- 2. КАНДИДАТ (Полиморфный поиск)\ncandidate AS (\n  SELECT pj.id\n  FROM public.publish_jobs pj\n  WHERE \n    NOT EXISTS (SELECT 1 FROM active_jobs)\n    AND pj.publish_at <= NOW()\n    AND (\n       pj.status = 'queued'\n       OR pj.status = 'error'\n       OR (pj.status = 'processing' AND pj.updated_at <= NOW() - interval '5 minutes')\n    )\n    -- УСЛОВИЯ ГОТОВНОСТИ\n    AND (\n      -- а) Это служебная задача для сайта\n      pj.platform = 'site' \n      -- б) Это НОВОСТЬ, и она уже опубликована на сайте (есть URL)\n      OR (pj.news_id IS NOT NULL AND EXISTS (\n        SELECT 1 FROM public.news_items ni \n        WHERE ni.id = pj.news_id \n          AND ni.published_url IS NOT NULL \n          AND ni.published_url != ''\n      ))\n      -- в) Это ОБЗОР (считаем всегда готовым, если попал в очередь)\n      OR (pj.review_id IS NOT NULL)\n    )\n  ORDER BY\n    CASE WHEN pj.platform = 'site' THEN 0 ELSE 1 END ASC,\n    pj.publish_at ASC\n  LIMIT 1\n  FOR UPDATE SKIP LOCKED\n),\n\n-- 3. БЛОКИРОВКА ЗАДАЧИ\nupd AS (\n  UPDATE public.publish_jobs pj\n  SET \n    status = 'processing',\n    updated_at = NOW()\n  WHERE pj.id IN (SELECT id FROM candidate)\n  RETURNING pj.*\n)\n\n-- 4. СБОРКА ДАННЫХ (COALESCE объединяет новости и обзоры)\nSELECT\n  upd.id AS publish_job_id,\n  upd.news_id,\n  upd.review_id,\n  upd.platform,\n  upd.publish_at,\n  upd.retry_count,\n  \n  -- Заголовки и тексты (берем оттуда, где не NULL)\n  COALESCE(ni.draft_title, ri.draft_title) AS draft_title,\n  COALESCE(ni.draft_announce, ri.draft_announce) AS draft_announce,\n  COALESCE(ni.draft_longread, ri.draft_longread) AS draft_longread,\n  \n  -- Файлы и картинки\n  COALESCE(ni.draft_image_file_id, ri.draft_image_file_id) AS draft_image_file_id, \n  COALESCE(ni.image_url, NULL) AS image_url,\n  COALESCE(ni.draft_image_url, NULL) AS draft_image_url,\n\n  -- Ссылки\n  COALESCE(ni.canonical_url, NULL) AS canonical_url,\n  COALESCE(ni.published_url, NULL) AS published_url\n\nFROM upd\nLEFT JOIN public.news_items ni ON ni.id = upd.news_id\nLEFT JOIN public.review_items ri ON ri.id = upd.review_id;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -3680,
+        1072
+      ],
+      "id": "e40bb4c2-51a5-4d53-8cb8-4068bf95f0a2",
+      "name": "БД: Lock Job + FileID",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT published_url \nFROM public.news_items \nWHERE id = $1\nUNION ALL\nSELECT NULL WHERE $1 IS NULL; -- Заглушка для обзоров, чтобы не было ошибки",
+        "options": {
+          "queryReplacement": "={{ [$json.news_id] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -2256,
+        1088
+      ],
+      "id": "defe49bd-1017-4d2f-a248-255800fa540b",
+      "name": "БД: Обновить URL",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Объединяем свежий URL из базы с основными данными задачи\nconst originalData = $input.item.json;\n// Данные из предыдущей ноды (БД: Обновить URL)\n// Так как Postgres возвращает новый массив, нам нужно аккуратно смержить\n// В данном контексте n8n (Run per item) input содержит и то и то, если подключено последовательно\n\n// Но простой вариант в n8n Code (chaining):\n// $input.item.json уже содержит результат последней ноды (published_url)\n// А нам нужно вернуть старые поля (draft_announce и т.д.)\n\n// Чтобы не усложнять, мы берем published_url из input, а все остальные поля\n// восстанавливаем из контекста ноды \"Merge Context\" (или той, что была ДО Postgres)\n\n// ЛУЧШИЙ ВАРИАНТ:\n// Просто добавляем published_url в текущий поток, если он пришел\n\nconst newUrl = $input.first().json.published_url;\n\n// Восстанавливаем данные из ноды перед Postgres (Merge Context)\n// Убедись, что имя ноды 'Merge Context' совпадает с твоим!\nconst prevNode = $('Merge Context').first().json;\n\nreturn [{\n  json: {\n    ...prevNode,\n    published_url: newUrl || prevNode.published_url, // Берем свежий или старый\n  },\n  binary: $('Merge Context').first().binary // Пробрасываем бинарник\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1984,
+        1088
+      ],
+      "id": "d4759069-3554-46c4-a76b-1fd0dc3af559",
+      "name": "Код: Внедрить ссылку"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://feeds.tilda.ru/submit/",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "*/*"
+            },
+            {
+              "name": "origin",
+              "value": "https://feeds.tilda.ru"
+            },
+            {
+              "name": "referer",
+              "value": "={{ $('Код: Подготовка Данных').first().json.referer }}"
+            },
+            {
+              "name": "user-agent",
+              "value": "={{ $('Код: Подготовка Данных').first().json.userAgent }}"
+            },
+            {
+              "name": "x-requested-with",
+              "value": "XMLHttpRequest"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "postuid",
+              "value": "={{ $('Код: Взять postuid').first().json.postuid }}"
+            },
+            {
+              "name": "action",
+              "value": "posts_Active"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1520,
+        1696
+      ],
+      "id": "79d8769c-5dff-481c-9a7f-008a0b3dc7e1",
+      "name": "HTTP: posts_Active (Публикация)",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "Og6hwhT1p4jpBzDr",
+          "name": "Тильда"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://feeds.tilda.ru/submit/",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "*/*"
+            },
+            {
+              "name": "origin",
+              "value": "https://feeds.tilda.ru"
+            },
+            {
+              "name": "referer",
+              "value": "={{ $('Код: Подготовка Данных').first().json.referer }}"
+            },
+            {
+              "name": "user-agent",
+              "value": "={{ $('Код: Подготовка Данных').first().json.userAgent }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "postuid",
+              "value": "={{ $('Код: Взять postuid').first().json.postuid }}"
+            },
+            {
+              "name": "action",
+              "value": "posts_Get"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1728,
+        1696
+      ],
+      "id": "f41be8aa-6735-4812-ad88-a7c8f3a3c1cc",
+      "name": "HTTP: Получить Ссылку (posts_Get)",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "Og6hwhT1p4jpBzDr",
+          "name": "Тильда"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://feeds.tilda.ru/submit/",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "*/*"
+            },
+            {
+              "name": "origin",
+              "value": "https://feeds.tilda.ru"
+            },
+            {
+              "name": "referer",
+              "value": "={{ $('Код: Подготовка Данных').first().json.referer }}"
+            },
+            {
+              "name": "user-agent",
+              "value": "={{ $('Код: Подготовка Данных').first().json.userAgent }}"
+            },
+            {
+              "name": "x-requested-with",
+              "value": "XMLHttpRequest"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "action",
+              "value": "posts_Edit"
+            },
+            {
+              "name": "postuid",
+              "value": "={{ $json.postuid }}"
+            },
+            {
+              "name": "feeduid",
+              "value": "={{ $json.feeduid }}"
+            },
+            {
+              "name": "title",
+              "value": "={{ $json.title }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.text }}"
+            },
+            {
+              "name": "mediatype",
+              "value": "={{ $json.mediatype }}"
+            },
+            {
+              "name": "mediadata",
+              "value": "={{ $json.mediadata }}"
+            },
+            {
+              "name": "image",
+              "value": "={{ $json.image }}"
+            },
+            {
+              "name": "thumb",
+              "value": "={{ $json.thumb }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1296,
+        1696
+      ],
+      "id": "b918493c-4b9e-4dcb-81c3-ff5a82526c89",
+      "name": "HTTP: posts_Edit (Наполнить)",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "Og6hwhT1p4jpBzDr",
+          "name": "Тильда"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.draft_longread }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=Ты — профессиональный веб-редактор. Твоя задача — техническая верстка текста для сайта.\n\nВходящие данные: Сырой текст новости.\n\nИНСТРУКЦИИ:\n\n1. КОНТЕНТ:\n   - Сохрани текст и его смысл на 100%.\n   - ЗАПРЕЩЕНО удалять предложения.\n\n2. СТРУКТУРА И АБЗАЦЫ:\n   - Разбей текст на смысловые абзацы (по 2-4 предложения).\n   - Между абзацами ставь СТРОГО разделитель `\\n\\n` (двойной перенос).\n   - Если первое предложение похоже на заголовок/лид — отдели его от тела статьи через `\\n\\n`.\n\n3. СПИСКИ (СТРОГО):\n   - Создавай HTML-список (`<ul>` или `<ol>`) ТОЛЬКО если в перечислении 4 и более пунктов.\n   - Если пунктов 3 или меньше — ОСТАВЛЯЙ их внутри предложения через запятую. Не разрывай текст ради коротких списков.\n   - Исключение: Пошаговые инструкции (Шаг 1, Шаг 2) оформляй списком даже если их мало.\n   - Внутри HTML-списка (`<ul>...</ul>`) ЗАПРЕЩЕНО использовать `\\n\\n`. Весь список должен быть одной строкой кода.\n\n4. ЖИРНЫЙ (<b>) И КУРСИВ (<i>):\n   - Выдели жирным 1-3 ключевых объекта (суть новости). Не выделяй целые предложения.\n   - Курсив — только для цитат.\n\n5. ССЫЛКИ И ГИПЕРССЫЛКИ (<a>):\n   - Любые URL в тексте должны стать кликабельными ссылками.\n   - Если URL уже внутри `<a ...>` — НЕ трогай.\n   - Формат: `<a href=\"URL\" target=\"_blank\" rel=\"noopener noreferrer\">ТЕКСТ</a>`\n   - В href должен быть полный адрес. Если начинается с `www.` — добавь `https://`.\n   - НЕ включай в href завершающую пунктуацию (.,;:!?) и закрывающие скобки. Пунктуация должна остаться СНАРУЖИ тега `<a>`.\n\n   ВЫБОР ТЕКСТА ССЫЛКИ (анкор) — по приоритету:\n\n   A) Контекстный анкор (главное правило):\n      - Если прямо перед URL в этом же предложении есть “название ссылки” (например: `сайт ГД РФ`, `на сайте Госдумы`, `проект №10375-8`, `Проект ФЗ №10375-8 (статья 13 НК РФ)`),\n        то URL заменяй на ссылку, а текстом ссылки ставь ИМЕННО эту фразу.\n      - То есть оставляй смысловую подпись, а “голый” URL прячь внутрь `<a>...</a>`.\n      Пример:\n      `сайт ГД РФ (https://sozd.duma.gov.ru)` -> `сайт ГД РФ (<a href=\"https://sozd.duma.gov.ru\" ...>сайт</a>)`\n      или если без скобок:\n      `Смотрим на сайте ГД РФ: https://sozd.duma.gov.ru` -> `Смотрим на сайте ГД РФ: <a href=\"https://sozd.duma.gov.ru\" ...>сайт</a>`\n\n   B) Спец-правило для домена sozd.duma.gov.ru:\n      - Если URL = `https://sozd.duma.gov.ru` (или с `/` на конце) — текст ссылки всегда `сайт`.\n\n   C) Спец-правило для законопроектов Госдумы:\n      - Если URL содержит `/bill/XXXXXX-8`:\n        1) Если рядом в предложении уже есть подпись вида `Проект ФЗ №XXXXXX-8 ...` — используй её (см. правило A).\n        2) Если подписи нет — сгенерируй текст ссылки:\n           `Проект ФЗ №XXXXXX-8`\n        Пример:\n        `https://sozd.duma.gov.ru/bill/10375-8` -> `<a href=\"...\" ...>Проект ФЗ №10375-8</a>`\n\n   D) Общее правило (если ни A/B/C не сработали):\n      - Если URL стоит после слов `Ссылка:`, `Ссылка на ...:`, `Ссылка здесь:` — используй текст `ссылка`.\n      - Иначе используй короткий текст `ссылка`, НЕ оставляй голый URL.\n6. ВЫВОД:\n   - Верни ТОЛЬКО готовый текст с HTML-тегами. Без markdown-кавычек, без пояснений."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.8,
+      "position": [
+        -1408,
+        1568
+      ],
+      "id": "94159b67-b942-4548-9ec2-147e0b66b5c1",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -1072,
+        1552
+      ],
+      "id": "b562459b-2e84-4863-9a31-91b793865f81",
+      "name": "Merge Context1",
+      "notesInFlow": true,
+      "notes": "Сохраняем JSON + Бинарник"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -5440,
+        112
+      ],
+      "id": "f9c860ea-05b3-4fbc-abe6-1d49a90689e7",
+      "name": "Schedule Trigger",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5-mini",
+        "options": {
+          "timeout": 360000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -1408,
+        1776
+      ],
+      "id": "8ea68955-1114-456c-8009-b7cdfe124000",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "OPxPNafAYGtjuKlH",
+          "name": "AI News"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpRequestMethod": "POST",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        2048,
+        5568
+      ],
+      "id": "da39c8f4-3e3a-4178-8e32-9bc4ebd3c884",
+      "name": "Facebook Graph API"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1616,
+        5984
+      ],
+      "id": "5a62e2a7-0fac-44d8-98e9-782939f77a49",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/oauth/access_token",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "grant_type",
+              "value": "fb_exchange_token"
+            },
+            {
+              "name": "client_id",
+              "value": "1187547946884915"
+            },
+            {
+              "name": "client_secret",
+              "value": "053e3e9dd0bd2bc9e4afecc0569c0d68"
+            },
+            {
+              "name": "fb_exchange_token",
+              "value": "EAAQ4EY2HHzMBQtAhOnPKMvalcGMg8eEL7d37H1WwvPK6owZCGWbBUzq3iZBD7erLrew5Rferdlz0eM4aiNmBsDgbvjW0AeHeUhwJZAqTCF75SBEXV9gsnXeSNKvFTe3ADEuDcnoZB2MXMmprZBwp1cl2Cu7O08rvIIKHBeNpwXaE7VyokHliZADrrZBUMwW3OA3KfMIE5v4EPq03qGGBnnqsCJP7TmAjUnnknIGsyM5LWt4q9SlxPoAwkqESGfYUZATWG35YAjPsk2eVyC9sxPDgAgZDZD"
+            }
+          ]
+        },
+        "options": {
+          "response": {}
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1728,
+        5552
+      ],
+      "id": "806c92b2-71a4-4059-9cc6-7aa499a7b0f0",
+      "name": "FB: Exchange Long-Lived User Token",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v24.0/me/accounts",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "name,id,access_token"
+            },
+            {
+              "name": "access_token",
+              "value": "EAARUnJmxZBJgBQgiLHjTylZA0ZBchp8HZCcc01Vs3oh01eWDW8VDvHPgcfQx20GAZACrcq4fAGnnL7KzgC0jN32Hxt275YhFNkfUC03gGJ11AqywGAGnt4gZBM8NYBLRWL8fPhh7M97AZADyPizJ5HJa61CsuZB6ABmtGDTYSl17fINzCbTuySkv1MTerAtGYcLhfgZDZD"
+            }
+          ]
+        },
+        "options": {
+          "response": {}
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        880,
+        4848
+      ],
+      "id": "29cd7943-57fc-4d9a-b27c-6c8c38e4395a",
+      "name": "FB: List Pages (me/accounts)1",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://graph.threads.net/v1.0/me",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "id,username,name"
+            },
+            {
+              "name": "access_token",
+              "value": "EAAQ4EY2HHzMBQkZC1ZCngVO7vV49qDqAfKnjxd1xiQ8ZCnVSFkgJVIUbq9ZAMsuaZCKHZA0OmAIpPQna7SSHisUqRGQ1NkLiU29EGkZCa3POwgcB3WtXnDFRrSdBVufqKV4HtSkrOZC5nuPG6HciCB6HzGbZBetj1yOvfx1APcDSFHhe7wWQt1ZCz39SPxIMw3"
+            }
+          ]
+        },
+        "options": {
+          "response": {}
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1168,
+        5552
+      ],
+      "id": "27e821b6-92d8-4da4-b745-1eff99cce418",
+      "name": "TH: Me Profile",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://graph.threads.net/v1.0/' + $json.id }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "id,username,name"
+            },
+            {
+              "name": "access_token",
+              "value": "<THREADS_LONG_LIVED_TOKEN>"
+            }
+          ]
+        },
+        "options": {
+          "response": {}
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1424,
+        5552
+      ],
+      "id": "8f38b0f9-bde1-4737-82ca-5ef18d6aff9d",
+      "name": "TH: Validate Token (by id)",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://graph.threads.net/me",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_token",
+              "value": "EAARUnJmxZBJgBQgiLHjTylZA0ZBchp8HZCcc01Vs3oh01eWDW8VDvHPgcfQx20GAZACrcq4fAGnnL7KzgC0jN32Hxt275YhFNkfUC03gGJ11AqywGAGnt4gZBM8NYBLRWL8fPhh7M97AZADyPizJ5HJa61CsuZB6ABmtGDTYSl17fINzCbTuySkv1MTerAtGYcLhfgZDZD"
+            }
+          ]
+        },
+        "options": {
+          "response": {}
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1136,
+        5952
+      ],
+      "id": "4932ce24-9fd9-429b-af82-d0ddd87b5aac",
+      "name": "TH: Me (simple)",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://graph.threads.net/v1.0/me",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "id,username"
+            },
+            {
+              "name": "access_token",
+              "value": "EAARUnJmxZBJgBQgiLHjTylZA0ZBchp8HZCcc01Vs3oh01eWDW8VDvHPgcfQx20GAZACrcq4fAGnnL7KzgC0jN32Hxt275YhFNkfUC03gGJ11AqywGAGnt4gZBM8NYBLRWL8fPhh7M97AZADyPizJ5HJa61CsuZB6ABmtGDTYSl17fINzCbTuySkv1MTerAtGYcLhfgZDZD"
+            }
+          ]
+        },
+        "options": {
+          "response": {}
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1392,
+        5952
+      ],
+      "id": "3af81313-5df6-4d68-9adc-4dc28db6abf0",
+      "name": "TH: Me (v1.0 minimal fields)",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5-mini",
+        "options": {
+          "timeout": 360000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -1408,
+        2640
+      ],
+      "id": "b65e99e8-cee4-4ab1-b63f-361dcc13ca75",
+      "name": "OpenRouter Chat Model1",
+      "credentials": {
+        "openRouterApi": {
+          "id": "OPxPNafAYGtjuKlH",
+          "name": "AI News"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.draft_title }}\n{{ $json.draft_announce }}\n{{ $json.published_url }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=Plain text + лимит длины.\nТеги убрать\n[q] → коротко в кавычках\nTITLE часто не нужен отдельно — можно склеить: TITLE — BODY\nLINK: обычно съедает место, но нужен. Ставь в конец.\nЕсли длина > 280: адаптер режет:\nприоритет: сохранить TITLE/1P/CTA/LINK\nостальное обрезать и добавить …\n"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.8,
+      "position": [
+        -1408,
+        2384
+      ],
+      "id": "660a9883-11de-40a1-9637-a8020f6e1d3f",
+      "name": "X agent"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5-mini",
+        "options": {
+          "timeout": 360000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -1424,
+        3264
+      ],
+      "id": "4c8bb274-ef97-405a-8415-eccef4afdf3f",
+      "name": "OpenRouter Chat Model2",
+      "credentials": {
+        "openRouterApi": {
+          "id": "OPxPNafAYGtjuKlH",
+          "name": "AI News"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.draft_title }}\n{{ $json.draft_announce }}\n{{ $json.published_url }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=Ты — редактор постов для Threads (тема: охота/outdoor). Нужен разговорный пост-анонс, чуть “как диалог”.\n\nПРАВИЛА:\n- СТРОГО: Общий объем текста ДО 400 символов (оставь место для ссылки).\n- По-русски, живо, можно с лёгким “а у вас так было?”.\n- НЕ используй платформенную разметку: никаких *, _, /, markdown.\n- Используй только внутренние теги: [b] [i] [u] [s] [q] [code]\n- Пиши очень кратко: 1-2 емких абзаца и вопрос.\n\nВЫХОД (СТРОГО, без JSON):\nTITLE: <заголовок 1 строка или пусто>\nP: <суть поста: интрига/польза, очень сжато>\nCTA: <призыв перейти/почитать + вопрос>\nTAGS: <0-4 тега через пробел>\nLINK: <ссылка если дана, иначе пусто>"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.8,
+      "position": [
+        -1424,
+        3008
+      ],
+      "id": "f4bd641c-580e-4158-8b1b-99f494942d71",
+      "name": "Threads agent"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5-mini",
+        "options": {
+          "timeout": 360000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -1312,
+        2208
+      ],
+      "id": "8ddf2107-bb6c-431c-aced-d515fa7a3d74",
+      "name": "OpenRouter Chat Model3",
+      "credentials": {
+        "openRouterApi": {
+          "id": "OPxPNafAYGtjuKlH",
+          "name": "AI News"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.draft_title }}\n{{ $json.draft_announce }}\n{{ $json.published_url }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=Ты — редактор постов для Facebook (страница/сообщество про hunting/outdoor). Нужен “человечный” анонс к материалу.\n\nПРАВИЛА:\n- По-русски, можно чуть более рассказно, но без простыней.\n- НЕ используй платформенную разметку: никаких *, _, /, markdown.\n- Используй только внутренние теги: [b] [i] [u] [s] [q] [code]\n- Допустим 1 короткий вопрос в конце для вовлечения.\n\nВЫХОД (СТРОГО, без JSON):\nTITLE: <заголовок 1 строка>\nP: <абзац 2-4 предложения: контекст + почему это заденет>\nP: <абзац 1-2 предложения: что полезного внутри>\nCTA: <призыв перейти/прочитать + опционально вопрос>\nTAGS: <0-4 тега через пробел>\nLINK: <ссылка если дана, иначе пусто>"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.8,
+      "position": [
+        -1312,
+        2016
+      ],
+      "id": "114cd64c-10b9-431f-8131-64c780f487c8",
+      "name": "FB agent"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5-mini",
+        "options": {
+          "timeout": 360000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -1104,
+        1136
+      ],
+      "id": "24fe7e57-dcdc-49db-9ca6-9bf7e2b17108",
+      "name": "OpenRouter Chat Model4",
+      "credentials": {
+        "openRouterApi": {
+          "id": "OPxPNafAYGtjuKlH",
+          "name": "AI News"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.draft_title }}\n{{ $json.draft_announce }}\n{{ $json.published_url }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=Plain text + лимит длины.\nТеги убрать\n[q] → коротко в кавычках\nTITLE часто не нужен отдельно — можно склеить: TITLE — BODY\nLINK: обычно съедает место, но нужен. Ставь в конец.\nЕсли длина > 280: адаптер режет:\nприоритет: сохранить TITLE/1P/CTA/LINK\nостальное обрезать и добавить …\n"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.8,
+      "position": [
+        -1104,
+        896
+      ],
+      "id": "8ca4f9e6-c55b-43a0-873c-65423f9df6a3",
+      "name": "OK agent"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5-mini",
+        "options": {
+          "timeout": 360000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -944,
+        208
+      ],
+      "id": "60e5702a-87e4-45fc-8326-46950872e445",
+      "name": "OpenRouter Chat Model5",
+      "credentials": {
+        "openRouterApi": {
+          "id": "OPxPNafAYGtjuKlH",
+          "name": "AI News"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.draft_title }}\n{{ $json.draft_announce }}\n{{ $json.published_url }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=Plain text + лимит длины.\nТеги убрать\n[q] → коротко в кавычках\nTITLE часто не нужен отдельно — можно склеить: TITLE — BODY\nLINK: обычно съедает место, но нужен. Ставь в конец.\nЕсли длина > 280: адаптер режет:\nприоритет: сохранить TITLE/1P/CTA/LINK\nостальное обрезать и добавить …\nТЫ ИСПОЛЬЗУЕШЬ ТЕЛЕГРАМ-ПРЕМИУМ ЭМОДЗИ.\nВместо обычных смайликов, ты ОБЯЗАН использовать специальные теги из списка ниже. Не используй стандартные Unicode эмодзи, только эти теги:\n\nСПИСОК РАЗРЕШЕННЫХ ЭМОДЗИ:\n- Для важных моментов/акцента: [fire]\n- Для успешных действий/галочек: [check]\n- Для предупреждений/внимания: [warn]\n- Для новостей/анонсов: [news]\n- Для ссылок/призывов: [link]\n- Для денег/цены: [money]\n\nПРИМЕР ТЕКСТА:\n[news] Срочные новости!\nМы обновили каталог [check].\nУспейте забрать до полуночи [fire].\nЦена: 5000р [money]"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.8,
+      "position": [
+        -944,
+        -48
+      ],
+      "id": "f50a26e9-9dbc-4f1f-9af2-6bf7e31b0a52",
+      "name": "Telegram agent"
+    },
+    {
+      "parameters": {
+        "jsCode": "function normalizePlatform(p) {\n  const s = String(p || \"\").toLowerCase().trim();\n  if (s === \"twitter\") return \"x\";\n  if (s === \"facebook\") return \"fb\";\n  return s;\n}\n\nfunction escapeHtml(s) {\n  return String(s ?? \"\")\n    .replace(/&/g, \"&amp;\")\n    .replace(/</g, \"&lt;\")\n    .replace(/>/g, \"&gt;\");\n}\n\nfunction stripInlineTagsToPlain(s) {\n  let t = String(s ?? \"\");\n\n  // Quotes\n  t = t.replace(/\\[q\\]([\\s\\S]*?)\\[\\/q\\]/gi, \"«$1»\");\n\n  // Code -> backticks\n  t = t.replace(/\\[code\\]([\\s\\S]*?)\\[\\/code\\]/gi, \"`$1`\");\n\n  // Remove formatting tags\n  t = t.replace(/\\[(\\/?)(b|i|u|s)\\]/gi, \"\");\n\n  // Cleanup\n  t = t.replace(/[ \\t]+\\n/g, \"\\n\").replace(/\\n{3,}/g, \"\\n\\n\").trim();\n  return t;\n}\n\nfunction toTelegramHtml(s) {\n  // First escape, then convert our tags to TG HTML\n  let t = escapeHtml(String(s ?? \"\"));\n\n  // Quotes -> italic quotes (safe for TG HTML)\n  t = t.replace(/\\[q\\]([\\s\\S]*?)\\[\\/q\\]/gi, \"<i>«$1»</i>\");\n\n  // Code\n  t = t.replace(/\\[code\\]([\\s\\S]*?)\\[\\/code\\]/gi, \"<code>$1</code>\");\n\n  // Basic tags\n  t = t.replace(/\\[b\\]([\\s\\S]*?)\\[\\/b\\]/gi, \"<b>$1</b>\");\n  t = t.replace(/\\[i\\]([\\s\\S]*?)\\[\\/i\\]/gi, \"<i>$1</i>\");\n  t = t.replace(/\\[u\\]([\\s\\S]*?)\\[\\/u\\]/gi, \"<u>$1</u>\");\n  t = t.replace(/\\[s\\]([\\s\\S]*?)\\[\\/s\\]/gi, \"<s>$1</s>\");\n\n  // Cleanup\n  t = t.replace(/[ \\t]+\\n/g, \"\\n\").replace(/\\n{3,}/g, \"\\n\\n\").trim();\n  return t;\n}\n\nfunction parseCanonical(rawText) {\n  const text = String(rawText ?? \"\").replace(/\\r\\n/g, \"\\n\").trim();\n  const lines = text.split(\"\\n\");\n\n  const out = {\n    title: \"\",\n    paragraphs: [],\n    cta: \"\",\n    tags: \"\",\n    link: \"\",\n  };\n\n  let inBody = false;\n\n  function addParagraph(s) {\n    const v = String(s ?? \"\").trim();\n    if (!v) return;\n    out.paragraphs.push(v);\n  }\n\n  for (let i = 0; i < lines.length; i++) {\n    const lineRaw = lines[i];\n    const line = lineRaw.trim();\n\n    if (!line) continue;\n\n    if (/^TITLE:/i.test(line)) {\n      out.title = line.replace(/^TITLE:\\s*/i, \"\").trim();\n      continue;\n    }\n    if (/^BODY:/i.test(line)) {\n      inBody = true;\n      continue;\n    }\n    if (/^P:/i.test(line)) {\n      inBody = true;\n      addParagraph(line.replace(/^P:\\s*/i, \"\"));\n      continue;\n    }\n    if (/^CTA:/i.test(line)) {\n      out.cta = line.replace(/^CTA:\\s*/i, \"\").trim();\n      continue;\n    }\n    if (/^TAGS:/i.test(line)) {\n      out.tags = line.replace(/^TAGS:\\s*/i, \"\").trim();\n      continue;\n    }\n    if (/^LINK:/i.test(line)) {\n      out.link = line.replace(/^LINK:\\s*/i, \"\").trim();\n      continue;\n    }\n    if (/^BR$/i.test(line)) {\n      // Optional: treat as paragraph break\n      continue;\n    }\n\n    // Fallback: if BODY started, treat unknown lines as paragraphs\n    if (inBody) addParagraph(lineRaw);\n  }\n\n  return out;\n}\n\nfunction joinPartsPlain(parts) {\n  const chunks = [];\n  if (parts.title) chunks.push(parts.title);\n  if (parts.paragraphs.length) chunks.push(parts.paragraphs.join(\"\\n\\n\"));\n  if (parts.cta) chunks.push(parts.cta);\n  if (parts.tags) chunks.push(parts.tags);\n  if (parts.link) chunks.push(parts.link);\n  return chunks.join(\"\\n\\n\").trim();\n}\n\nfunction joinPartsTelegram(parts) {\n  const chunks = [];\n\n  if (parts.title) {\n    // Title is bold by default in TG\n    const titleHtml = toTelegramHtml(parts.title);\n    chunks.push(`<b>${titleHtml.replace(/^<b>|<\\/b>$/g, \"\")}</b>`);\n  }\n\n  if (parts.paragraphs.length) {\n    const body = parts.paragraphs.map(p => toTelegramHtml(p)).join(\"\\n\\n\");\n    chunks.push(body);\n  }\n\n  if (parts.cta) chunks.push(toTelegramHtml(parts.cta));\n  if (parts.tags) chunks.push(toTelegramHtml(parts.tags));\n  if (parts.link) chunks.push(toTelegramHtml(parts.link));\n\n  return chunks.join(\"\\n\\n\").trim();\n}\n\nfunction countXChars(s) {\n  // Approx: each URL counts as 23 on X (t.co), newlines count as 1\n  const str = String(s ?? \"\");\n  const urlRegex = /(https?:\\/\\/[^\\s]+)/gi;\n\n  let count = 0;\n  let lastIndex = 0;\n  let m;\n\n  while ((m = urlRegex.exec(str)) !== null) {\n    const before = str.slice(lastIndex, m.index);\n    count += before.length;\n    count += 23;\n    lastIndex = m.index + m[0].length;\n  }\n\n  count += str.slice(lastIndex).length;\n  return count;\n}\n\nfunction truncateWithEllipsisKeepingLink(prefix, link, max, counterFn) {\n  const linkPart = link ? `\\n\\n${link}` : \"\";\n  if (!linkPart) {\n    if (counterFn(prefix) <= max) return prefix.trim();\n    return truncateToMax(prefix, max, counterFn);\n  }\n\n  // If even link alone is too long (rare), just return link\n  if (counterFn(linkPart) > max) return truncateToMax(linkPart.trim(), max, counterFn);\n\n  const basePrefix = String(prefix ?? \"\").trim();\n  if (!basePrefix) return linkPart.trim();\n\n  const maxForPrefix = max - counterFn(linkPart);\n  if (counterFn(basePrefix) <= maxForPrefix) return (basePrefix + linkPart).trim();\n\n  // Binary search best cut for prefix + \"…\" + linkPart\n  const s = basePrefix;\n  let lo = 0;\n  let hi = s.length;\n  let best = \"\";\n\n  while (lo <= hi) {\n    const mid = Math.floor((lo + hi) / 2);\n    const candidatePrefix = s.slice(0, mid).trimEnd();\n    const candidate = (candidatePrefix ? `${candidatePrefix}…` : \"…\") + linkPart;\n\n    if (counterFn(candidate) <= max) {\n      best = candidate;\n      lo = mid + 1;\n    } else {\n      hi = mid - 1;\n    }\n  }\n\n  return (best || (\"…\" + linkPart)).trim();\n}\n\nfunction truncateToMax(text, max, counterFn) {\n  const s = String(text ?? \"\").trim();\n  if (counterFn(s) <= max) return s;\n\n  let lo = 0;\n  let hi = s.length;\n  let best = \"\";\n\n  while (lo <= hi) {\n    const mid = Math.floor((lo + hi) / 2);\n    const candidate = s.slice(0, mid).trimEnd() + \"…\";\n    if (counterFn(candidate) <= max) {\n      best = candidate;\n      lo = mid + 1;\n    } else {\n      hi = mid - 1;\n    }\n  }\n\n  return best || \"…\";\n}\n\nfunction buildForPlatform(platform, parts, fallbackLink) {\n  const p = normalizePlatform(platform);\n  const link = parts.link || String(fallbackLink ?? \"\").trim();\n  const merged = { ...parts, link };\n\n  if (p === \"tg\") {\n    const tg = joinPartsTelegram(merged);\n    return { social_text: tg, tg_caption: tg, tg_parse_mode: \"HTML\" };\n  }\n\n  // Plain platforms: remove inline tags\n  const plainParts = {\n    ...merged,\n    title: stripInlineTagsToPlain(merged.title),\n    paragraphs: merged.paragraphs.map(stripInlineTagsToPlain),\n    cta: stripInlineTagsToPlain(merged.cta),\n    tags: stripInlineTagsToPlain(merged.tags),\n    link: stripInlineTagsToPlain(merged.link),\n  };\n\n  let plain = joinPartsPlain(plainParts);\n\n  if (p === \"x\") {\n    // Keep link at the end, truncate prefix\n    const prefixChunks = [];\n    if (plainParts.title) prefixChunks.push(plainParts.title);\n    if (plainParts.paragraphs.length) prefixChunks.push(plainParts.paragraphs.join(\"\\n\\n\"));\n    if (plainParts.cta) prefixChunks.push(plainParts.cta);\n    if (plainParts.tags) prefixChunks.push(plainParts.tags);\n\n    const prefix = prefixChunks.join(\"\\n\\n\").trim();\n    plain = truncateWithEllipsisKeepingLink(prefix, plainParts.link, 280, countXChars);\n  }\n\n  if (p === \"threads\") {\n    // Soft cap (you can change)\n    const maxLen = 500;\n    if (plain.length > maxLen) {\n      // Keep link at end if exists\n      const prefix = plainParts.link ? plain.replace(new RegExp(`\\\\n\\\\n${plainParts.link.replace(/[.*+?^${}()|[\\]\\\\]/g, \"\\\\$&\")}$`), \"\") : plain;\n      plain = truncateWithEllipsisKeepingLink(prefix, plainParts.link, maxLen, s => String(s).length);\n    }\n  }\n\n  return { social_text: plain, tg_caption: \"\", tg_parse_mode: \"\" };\n}\n\nreturn $input.all().map(item => {\n  const j = item.json || {};\n  const platform = j.platform;\n\n  const canonical =\n    j.social_canonical ??\n    j.social_text ??\n    j.text ??\n    j.response ??\n    \"\";\n\n  const parts = parseCanonical(canonical);\n\n  const fallbackLink = j.published_url || j.url || \"\";\n  const out = buildForPlatform(platform, parts, fallbackLink);\n\n  return {\n    json: {\n      ...j,\n      social_parts: parts,\n      social_text: out.social_text,\n      tg_caption: out.tg_caption,\n      tg_parse_mode: out.tg_parse_mode,\n    },\n    binary: item.binary,\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -432,
+        -48
+      ],
+      "id": "442364c8-72b1-4089-9953-6629e17aa4a0",
+      "name": "Code in JavaScript3"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5-mini",
+        "options": {
+          "timeout": 360000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -1200,
+        624
+      ],
+      "id": "cb0c5113-fd8f-46fd-ba70-33f196df4737",
+      "name": "OpenRouter Chat Model6",
+      "credentials": {
+        "openRouterApi": {
+          "id": "OPxPNafAYGtjuKlH",
+          "name": "AI News"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -448,
+        2368
+      ],
+      "id": "bfa8baf7-d41f-4256-adcb-ceed7395326a",
+      "name": "Merge: X Context"
+    },
+    {
+      "parameters": {
+        "jsCode": "function normalizePlatform(p) {\n  const s = String(p || \"\").toLowerCase().trim();\n  if (s === \"twitter\") return \"x\";\n  if (s === \"facebook\") return \"fb\";\n  return s;\n}\n\nfunction countXChars(s) {\n  // Approx: each URL counts as 23 on X (t.co), newlines count as 1\n  const str = String(s ?? \"\");\n  const urlRegex = /(https?:\\/\\/[^\\s]+)/gi;\n\n  let count = 0;\n  let lastIndex = 0;\n  let m;\n\n  while ((m = urlRegex.exec(str)) !== null) {\n    const before = str.slice(lastIndex, m.index);\n    count += before.length;\n    count += 23;\n    lastIndex = m.index + m[0].length;\n  }\n\n  count += str.slice(lastIndex).length;\n  return count;\n}\n\nfunction truncateWithEllipsisKeepingLink(prefix, link, max, counterFn) {\n  const linkPart = link ? `\\n\\n${link}` : \"\";\n  if (!linkPart) {\n    if (counterFn(prefix) <= max) return prefix.trim();\n    return truncateToMax(prefix, max, counterFn);\n  }\n\n  const basePrefix = String(prefix ?? \"\").trim();\n  const maxForPrefix = max - counterFn(linkPart);\n  \n  if (counterFn(basePrefix) <= maxForPrefix) return (basePrefix + linkPart).trim();\n\n  let lo = 0;\n  let hi = basePrefix.length;\n  let best = \"\";\n\n  while (lo <= hi) {\n    const mid = Math.floor((lo + hi) / 2);\n    const candidatePrefix = basePrefix.slice(0, mid).trimEnd();\n    const candidate = (candidatePrefix ? `${candidatePrefix}…` : \"…\") + linkPart;\n\n    if (counterFn(candidate) <= max) {\n      best = candidate;\n      lo = mid + 1;\n    } else {\n      hi = mid - 1;\n    }\n  }\n\n  return (best || (\"…\" + linkPart)).trim();\n}\n\nfunction truncateToMax(text, max, counterFn) {\n  const s = String(text ?? \"\").trim();\n  if (counterFn(s) <= max) return s;\n\n  let lo = 0;\n  let hi = s.length;\n  let best = \"\";\n  while (lo <= hi) {\n    const mid = Math.floor((lo + hi) / 2);\n    const candidate = s.slice(0, mid).trimEnd() + \"…\";\n    if (counterFn(candidate) <= max) {\n      best = candidate;\n      lo = mid + 1;\n    } else {\n      hi = mid - 1;\n    }\n  }\n  return best || \"…\";\n}\n\nreturn $input.all().map(item => {\n  const j = item.json || {};\n  // Текст берем из ответа AI (обычно 'text' или 'response')\n  const rawText = j.text || j.response || j.output || \"\";\n  \n  // Ссылка из исходных данных (восстановленных через Merge)\n  const link = j.published_url || j.url || \"\";\n\n  // Формируем текст для X\n  // Сначала чистим от лишних пробелов, потом режем под 280 символов\n  const cleanText = rawText.replace(/[ \\t]+\\n/g, \"\\n\").replace(/\\n{3,}/g, \"\\n\\n\").trim();\n  \n  // Если ссылка уже есть в тексте, можно её не дублировать, \n  // но логика truncateWithEllipsisKeepingLink подразумевает, что link передается отдельно.\n  // Для надежности передаем link в функцию.\n  \n  const socialText = truncateWithEllipsisKeepingLink(cleanText, link, 280, countXChars);\n\n  return {\n    json: {\n      ...j,\n      social_text: socialText\n    },\n    binary: item.binary // Бинарник пробрасываем дальше\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1008,
+        2384
+      ],
+      "id": "c959f9de-ce4e-4077-b7f9-506b8f0e86d8",
+      "name": "Code: Format X"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.publish_jobs\nSET \n  social_content = $1,\n  updated_at = NOW()\nWHERE id = $2;",
+        "options": {
+          "queryReplacement": "={{ [ $json.social_text, $json.publish_job_id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -752,
+        2384
+      ],
+      "id": "b9141e8d-d4d2-4b14-bb29-49a2e9c56d85",
+      "name": "БД: Save X Text",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://upload.twitter.com/1.1/media/upload.json",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "twitterOAuth1Api",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "media",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "media_category",
+              "value": "tweet_image"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1520,
+        4880
+      ],
+      "id": "319e1f9c-10f4-4f02-a101-7e473eb27a8d",
+      "name": "Upload Media (v1.1)1",
+      "credentials": {
+        "twitterOAuth1Api": {
+          "id": "sqUcwCeiIULuvUvw",
+          "name": "X OAuth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item => {\n  const j = item.json || {};\n  // Получаем сырой текст от AI\n  const rawText = j.text || j.response || j.output || \"\";\n  // Ссылка из базы (на всякий случай)\n  const fallbackLink = j.published_url || \"\";\n\n  // --- Парсер формата AI ---\n  // Формат: TITLE: ... \\n P: ... \\n CTA: ...\n  \n  const lines = rawText.split('\\n');\n  let title = \"\";\n  let body = [];\n  let cta = \"\";\n  let tags = \"\";\n  let aiLink = \"\";\n\n  lines.forEach(line => {\n      const l = line.trim();\n      if (!l) return;\n\n      if (l.startsWith(\"TITLE:\")) {\n          title = l.replace(/^TITLE:\\s*/i, \"\").trim();\n      } else if (l.startsWith(\"P:\")) {\n          body.push(l.replace(/^P:\\s*/i, \"\").trim());\n      } else if (l.startsWith(\"CTA:\")) {\n          cta = l.replace(/^CTA:\\s*/i, \"\").trim();\n      } else if (l.startsWith(\"TAGS:\")) {\n          tags = l.replace(/^TAGS:\\s*/i, \"\").trim();\n      } else if (l.startsWith(\"LINK:\")) {\n          aiLink = l.replace(/^LINK:\\s*/i, \"\").trim();\n      } else {\n          // Если строка без префикса, но мы уже внутри тела, считаем продолжением\n          // Или можно игнорировать. Для надежности лучше игнорировать мусор.\n      }\n  });\n\n  // --- Сборка чистого поста ---\n  let finalPost = \"\";\n\n  // 1. Заголовок\n  if (title) finalPost += title + \"\\n\\n\";\n\n  // 2. Тело (абзацы)\n  if (body.length > 0) {\n      finalPost += body.join(\"\\n\\n\") + \"\\n\\n\";\n  }\n\n  // 3. Призыв (CTA)\n  if (cta) finalPost += cta + \"\\n\\n\";\n\n  // 4. Теги\n  if (tags) finalPost += tags + \"\\n\\n\";\n\n  // 5. Ссылка\n  // Приоритет: ссылка от AI -> ссылка из базы\n  const link = aiLink || fallbackLink;\n  \n  // Добавляем ссылку, если её еще нет в тексте\n  if (link && !finalPost.includes(link)) {\n      finalPost += link;\n  }\n\n  // Финальная чистка от лишних пробелов/переносов\n  finalPost = finalPost.replace(/\\n{3,}/g, \"\\n\\n\").trim();\n\n  return {\n    json: {\n      ...j,\n      social_text: finalPost\n    },\n    binary: item.binary\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -816,
+        2016
+      ],
+      "id": "952a3416-9696-4feb-b3ec-755a1e078432",
+      "name": "Code: Format FB"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.publish_jobs\nSET \n  social_content = $1,\n  updated_at = NOW()\nWHERE id = $2;",
+        "options": {
+          "queryReplacement": "={{ [ $json.social_text, $json.publish_job_id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -528,
+        2016
+      ],
+      "id": "aeb6ac9a-d907-4c28-88eb-4f9e42722392",
+      "name": "БД: Save FB Text",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -640,
+        912
+      ],
+      "id": "ef589bc7-70e7-40b1-b016-be0d0b468900",
+      "name": "Merge: OK Context"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item => {\n  const j = item.json || {};\n  // Текст от AI\n  const rawText = j.text || j.response || j.output || \"\";\n  \n  // Чистка текста\n  const cleanText = rawText.replace(/[ \\t]+\\n/g, \"\\n\").replace(/\\n{3,}/g, \"\\n\\n\").trim();\n\n  return {\n    json: {\n      ...j,\n      social_text: cleanText\n    },\n    binary: item.binary\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -336,
+        912
+      ],
+      "id": "27357fb2-969b-4963-b948-ae915fa039a0",
+      "name": "Code: Format OK"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.publish_jobs\nSET \n  social_content = $1,\n  updated_at = NOW()\nWHERE id = $2;",
+        "options": {
+          "queryReplacement": "={{ [ $json.social_text, $json.publish_job_id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -48,
+        944
+      ],
+      "id": "becd4f8a-ef7b-42bf-a1f3-8c02862765b4",
+      "name": "БД: Save OK Text",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.draft_title }}\n{{ $json.draft_announce }}\n{{ $json.published_url }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=Ты — SMM редактор для ВКонтакте.\nТвоя задача: Написать пост к новости.\n\nТребования:\n1. Стиль: Уверенный, информативный, умеренно неформальный.\n2. Структура:\n   - Заголовок (можно использовать эмодзи).\n   - Тело новости (разбитое на абзацы).\n   - Призыв (Посетите сайт, Читайте подробнее).\n3. Ссылку поставь в конце поста или в теле, где это уместно.\n4. Хештеги: Добавь 2-3 тематических хештега в конце."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.8,
+      "position": [
+        -1200,
+        448
+      ],
+      "id": "bc6e2e4c-59cd-412f-84a7-19366f7808f4",
+      "name": "VK agent"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -704,
+        464
+      ],
+      "id": "9fd50567-f03d-46f5-90d1-11b880d8033e",
+      "name": "Merge: VK Context"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item => {\n  const j = item.json || {};\n  const rawText = j.text || j.response || j.output || \"\";\n  const link = j.published_url || \"\";\n\n  // 1. Чистим текст\n  const cleanText = rawText.replace(/[ \\t]+\\n/g, \"\\n\").replace(/\\n{3,}/g, \"\\n\\n\").trim();\n\n  // 2. Проверяем дубли ссылки\n  // Если в тексте уже есть \"http\", то просто оставляем текст.\n  // Если нет — добавляем ссылку в конец.\n  const socialText = cleanText.includes(\"http\") ? cleanText : `${cleanText}\\n\\n${link}`;\n\n  return {\n    json: {\n      ...j,\n      social_text: socialText\n    },\n    binary: item.binary\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -496,
+        464
+      ],
+      "id": "6c91db47-5c09-48ed-b363-d45d4ed7bd11",
+      "name": "Code: Format VK"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.publish_jobs\nSET \n  social_content = $1,\n  updated_at = NOW()\nWHERE id = $2;",
+        "options": {
+          "queryReplacement": "={{ [ $json.social_text, $json.publish_job_id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -304,
+        640
+      ],
+      "id": "49548bae-45c5-4db2-aee2-c3afa633d622",
+      "name": "БД: Save VK Text",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Достаем настройки из глобальной ноды Supabase\nconst settings = $('БД: Настройки (Supabase)').first().json;\n\nconst token = settings.vk_access_token;\nconst ownerId = String(settings.vk_owner_id);\nconst apiVersion = settings.vk_api_version || \"5.131\";\n\n// Если ID начинается с \"-\", это группа, убираем минус для group_id\nlet groupId = \"\";\nif (ownerId.startsWith(\"-\")) {\n    groupId = ownerId.slice(1);\n}\n\n// === FIX: Восстанавливаем текст ===\n// Нода БД не вернула текст, поэтому берем его из ноды Format VK\nlet sourceJson = {};\ntry {\n    sourceJson = $('Code: Format VK1').item.json;\n} catch (e) {\n    sourceJson = $input.item.json;\n}\nconst socialText = sourceJson.social_text || \"\";\n// =================================\n\nreturn $input.all().map(item => {\n  return {\n    json: {\n        ...item.json,\n        // Пробрасываем текст дальше, чтобы VK 4 его увидел\n        social_text: socialText,\n        \n        vk_token: token,\n        vk_owner_id: ownerId,\n        vk_group_id: groupId,\n        vk_version: apiVersion\n    },\n    binary: item.binary\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        640
+      ],
+      "id": "a1fedc41-c7ab-4ba2-9227-032c6d8215e3",
+      "name": "Code: VK Config"
+    },
+    {
+      "parameters": {
+        "url": "https://api.vk.com/method/photos.getWallUploadServer",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "group_id",
+              "value": "={{ $json.vk_group_id }}"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $json.vk_token }}"
+            },
+            {
+              "name": "v",
+              "value": "={{ $json.vk_version }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        128,
+        640
+      ],
+      "id": "8b23e4ff-053f-43eb-a5cd-f8137e2c48e3",
+      "name": "VK 1: Get Server"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.response.upload_url }}",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "photo",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        624,
+        480
+      ],
+      "id": "352e08b5-267b-41a1-8282-193194487319",
+      "name": "VK 2: Upload"
+    },
+    {
+      "parameters": {
+        "url": "https://api.vk.com/method/photos.saveWallPhoto",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "group_id",
+              "value": "={{ $('Code: VK Config').item.json.vk_group_id }}"
+            },
+            {
+              "name": "photo",
+              "value": "={{ $json.photo }}"
+            },
+            {
+              "name": "server",
+              "value": "={{ $json.server }}"
+            },
+            {
+              "name": "hash",
+              "value": "={{ $json.hash }}"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $('Code: VK Config').item.json.vk_token }}"
+            },
+            {
+              "name": "v",
+              "value": "={{ $('Code: VK Config').item.json.vk_version }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        832,
+        480
+      ],
+      "id": "1304a07b-e538-4f2c-acae-dbe76be01a9f",
+      "name": "VK 3: Save"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.vk.com/method/wall.post",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "owner_id",
+              "value": "={{ $('Code: VK Config').item.json.vk_owner_id }}"
+            },
+            {
+              "name": "from_group",
+              "value": "1"
+            },
+            {
+              "name": "message",
+              "value": "={{ $('Code: Format VK').item.json.social_text }}"
+            },
+            {
+              "name": "attachments",
+              "value": "={{ 'photo' + $json.response[0].owner_id + '_' + $json.response[0].id }}"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $('Code: VK Config').item.json.vk_token }}"
+            },
+            {
+              "name": "v",
+              "value": "={{ $('Code: VK Config').item.json.vk_version }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1056,
+        480
+      ],
+      "id": "db133a7e-b275-464c-bba1-55b79ea2417f",
+      "name": "VK 4: Publish"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        336,
+        480
+      ],
+      "id": "d2736243-78c2-485d-99cc-d0352bd44c76",
+      "name": "Merge: VK Upload"
+    },
+    {
+      "parameters": {
+        "url": "https://graph.threads.net/v1.0/me",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "id,username,name"
+            },
+            {
+              "name": "access_token",
+              "value": "EAARUnJmxZBJgBQgiLHjTylZA0ZBchp8HZCcc01Vs3oh01eWDW8VDvHPgcfQx20GAZACrcq4fAGnnL7KzgC0jN32Hxt275YhFNkfUC03gGJ11AqywGAGnt4gZBM8NYBLRWL8fPhh7M97AZADyPizJ5HJa61CsuZB6ABmtGDTYSl17fINzCbTuySkv1MTerAtGYcLhfgZDZD"
+            }
+          ]
+        },
+        "options": {
+          "response": {}
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1520,
+        4992
+      ],
+      "id": "ec0e344e-ce6a-4c16-ad79-76372d98f45b",
+      "name": "Threads: Get User ID (me)",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://graph.threads.net/v1.0/me",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "id,username"
+            },
+            {
+              "name": "access_token",
+              "value": "EAARUnJmxZBJgBQgiLHjTylZA0ZBchp8HZCcc01Vs3oh01eWDW8VDvHPgcfQx20GAZACrcq4fAGnnL7KzgC0jN32Hxt275YhFNkfUC03gGJ11AqywGAGnt4gZBM8NYBLRWL8fPhh7M97AZADyPizJ5HJa61CsuZB6ABmtGDTYSl17fINzCbTuySkv1MTerAtGYcLhfgZDZD"
+            }
+          ]
+        },
+        "options": {
+          "response": {}
+        }
+      },
+      "id": "f1c56c4f-a7c8-4680-86cc-5539d9292483",
+      "name": "Threads: Get User Info",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1952,
+        4944
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "facebook",
+        "pageId": "974387255758478",
+        "imageUrl": "={{ $('БД: Lock Job + FileID').item.json.draft_image_url }}",
+        "caption": "={{ $('Code: Format FB').item.json.social_text }}"
+      },
+      "type": "n8n-nodes-meta-publisher.metaPublisher",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        2016
+      ],
+      "id": "998efc1e-12b9-4575-8c4f-089214c65778",
+      "name": "Publish photo photo facebook page",
+      "credentials": {
+        "metaGraphApi": {
+          "id": "f07gbrl8u3mN9eRp",
+          "name": "Meta Graph (Access Token) account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://graph.threads.net/v1.0/me",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "id,username,name"
+            }
+          ]
+        },
+        "options": {
+          "response": {}
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        768,
+        5520
+      ],
+      "id": "877f4394-6be5-4e1d-a24e-3d7f20c2a9f4",
+      "name": "Threads: Check Auth (Me)",
+      "credentials": {
+        "oAuth2Api": {
+          "id": "XRKWw6UTtprxNKpW",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -4624,
+        1072
+      ],
+      "id": "c77c823e-37b9-4279-9d1c-b139525fd890",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT jsonb_object_agg(key, content) AS prompts\nFROM public.system_prompts\nWHERE key IN ('rewrite_social_fb','rewrite_social_ok','rewrite_social_tg','rewrite_social_threads','rewrite_social_vk','rewrite_social_x');\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -3936,
+        1072
+      ],
+      "id": "b93f245e-8cbd-4b6c-b6ad-c74f9c7982bb",
+      "name": "Получить промты",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Достаем настройки\nconst settingsItem = $items(\"БД: Настройки (Supabase)\")[0].json;\nconst accessToken = settingsItem.ok_access_token;\nconst secretKey = settingsItem.ok_app_secret;\nconst groupId = settingsItem.ok_group_id;\nconst publicKey = settingsItem.ok_public_key;\n\n// 2. MD5 Функция\nfunction md5(string) {\n    function RotateLeft(lValue, iShiftBits) {\n        return (lValue << iShiftBits) | (lValue >>> (32 - iShiftBits));\n    }\n    function AddUnsigned(lX, lY) {\n        var lX4, lY4, lX8, lY8, lResult;\n        lX8 = (lX & 0x80000000);\n        lY8 = (lY & 0x80000000);\n        lX4 = (lX & 0x40000000);\n        lY4 = (lY & 0x40000000);\n        lResult = (lX & 0x3FFFFFFF) + (lY & 0x3FFFFFFF);\n        if (lX4 & lY4) return (lResult ^ 0x80000000 ^ lX8 ^ lY8);\n        if (lX4 | lY4) {\n            if (lResult & 0x40000000) return (lResult ^ 0xC0000000 ^ lX8 ^ lY8);\n            else return (lResult ^ 0x40000000 ^ lX8 ^ lY8);\n        } else return (lResult ^ lX8 ^ lY8);\n    }\n    function F(x, y, z) { return (x & y) | ((~x) & z); }\n    function G(x, y, z) { return (x & z) | (y & (~z)); }\n    function H(x, y, z) { return (x ^ y ^ z); }\n    function I(x, y, z) { return (y ^ (x | (~z))); }\n    function FF(a, b, c, d, x, s, ac) {\n        a = AddUnsigned(a, AddUnsigned(AddUnsigned(F(b, c, d), x), ac));\n        return AddUnsigned(RotateLeft(a, s), b);\n    }\n    function GG(a, b, c, d, x, s, ac) {\n        a = AddUnsigned(a, AddUnsigned(AddUnsigned(G(b, c, d), x), ac));\n        return AddUnsigned(RotateLeft(a, s), b);\n    }\n    function HH(a, b, c, d, x, s, ac) {\n        a = AddUnsigned(a, AddUnsigned(AddUnsigned(H(b, c, d), x), ac));\n        return AddUnsigned(RotateLeft(a, s), b);\n    }\n    function II(a, b, c, d, x, s, ac) {\n        a = AddUnsigned(a, AddUnsigned(AddUnsigned(I(b, c, d), x), ac));\n        return AddUnsigned(RotateLeft(a, s), b);\n    }\n    function ConvertToWordArray(string) {\n        var lWordCount;\n        var lMessageLength = string.length;\n        var lNumberOfWords_temp1 = lMessageLength + 8;\n        var lNumberOfWords_temp2 = (lNumberOfWords_temp1 - (lNumberOfWords_temp1 % 64)) / 64;\n        var lNumberOfWords = (lNumberOfWords_temp2 + 1) * 16;\n        var lWordArray = Array(lNumberOfWords - 1);\n        var lBytePosition = 0;\n        var lByteCount = 0;\n        while (lByteCount < lMessageLength) {\n            lWordCount = (lByteCount - (lByteCount % 4)) / 4;\n            lBytePosition = (lByteCount % 4) * 8;\n            lWordArray[lWordCount] = (lWordArray[lWordCount] | (string.charCodeAt(lByteCount) << lBytePosition));\n            lByteCount++;\n        }\n        lWordCount = (lByteCount - (lByteCount % 4)) / 4;\n        lBytePosition = (lByteCount % 4) * 8;\n        lWordArray[lWordCount] = lWordArray[lWordCount] | (0x80 << lBytePosition);\n        lWordArray[lNumberOfWords - 2] = lMessageLength << 3;\n        lWordArray[lNumberOfWords - 1] = lMessageLength >>> 29;\n        return lWordArray;\n    }\n    function WordToHex(lValue) {\n        var WordToHexValue = \"\", WordToHexValue_temp = \"\", lByte, lCount;\n        for (lCount = 0; lCount <= 3; lCount++) {\n            lByte = (lValue >>> (lCount * 8)) & 255;\n            WordToHexValue_temp = \"0\" + lByte.toString(16);\n            WordToHexValue = WordToHexValue + WordToHexValue_temp.substr(WordToHexValue_temp.length - 2, 2);\n        }\n        return WordToHexValue;\n    }\n    var x = ConvertToWordArray(string);\n    var k, AA, BB, CC, DD, a, b, c, d;\n    var S11 = 7, S12 = 12, S13 = 17, S14 = 22;\n    var S21 = 5, S22 = 9, S23 = 14, S24 = 20;\n    var S31 = 4, S32 = 11, S33 = 16, S34 = 23;\n    var S41 = 6, S42 = 10, S43 = 15, S44 = 21;\n    a = 0x67452301; b = 0xEFCDAB89; c = 0x98BADCFE; d = 0x10325476;\n    for (k = 0; k < x.length; k += 16) {\n        AA = a; BB = b; CC = c; DD = d;\n        a = FF(a, b, c, d, x[k + 0], S11, 0xD76AA478);\n        d = FF(d, a, b, c, x[k + 1], S12, 0xE8C7B756);\n        c = FF(c, d, a, b, x[k + 2], S13, 0x242070DB);\n        b = FF(b, c, d, a, x[k + 3], S14, 0xC1BDCEEE);\n        a = FF(a, b, c, d, x[k + 4], S11, 0xF57C0FAF);\n        d = FF(d, a, b, c, x[k + 5], S12, 0x4787C62A);\n        c = FF(c, d, a, b, x[k + 6], S13, 0xA8304613);\n        b = FF(b, c, d, a, x[k + 7], S14, 0xFD469501);\n        a = FF(a, b, c, d, x[k + 8], S11, 0x698098D8);\n        d = FF(d, a, b, c, x[k + 9], S12, 0x8B44F7AF);\n        c = FF(c, d, a, b, x[k + 10], S13, 0xFFFF5BB1);\n        b = FF(b, c, d, a, x[k + 11], S14, 0x895CD7BE);\n        a = FF(a, b, c, d, x[k + 12], S11, 0x6B901122);\n        d = FF(d, a, b, c, x[k + 13], S12, 0xFD987193);\n        c = FF(c, d, a, b, x[k + 14], S13, 0xA679438E);\n        b = FF(b, c, d, a, x[k + 15], S14, 0x49B40821);\n        a = GG(a, b, c, d, x[k + 1], S21, 0xF61E2562);\n        d = GG(d, a, b, c, x[k + 6], S22, 0xC040B340);\n        c = GG(c, d, a, b, x[k + 11], S23, 0x265E5A51);\n        b = GG(b, c, d, a, x[k + 0], S24, 0xE9B6C7AA);\n        a = GG(a, b, c, d, x[k + 5], S21, 0xD62F105D);\n        d = GG(d, a, b, c, x[k + 10], S22, 0x2441453);\n        c = GG(c, d, a, b, x[k + 15], S23, 0xD8A1E681);\n        b = GG(b, c, d, a, x[k + 4], S24, 0xE7D3FBC8);\n        a = GG(a, b, c, d, x[k + 9], S21, 0x21E1CDE6);\n        d = GG(d, a, b, c, x[k + 14], S22, 0xC33707D6);\n        c = GG(c, d, a, b, x[k + 3], S23, 0xF4D50D87);\n        b = GG(b, c, d, a, x[k + 8], S24, 0x455A14ED);\n        a = GG(a, b, c, d, x[k + 13], S21, 0xA9E3E905);\n        d = GG(d, a, b, c, x[k + 2], S22, 0xFCEFA3F8);\n        c = GG(c, d, a, b, x[k + 7], S23, 0x676F02D9);\n        b = GG(b, c, d, a, x[k + 12], S24, 0x8D2A4C8A);\n        a = HH(a, b, c, d, x[k + 5], S31, 0xFFFA3942);\n        d = HH(d, a, b, c, x[k + 8], S32, 0x8771F681);\n        c = HH(c, d, a, b, x[k + 11], S33, 0x6D9D6122);\n        b = HH(b, c, d, a, x[k + 14], S34, 0xFDE5380C);\n        a = HH(a, b, c, d, x[k + 1], S31, 0xA4BEEA44);\n        d = HH(d, a, b, c, x[k + 4], S32, 0x4BDECFA9);\n        c = HH(c, d, a, b, x[k + 7], S33, 0xF6BB4B60);\n        b = HH(b, c, d, a, x[k + 10], S34, 0xBEBFBC70);\n        a = HH(a, b, c, d, x[k + 13], S31, 0x289B7EC6);\n        d = HH(d, a, b, c, x[k + 0], S32, 0xEAA127FA);\n        c = HH(c, d, a, b, x[k + 3], S33, 0xD4EF3085);\n        b = HH(b, c, d, a, x[k + 6], S34, 0x4881D05);\n        a = HH(a, b, c, d, x[k + 9], S31, 0xD9D4D039);\n        d = HH(d, a, b, c, x[k + 12], S32, 0xE6DB99E5);\n        c = HH(c, d, a, b, x[k + 15], S33, 0x1FA27CF8);\n        b = HH(b, c, d, a, x[k + 2], S34, 0xC4AC5665);\n        a = II(a, b, c, d, x[k + 0], S41, 0xF4292244);\n        d = II(d, a, b, c, x[k + 7], S42, 0x432AFF97);\n        c = II(c, d, a, b, x[k + 14], S43, 0xAB9423A7);\n        b = II(b, c, d, a, x[k + 5], S44, 0xFC93A039);\n        a = II(a, b, c, d, x[k + 12], S41, 0x655B59C3);\n        d = II(d, a, b, c, x[k + 3], S42, 0x8F0CCC92);\n        c = II(c, d, a, b, x[k + 10], S43, 0xFFEFF47D);\n        b = II(b, c, d, a, x[k + 1], S44, 0x85845DD1);\n        a = II(a, b, c, d, x[k + 8], S41, 0x6FA87E4F);\n        d = II(d, a, b, c, x[k + 15], S42, 0xFE2CE6E0);\n        c = II(c, d, a, b, x[k + 6], S43, 0xA3014314);\n        b = II(b, c, d, a, x[k + 13], S44, 0x4E0811A1);\n        a = II(a, b, c, d, x[k + 4], S41, 0xF7537E82);\n        d = II(d, a, b, c, x[k + 11], S42, 0xBD3AF235);\n        c = II(c, d, a, b, x[k + 2], S43, 0x2AD7D2BB);\n        b = II(b, c, d, a, x[k + 9], S44, 0xEB86D391);\n        a = AddUnsigned(a, AA);\n        b = AddUnsigned(b, BB);\n        c = AddUnsigned(c, CC);\n        d = AddUnsigned(d, DD);\n    }\n    var temp = WordToHex(a) + WordToHex(b) + WordToHex(c) + WordToHex(d);\n    return temp.toLowerCase();\n}\n\nconst sessionSecret = md5(accessToken + secretKey);\n\n// 3. Подпись для photosV2.getUploadUrl\nconst params = {\n  \"application_key\": publicKey,\n  \"count\": \"1\",\n  \"format\": \"json\",\n  \"gid\": groupId,\n  \"method\": \"photosV2.getUploadUrl\"\n};\n\nconst sortedKeys = Object.keys(params).sort();\nlet sigSource = \"\";\nfor (const key of sortedKeys) {\n  sigSource += key + \"=\" + params[key];\n}\nsigSource += sessionSecret;\nconst sig = md5(sigSource);\n\n// 4. Пробрасываем данные\nreturn [{\n  json: {\n    ...$input.item.json,\n    ok_upload_params: {\n       ...params,\n       sig: sig,\n       access_token: accessToken\n    }\n  },\n  binary: $input.item.binary\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        176,
+        912
+      ],
+      "id": "ba299abc-7ed1-4bc3-ada7-145517a47db0",
+      "name": "OK 1: Sign Upload"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.ok.ru/fb.do",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "application_key",
+              "value": "={{ $json.ok_upload_params.application_key }}"
+            },
+            {
+              "name": "count",
+              "value": "1"
+            },
+            {
+              "name": "format",
+              "value": "json"
+            },
+            {
+              "name": "gid",
+              "value": "={{ $json.ok_upload_params.gid }}"
+            },
+            {
+              "name": "method",
+              "value": "photosV2.getUploadUrl"
+            },
+            {
+              "name": "sig",
+              "value": "={{ $json.ok_upload_params.sig }}"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $json.ok_upload_params.access_token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        400,
+        912
+      ],
+      "id": "7ea175a2-285c-4e47-af03-bca177e24b1d",
+      "name": "OK 2: Get Upload URL",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.upload_url }}",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "photo",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        768,
+        912
+      ],
+      "id": "fd963ca0-2a0f-4080-9baa-2df050c485f8",
+      "name": "OK 3: Upload Image"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Настройки\nconst settingsItem = $items(\"БД: Настройки (Supabase)\")[0].json;\nconst accessToken = settingsItem.ok_access_token;\nconst publicKey = settingsItem.ok_public_key;\nconst secretKey = settingsItem.ok_app_secret;\nconst groupId = settingsItem.ok_group_id;\n\n// 2. MD5 Функция\nfunction md5(string) {\n    function RotateLeft(lValue, iShiftBits) {\n        return (lValue << iShiftBits) | (lValue >>> (32 - iShiftBits));\n    }\n    function AddUnsigned(lX, lY) {\n        var lX4, lY4, lX8, lY8, lResult;\n        lX8 = (lX & 0x80000000);\n        lY8 = (lY & 0x80000000);\n        lX4 = (lX & 0x40000000);\n        lY4 = (lY & 0x40000000);\n        lResult = (lX & 0x3FFFFFFF) + (lY & 0x3FFFFFFF);\n        if (lX4 & lY4) return (lResult ^ 0x80000000 ^ lX8 ^ lY8);\n        if (lX4 | lY4) {\n            if (lResult & 0x40000000) return (lResult ^ 0xC0000000 ^ lX8 ^ lY8);\n            else return (lResult ^ 0x40000000 ^ lX8 ^ lY8);\n        } else return (lResult ^ lX8 ^ lY8);\n    }\n    function F(x, y, z) { return (x & y) | ((~x) & z); }\n    function G(x, y, z) { return (x & z) | (y & (~z)); }\n    function H(x, y, z) { return (x ^ y ^ z); }\n    function I(x, y, z) { return (y ^ (x | (~z))); }\n    function FF(a, b, c, d, x, s, ac) {\n        a = AddUnsigned(a, AddUnsigned(AddUnsigned(F(b, c, d), x), ac));\n        return AddUnsigned(RotateLeft(a, s), b);\n    }\n    function GG(a, b, c, d, x, s, ac) {\n        a = AddUnsigned(a, AddUnsigned(AddUnsigned(G(b, c, d), x), ac));\n        return AddUnsigned(RotateLeft(a, s), b);\n    }\n    function HH(a, b, c, d, x, s, ac) {\n        a = AddUnsigned(a, AddUnsigned(AddUnsigned(H(b, c, d), x), ac));\n        return AddUnsigned(RotateLeft(a, s), b);\n    }\n    function II(a, b, c, d, x, s, ac) {\n        a = AddUnsigned(a, AddUnsigned(AddUnsigned(I(b, c, d), x), ac));\n        return AddUnsigned(RotateLeft(a, s), b);\n    }\n    function ConvertToWordArray(string) {\n        var lWordCount;\n        var lMessageLength = string.length;\n        var lNumberOfWords_temp1 = lMessageLength + 8;\n        var lNumberOfWords_temp2 = (lNumberOfWords_temp1 - (lNumberOfWords_temp1 % 64)) / 64;\n        var lNumberOfWords = (lNumberOfWords_temp2 + 1) * 16;\n        var lWordArray = Array(lNumberOfWords - 1);\n        var lBytePosition = 0;\n        var lByteCount = 0;\n        while (lByteCount < lMessageLength) {\n            lWordCount = (lByteCount - (lByteCount % 4)) / 4;\n            lBytePosition = (lByteCount % 4) * 8;\n            lWordArray[lWordCount] = (lWordArray[lWordCount] | (string.charCodeAt(lByteCount) << lBytePosition));\n            lByteCount++;\n        }\n        lWordCount = (lByteCount - (lByteCount % 4)) / 4;\n        lBytePosition = (lByteCount % 4) * 8;\n        lWordArray[lWordCount] = lWordArray[lWordCount] | (0x80 << lBytePosition);\n        lWordArray[lNumberOfWords - 2] = lMessageLength << 3;\n        lWordArray[lNumberOfWords - 1] = lMessageLength >>> 29;\n        return lWordArray;\n    }\n    function WordToHex(lValue) {\n        var WordToHexValue = \"\", WordToHexValue_temp = \"\", lByte, lCount;\n        for (lCount = 0; lCount <= 3; lCount++) {\n            lByte = (lValue >>> (lCount * 8)) & 255;\n            WordToHexValue_temp = \"0\" + lByte.toString(16);\n            WordToHexValue = WordToHexValue + WordToHexValue_temp.substr(WordToHexValue_temp.length - 2, 2);\n        }\n        return WordToHexValue;\n    }\n    var x = ConvertToWordArray(string);\n    var k, AA, BB, CC, DD, a, b, c, d;\n    var S11 = 7, S12 = 12, S13 = 17, S14 = 22;\n    var S21 = 5, S22 = 9, S23 = 14, S24 = 20;\n    var S31 = 4, S32 = 11, S33 = 16, S34 = 23;\n    var S41 = 6, S42 = 10, S43 = 15, S44 = 21;\n    a = 0x67452301; b = 0xEFCDAB89; c = 0x98BADCFE; d = 0x10325476;\n    for (k = 0; k < x.length; k += 16) {\n        AA = a; BB = b; CC = c; DD = d;\n        a = FF(a, b, c, d, x[k + 0], S11, 0xD76AA478);\n        d = FF(d, a, b, c, x[k + 1], S12, 0xE8C7B756);\n        c = FF(c, d, a, b, x[k + 2], S13, 0x242070DB);\n        b = FF(b, c, d, a, x[k + 3], S14, 0xC1BDCEEE);\n        a = FF(a, b, c, d, x[k + 4], S11, 0xF57C0FAF);\n        d = FF(d, a, b, c, x[k + 5], S12, 0x4787C62A);\n        c = FF(c, d, a, b, x[k + 6], S13, 0xA8304613);\n        b = FF(b, c, d, a, x[k + 7], S14, 0xFD469501);\n        a = FF(a, b, c, d, x[k + 8], S11, 0x698098D8);\n        d = FF(d, a, b, c, x[k + 9], S12, 0x8B44F7AF);\n        c = FF(c, d, a, b, x[k + 10], S13, 0xFFFF5BB1);\n        b = FF(b, c, d, a, x[k + 11], S14, 0x895CD7BE);\n        a = FF(a, b, c, d, x[k + 12], S11, 0x6B901122);\n        d = FF(d, a, b, c, x[k + 13], S12, 0xFD987193);\n        c = FF(c, d, a, b, x[k + 14], S13, 0xA679438E);\n        b = FF(b, c, d, a, x[k + 15], S14, 0x49B40821);\n        a = GG(a, b, c, d, x[k + 1], S21, 0xF61E2562);\n        d = GG(d, a, b, c, x[k + 6], S22, 0xC040B340);\n        c = GG(c, d, a, b, x[k + 11], S23, 0x265E5A51);\n        b = GG(b, c, d, a, x[k + 0], S24, 0xE9B6C7AA);\n        a = GG(a, b, c, d, x[k + 5], S21, 0xD62F105D);\n        d = GG(d, a, b, c, x[k + 10], S22, 0x2441453);\n        c = GG(c, d, a, b, x[k + 15], S23, 0xD8A1E681);\n        b = GG(b, c, d, a, x[k + 4], S24, 0xE7D3FBC8);\n        a = GG(a, b, c, d, x[k + 9], S21, 0x21E1CDE6);\n        d = GG(d, a, b, c, x[k + 14], S22, 0xC33707D6);\n        c = GG(c, d, a, b, x[k + 3], S23, 0xF4D50D87);\n        b = GG(b, c, d, a, x[k + 8], S24, 0x455A14ED);\n        a = GG(a, b, c, d, x[k + 13], S21, 0xA9E3E905);\n        d = GG(d, a, b, c, x[k + 2], S22, 0xFCEFA3F8);\n        c = GG(c, d, a, b, x[k + 7], S23, 0x676F02D9);\n        b = GG(b, c, d, a, x[k + 12], S24, 0x8D2A4C8A);\n        a = HH(a, b, c, d, x[k + 5], S31, 0xFFFA3942);\n        d = HH(d, a, b, c, x[k + 8], S32, 0x8771F681);\n        c = HH(c, d, a, b, x[k + 11], S33, 0x6D9D6122);\n        b = HH(b, c, d, a, x[k + 14], S34, 0xFDE5380C);\n        a = HH(a, b, c, d, x[k + 1], S31, 0xA4BEEA44);\n        d = HH(d, a, b, c, x[k + 4], S32, 0x4BDECFA9);\n        c = HH(c, d, a, b, x[k + 7], S33, 0xF6BB4B60);\n        b = HH(b, c, d, a, x[k + 10], S34, 0xBEBFBC70);\n        a = HH(a, b, c, d, x[k + 13], S31, 0x289B7EC6);\n        d = HH(d, a, b, c, x[k + 0], S32, 0xEAA127FA);\n        c = HH(c, d, a, b, x[k + 3], S33, 0xD4EF3085);\n        b = HH(b, c, d, a, x[k + 6], S34, 0x4881D05);\n        a = HH(a, b, c, d, x[k + 9], S31, 0xD9D4D039);\n        d = HH(d, a, b, c, x[k + 12], S32, 0xE6DB99E5);\n        c = HH(c, d, a, b, x[k + 15], S33, 0x1FA27CF8);\n        b = HH(b, c, d, a, x[k + 2], S34, 0xC4AC5665);\n        a = II(a, b, c, d, x[k + 0], S41, 0xF4292244);\n        d = II(d, a, b, c, x[k + 7], S42, 0x432AFF97);\n        c = II(c, d, a, b, x[k + 14], S43, 0xAB9423A7);\n        b = II(b, c, d, a, x[k + 5], S44, 0xFC93A039);\n        a = II(a, b, c, d, x[k + 12], S41, 0x655B59C3);\n        d = II(d, a, b, c, x[k + 3], S42, 0x8F0CCC92);\n        c = II(c, d, a, b, x[k + 10], S43, 0xFFEFF47D);\n        b = II(b, c, d, a, x[k + 1], S44, 0x85845DD1);\n        a = II(a, b, c, d, x[k + 8], S41, 0x6FA87E4F);\n        d = II(d, a, b, c, x[k + 15], S42, 0xFE2CE6E0);\n        c = II(c, d, a, b, x[k + 6], S43, 0xA3014314);\n        b = II(b, c, d, a, x[k + 13], S44, 0x4E0811A1);\n        a = II(a, b, c, d, x[k + 4], S41, 0xF7537E82);\n        d = II(d, a, b, c, x[k + 11], S42, 0xBD3AF235);\n        c = II(c, d, a, b, x[k + 2], S43, 0x2AD7D2BB);\n        b = II(b, c, d, a, x[k + 9], S44, 0xEB86D391);\n        a = AddUnsigned(a, AA);\n        b = AddUnsigned(b, BB);\n        c = AddUnsigned(c, CC);\n        d = AddUnsigned(d, DD);\n    }\n    var temp = WordToHex(a) + WordToHex(b) + WordToHex(c) + WordToHex(d);\n    return temp.toLowerCase();\n}\n\n// 3. Восстанавливаем данные\n// Ищем исходный текст и ссылку, чтобы не потерять\nlet sourceJson = {};\ntry {\n    sourceJson = $('Code: Format OK').item.json;\n} catch (e) {\n    sourceJson = $input.item.json;\n}\n\nconst rawMessage = sourceJson.social_text || \"Новости\";\nconst link = sourceJson.published_url || \"https://khc-ammunition.ru\";\n\n// Если ссылка уже есть в тексте от AI, не дублируем её\nconst finalMessage = rawMessage.includes(\"http\") ? rawMessage : `${rawMessage}\\n\\n${link}`;\n\n// 4. Формируем Attachment\nconst mediaList = [\n    {\n      \"type\": \"text\",\n      \"text\": finalMessage\n    }\n];\n\n// 5. Проверяем, загрузилась ли фотка\nlet photoToken = null;\ntry {\n    // FIX: Ответ пришел как строка в поле 'data', нужно его распарсить\n    let rawBody = $input.item.json;\n    \n    // Если n8n положил ответ в поле data строкой\n    if (rawBody.data && typeof rawBody.data === 'string') {\n        try {\n             rawBody = JSON.parse(rawBody.data);\n        } catch(e) {}\n    }\n\n    const photos = rawBody.photos;\n    if (photos) {\n        const firstKey = Object.keys(photos)[0];\n        photoToken = photos[firstKey].token;\n    }\n} catch (e) {}\n\n// Если фото есть — добавляем\nif (photoToken) {\n    mediaList.push({\n        \"type\": \"photo\",\n        \"list\": [\n            { \"id\": photoToken }\n        ]\n    });\n}\n// ВАЖНО: Мы НЕ добавляем type: \"link\", чтобы не было сниппета!\n\nconst attachmentJson = JSON.stringify({ \"media\": mediaList });\n\n// 6. Подпись для публикации\nconst params = {\n  \"application_key\": publicKey,\n  \"attachment\": attachmentJson,\n  \"format\": \"json\",\n  \"gid\": groupId,\n  \"method\": \"mediatopic.post\",\n  \"type\": \"GROUP_THEME\"\n};\n\nconst sortedKeys = Object.keys(params).sort();\nlet sigSource = \"\";\nfor (const key of sortedKeys) {\n  sigSource += key + \"=\" + params[key];\n}\nconst sessionSecret = md5(accessToken + secretKey);\nsigSource += sessionSecret;\nconst sig = md5(sigSource);\n\nreturn [{\n  json: {\n    ok_final_params: {\n      ...params,\n      sig: sig,\n      access_token: accessToken\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        992,
+        912
+      ],
+      "id": "861f8826-8c3e-4671-aa7c-ab30b22bdb59",
+      "name": "OK 4: Final Sig"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.ok.ru/fb.do",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "application_key",
+              "value": "={{ $json.ok_final_params.application_key }}"
+            },
+            {
+              "name": "attachment",
+              "value": "={{ $json.ok_final_params.attachment }}"
+            },
+            {
+              "name": "format",
+              "value": "json"
+            },
+            {
+              "name": "gid",
+              "value": "={{ $json.ok_final_params.gid }}"
+            },
+            {
+              "name": "method",
+              "value": "mediatopic.post"
+            },
+            {
+              "name": "type",
+              "value": "GROUP_THEME"
+            },
+            {
+              "name": "sig",
+              "value": "={{ $json.ok_final_params.sig }}"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $json.ok_final_params.access_token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1200,
+        912
+      ],
+      "id": "13e071e3-2492-44ac-9484-b2dabf4c7460",
+      "name": "OK 5: Final Post",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        592,
+        912
+      ],
+      "id": "3cfefd3b-a121-4f86-85f1-5aacad6018da",
+      "name": "Merge: OK Context1"
+    },
+    {
+      "parameters": {
+        "resource": "threads",
+        "operation": "threadsPublishImage",
+        "thUserId": "24883604037979153",
+        "imageUrl": "={{ $('БД: Lock Job + FileID').item.json.draft_image_url }}",
+        "text": "={{ $('Code: Format TH').item.json.social_text }}",
+        "altText": "={{ $('БД: Lock Job + FileID').item.json.draft_title }}"
+      },
+      "type": "n8n-nodes-meta-publisher.metaPublisher",
+      "typeVersion": 1,
+      "position": [
+        -448,
+        3008
+      ],
+      "id": "8a104add-9c9b-4e3b-b88e-ceb7be7ece7c",
+      "name": "Publish image on threads",
+      "credentials": {
+        "metaGraphApi": {
+          "id": "zIY471wKkXrr4gX4",
+          "name": "Threads"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item => {\n  const j = item.json || {};\n  const rawText = j.text || j.response || j.output || \"\";\n  const fallbackLink = j.published_url || \"\";\n  const imageUrl = j.draft_image_url || j.image_url || \"\";\n\n  const cleanTags = (str) => str.replace(/\\[\\/?(b|i|u|s|q|code)\\]/gi, \"\");\n\n  const lines = rawText.split('\\n');\n  let title = \"\";\n  let body = [];\n  let cta = \"\";\n  let tags = \"\";\n  let aiLink = \"\";\n  let foundStructure = false;\n\n  lines.forEach(line => {\n      let l = line.trim();\n      if (!l) return;\n      if (l.startsWith(\"TITLE:\")) { title = l.replace(/^TITLE:\\s*/i, \"\").trim(); foundStructure = true; }\n      else if (l.startsWith(\"P:\")) { body.push(l.replace(/^P:\\s*/i, \"\").trim()); foundStructure = true; }\n      else if (l.startsWith(\"CTA:\")) { cta = l.replace(/^CTA:\\s*/i, \"\").trim(); foundStructure = true; }\n      \n      // === ИСПРАВЛЕНИЕ ТЕГОВ (Фикс для первого слова) ===\n      else if (l.startsWith(\"TAGS:\")) { \n          const rawTags = l.replace(/^TAGS:\\s*/i, \"\").trim();\n          // Разбиваем по пробелам/запятым, фильтруем пустоту и добавляем #\n          tags = rawTags.split(/[\\s,]+/)\n              .filter(t => t)\n              .map(t => t.startsWith('#') ? t : `#${t}`)\n              .join(' ');\n          foundStructure = true; \n      }\n      // ===============================================\n      \n      else if (l.startsWith(\"LINK:\")) { aiLink = l.replace(/^LINK:\\s*/i, \"\").trim(); foundStructure = true; }\n  });\n\n  let finalPost = \"\";\n  if (foundStructure) {\n      if (title) finalPost += title + \"\\n\\n\";\n      if (body.length > 0) finalPost += body.join(\"\\n\\n\") + \"\\n\\n\";\n      if (cta) finalPost += cta + \"\\n\\n\";\n      if (tags) finalPost += tags + \"\\n\\n\";\n  } else {\n      finalPost = rawText.trim();\n  }\n\n  finalPost = cleanTags(finalPost);\n\n  const link = aiLink || fallbackLink;\n  if (link) {\n      finalPost = finalPost.replace(link, \"\").trim();\n  }\n\n  // Лимит 500 символов (безопасные 450)\n  const MAX_CHARS = 480; \n  const linkLength = link ? link.length + 2 : 0;\n  const availableSpace = MAX_CHARS - linkLength;\n\n  if (finalPost.length > availableSpace) {\n      finalPost = finalPost.slice(0, availableSpace - 3).trim() + \"...\";\n  }\n\n  if (link) {\n      finalPost += `\\n\\n${link}`;\n  }\n\n  finalPost = finalPost.replace(/\\n{3,}/g, \"\\n\\n\").trim();\n\n  return {\n    json: {\n      ...j,\n      social_text: finalPost,\n      draft_image_url: imageUrl\n    },\n    binary: item.binary\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1040,
+        3008
+      ],
+      "id": "5e5efa68-bf39-4f4d-99d6-997d689055da",
+      "name": "Code: Format TH"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.publish_jobs\nSET \n  social_content = $1,\n  updated_at = NOW()\nWHERE id = $2;",
+        "options": {
+          "queryReplacement": "={{ [ $json.social_text, $json.publish_job_id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -752,
+        3008
+      ],
+      "id": "8394d70c-dcc6-40bd-91e2-921c3b30091a",
+      "name": "БД: Save TH Text",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Восстанавливаем данные после БД\nconst sourceItem = $('Code: Format TH1').item.json;\n\n// Ищем URL картинки. \n// ВАЖНО: Threads требует публичный URL (https://...), локальный бинарник не подойдет для Meta Publisher.\n// Мы берем draft_image_url, который мы сохранили ранее (с Тильды).\nconst imageUrl = sourceItem.draft_image_url || sourceItem.image_url;\n\nif (!imageUrl) {\n   // Если картинки нет, можно выбросить ошибку или пустить дальше без картинки (но Meta Publisher может упасть)\n   // throw new Error(\"Нет ссылки на картинку (draft_image_url) для Threads\");\n}\n\nreturn [{\n  json: {\n    ...$input.item.json,\n    social_text: sourceItem.social_text,\n    imageUrl: imageUrl\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        5200
+      ],
+      "id": "c7bad180-065e-4bf6-8342-0cce283c2bb3",
+      "name": "Code: Restore TH Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item => {\n  const j = item.json || {};\n  // Получаем сырой текст от AI\n  const rawText = j.text || j.response || j.output || \"\";\n  // Ссылка из базы (на всякий случай)\n  const fallbackLink = j.published_url || \"\";\n  // Сохраняем ссылку на картинку, если она была\n  const imageUrl = j.draft_image_url || j.image_url || \"\";\n\n  // --- Парсер формата AI ---\n  const lines = rawText.split('\\n');\n  let title = \"\";\n  let body = [];\n  let cta = \"\";\n  let tags = \"\";\n  let aiLink = \"\";\n\n  lines.forEach(line => {\n      const l = line.trim();\n      if (!l) return;\n      if (l.startsWith(\"TITLE:\")) title = l.replace(/^TITLE:\\s*/i, \"\").trim();\n      else if (l.startsWith(\"P:\")) body.push(l.replace(/^P:\\s*/i, \"\").trim());\n      else if (l.startsWith(\"CTA:\")) cta = l.replace(/^CTA:\\s*/i, \"\").trim();\n      else if (l.startsWith(\"TAGS:\")) tags = l.replace(/^TAGS:\\s*/i, \"\").trim();\n      else if (l.startsWith(\"LINK:\")) aiLink = l.replace(/^LINK:\\s*/i, \"\").trim();\n  });\n\n  // --- Сборка чистого поста ---\n  let finalPost = \"\";\n  if (title) finalPost += title + \"\\n\\n\";\n  if (body.length > 0) finalPost += body.join(\"\\n\\n\") + \"\\n\\n\";\n  if (cta) finalPost += cta + \"\\n\\n\";\n  if (tags) finalPost += tags + \"\\n\\n\";\n\n  const link = aiLink || fallbackLink;\n  if (link && !finalPost.includes(link)) {\n      finalPost += link;\n  }\n\n  finalPost = finalPost.replace(/\\n{3,}/g, \"\\n\\n\").trim();\n\n  return {\n    json: {\n      ...j,\n      social_text: finalPost,\n      draft_image_url: imageUrl // Пробрасываем явно дальше\n    },\n    binary: item.binary\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        5200
+      ],
+      "id": "b8c62a07-0274-4259-a2af-de1d38a9ed78",
+      "name": "Code: Format TH1"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.publish_jobs\nSET \n  social_content = $1,\n  updated_at = NOW()\nWHERE id = $2;",
+        "options": {
+          "queryReplacement": "={{ [ $json.social_text, $json.publish_job_id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1536,
+        5200
+      ],
+      "id": "63889002-a4dd-4723-8607-58a66daef0d8",
+      "name": "БД: Save TH Text1",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "threads",
+        "operation": "threadsPublishImage",
+        "thUserId": "24883604037979153",
+        "imageUrl": "={{ $json.imageUrl }}",
+        "text": "={{ $json.social_text }}"
+      },
+      "type": "n8n-nodes-meta-publisher.metaPublisher",
+      "typeVersion": 1,
+      "position": [
+        1968,
+        5200
+      ],
+      "id": "c772c12c-ed3f-4c11-bea4-4059c8aa936b",
+      "name": "Publish image on threads1",
+      "credentials": {
+        "metaGraphApi": {
+          "id": "zIY471wKkXrr4gX4",
+          "name": "Threads"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Текст берем из ноды форматирования (там мы убрали теги и добавили ссылку)\n// Используем .item, чтобы взять данные текущего прогона\nlet socialText = \"\";\ntry {\n    socialText = $('Code: Format TH').item.json.social_text;\n} catch(e) {\n    socialText = $input.item.json.social_text; // Fallback\n}\n\n// 2. Картинку берем ЖЕЛЕЗНО из ноды \"БД: Lock Job + FileID\"\n// Обращаемся к ней по имени. Используем .first(), так как настройки обычно одни на запуск\n// или .item, если это в цикле. Если это SplitInBatches, лучше использовать .item, \n// но если нода БД была до цикла — то .first().\n\n// Судя по твоему контексту, БД была в начале.\nconst dbNode = $('БД: Lock Job + FileID').first().json;\nconst imageUrl = dbNode.draft_image_url;\n\nreturn [{\n  json: {\n    ...$input.item.json,\n    social_text: socialText,\n    imageUrl: imageUrl // Вот твоя ссылка из БД\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        848,
+        5152
+      ],
+      "id": "b7d23331-a8eb-4e14-a0e3-dad0ff300e62",
+      "name": "Code: Restore TH Data1"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item => {\n  const j = item.json || {};\n  // Текст от AI\n  const rawText = j.text || j.response || j.output || \"\";\n  // Ссылка из базы (fallback)\n  const fallbackLink = j.published_url || \"\";\n  // Ссылка на картинку (пробрасываем дальше)\n  const imageUrl = j.draft_image_url || j.image_url || \"\";\n\n  // Функция очистки тегов [b], [i] и т.д., так как Threads их не поддерживает\n  const cleanTags = (str) => str.replace(/\\[\\/?(b|i|u|s|q|code)\\]/gi, \"\");\n\n  // --- Парсер структуры ---\n  const lines = rawText.split('\\n');\n  let title = \"\";\n  let body = [];\n  let cta = \"\";\n  let tags = \"\";\n  let aiLink = \"\";\n  let foundStructure = false;\n\n  lines.forEach(line => {\n      let l = line.trim();\n      if (!l) return;\n\n      if (l.startsWith(\"TITLE:\")) {\n          title = l.replace(/^TITLE:\\s*/i, \"\").trim();\n          foundStructure = true;\n      } else if (l.startsWith(\"P:\")) {\n          body.push(l.replace(/^P:\\s*/i, \"\").trim());\n          foundStructure = true;\n      } else if (l.startsWith(\"CTA:\")) {\n          cta = l.replace(/^CTA:\\s*/i, \"\").trim();\n          foundStructure = true;\n      } else if (l.startsWith(\"TAGS:\")) {\n          tags = l.replace(/^TAGS:\\s*/i, \"\").trim();\n          foundStructure = true;\n      } else if (l.startsWith(\"LINK:\")) {\n          aiLink = l.replace(/^LINK:\\s*/i, \"\").trim();\n          foundStructure = true;\n      }\n  });\n\n  // --- Сборка поста ---\n  let finalPost = \"\";\n\n  if (foundStructure) {\n      if (title) finalPost += title + \"\\n\\n\";\n      if (body.length > 0) finalPost += body.join(\"\\n\\n\") + \"\\n\\n\";\n      if (cta) finalPost += cta + \"\\n\\n\";\n      if (tags) finalPost += tags + \"\\n\\n\";\n  } else {\n      // Если структуры нет — берем текст целиком\n      finalPost = rawText.trim();\n  }\n\n  // Очищаем от тегов типа [b]9 правил[/b] -> 9 правил\n  finalPost = cleanTags(finalPost);\n\n  // --- Ссылка ---\n  const link = aiLink || fallbackLink;\n  // Если ссылки нет в тексте, добавляем в конец\n  if (link && !finalPost.includes(link)) {\n      finalPost += link;\n  }\n\n  // Финальная уборка пробелов\n  finalPost = finalPost.replace(/\\n{3,}/g, \"\\n\\n\").trim();\n\n  return {\n    json: {\n      ...j,\n      social_text: finalPost,\n      draft_image_url: imageUrl // Важно для следующего шага\n    },\n    binary: item.binary\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1216,
+        5024
+      ],
+      "id": "cb22e5d0-16dc-4b5d-8974-5d8bf59b63b2",
+      "name": "Code: Format TH2"
+    },
+    {
+      "parameters": {
+        "text": "={{ $('Code: Format X').item.json.social_text }}",
+        "additionalFields": {
+          "attachments": "={{ $('Upload Media (v1.1)1').item.json.media_id_string }}"
+        }
+      },
+      "type": "n8n-nodes-base.twitter",
+      "typeVersion": 2,
+      "position": [
+        1392,
+        4624
+      ],
+      "id": "8e15cdb1-6868-49d3-9d2c-baeb8a7eca29",
+      "name": "Create Tweet1",
+      "credentials": {
+        "twitterOAuth2Api": {
+          "id": "2tHYAEUQc6mBcapa",
+          "name": "X account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "searchText": "уу2",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.twitter",
+      "typeVersion": 2,
+      "position": [
+        1056,
+        4800
+      ],
+      "id": "1a2d9890-c4e5-4700-a773-3a00f17c9d49",
+      "name": "Search Tweets",
+      "credentials": {
+        "twitterOAuth2Api": {
+          "id": "2tHYAEUQc6mBcapa",
+          "name": "X account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.twitter.com/2/tweets",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "twitterOAuth1Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"{{ $('Code: Format X').item.json.social_text }}\",\n  \"media\": {\n    \"media_ids\": [\n      \"{{ $('Upload Media (v1.1)1').item.json.media_id_string }}\"\n    ]\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1792,
+        4928
+      ],
+      "id": "279ebc0b-894e-455b-9580-912905caf22a",
+      "name": "X: Post Tweet (v2)",
+      "credentials": {
+        "twitterOAuth1Api": {
+          "id": "sqUcwCeiIULuvUvw",
+          "name": "X OAuth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.twitter.com/2/tweets",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "twitterOAuth1Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  text: $('Code: Format X').item.json.social_text,\n  media: {\n    media_ids: [\n      $('Upload Media (v1.1)1').item.json.media_id_string\n    ]\n  }\n}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        32,
+        2016
+      ],
+      "id": "b88a7074-5d45-4394-a79a-55803e26c297",
+      "name": "X: Post Tweet (v2)1",
+      "credentials": {
+        "twitterOAuth1Api": {
+          "id": "sqUcwCeiIULuvUvw",
+          "name": "X OAuth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.twitter.com/1.1/statuses/update.json",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "twitterOAuth1Api",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "={{ $('Code: Format X').item.json.social_text }}"
+            },
+            {
+              "name": "media_ids",
+              "value": "={{ $('Upload Media (v1.1)1').item.json.media_id_string }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1728,
+        4576
+      ],
+      "id": "8fe082cd-b001-450f-ac5d-e3b3a261e863",
+      "name": "X: Post Tweet (v1.1 Legacy)",
+      "credentials": {
+        "twitterOAuth1Api": {
+          "id": "sqUcwCeiIULuvUvw",
+          "name": "X OAuth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        864,
+        4640
+      ],
+      "id": "f1357117-f5b3-4db4-bf57-1549cc68d5d5",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "text": "={{ $('Code: Format X').item.json.social_text }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-twitter-scraper.twitterScraper",
+      "typeVersion": 1,
+      "position": [
+        -144,
+        2368
+      ],
+      "id": "74c59298-f64b-410c-91f5-03e9d79f48f2",
+      "name": "Create tweet",
+      "credentials": {
+        "twitterScraperApi": {
+          "id": "S2S6LYt5GabwLG0x",
+          "name": "Twitter Scraper account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "uploadMedia"
+      },
+      "type": "n8n-nodes-twitter-scraper.twitterScraper",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        4592
+      ],
+      "id": "044bc27a-8e0f-4783-90b2-16e9c91ced6e",
+      "name": "Upload media",
+      "credentials": {
+        "twitterScraperApi": {
+          "id": "S2S6LYt5GabwLG0x",
+          "name": "Twitter Scraper account"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Basic LLM Chain": [
+      {
+        "json": {
+          "text": "<b>Ржавчина</b> не пройдёт: 9 правил ухода за <b>ружьём</b> на охоте и дома\n\nРужьё, братцы, штука простая: железо, дерево и характер. Но есть у него враги такие, что никакой зверь не снился. Первый — сырость.\n\nВторой — пыль с песком. И вот с ними мы и воюем всю жизнь, если хотим, чтобы стволы жили долго, а не превращались в рыжую труху.\n\nСырость — гадина тихая. Воздух ведь почти никогда не сухой. Он лезет во все отверстия механизма, тащит за собой влагу, а там уже недалеко и до ржавчины.\n\nА ржавчина — это не <i>«налёт»</i>, который можно просто стереть и забыть. Это окисленный металл. Удаляешь ржавчину — значит, снимаешь часть металла. По факту, платишь железом за свою лень.\n\nА пыль и песок — это уже враг наглый. Попадают на трущиеся поверхности — и начинается: царапины, ускоренный износ, особенно затвору достаётся. Поэтому чистота и смазка — не <i>“красота”</i>, а нормальная техника безопасности для железа.\n\nПосле чистки стволы внутри и вообще все металлические части стоит слегка смазать нейтральным маслом. И хранение — тоже не <i>«как получится»</i>.\n\nКолодку с ложей — отдельно, стволы с цевьём — отдельно, всё в мягкие фланелевые чехлы, а потом — в металлический ящик, который закрывается на замок. Убираешь ружьё — проверь, спущены ли курки и эжекторы. Замки держи смазанными всегда, а не <i>“когда вспомню”</i>.\n\nПо смазке замков есть простая рабочая тема: трансформаторное (веретенное) масло. Оно без влаги, без кислот и на холоде не застывает. Для долгого хранения хорошо вычищенное ружьё смазывают пушечным салом или чистым жёлтым вазелином (именно жёлтым, не белым).\n\nНо тут ловушка для невнимательных: мажешь колодку и затвор — следи, чтобы не задеть дерево. Ложа от минеральных смазок пропитывается и становится хрупкой: крошится от небольшого давления или лёгкого удара, и шурупы потом в таком дереве не держатся.\n\nДереву — своё. Ложу разумно пропитать растительным маслом: чистым льняным или подсолнечным. А уже дальше, когда всё подготовлено, стволы и колодку можно завернуть отдельно в густо промасленную бумагу и убрать в чехол.\n\nВ таком виде ружьё способно лежать очень долго — и ты не будешь каждый раз открывать и вздыхать, как над чужой ошибкой. Но хранение — это полдела. На охоте ружьё тоже не должно жить <i>“на авось”</i>.\n\nПеред выходом, хоть дождь, хоть солнце — все трущиеся части протри тряпкой, смазанной вазелином или пушечным салом. В отверстие для бойков — по капле-другой масла. Щиток колодки и подушку — тоже слегка пройти вазелином или пушечным салом.\n\nА перед стрельбой обязательно пройдись по стволам внутри чистой тряпкой. Иначе бой ружья ухудшится — потом будешь ругать патроны, ружьё и погоду, хотя виновата обычная лень.\n\nКогда вокруг сыро, нетрущиеся части полезно защитить восковой смазкой. Это не <i>“модный уход”</i>, а просто способ отрезать влагу от металла.\n\nСамая важная дисциплина начинается после стрельбы. Особенно если был бездымный порох: чистить надо как можно быстрее. Почему? Сам порох металл не окисляет, но в нагаре образуются окислы азота.\n\nОни тянут из воздуха влагу, превращаются в азотную кислоту — и вот тебе ржавчина. Причём она может вылезти не сразу, а потом, когда ты уже всё <i>“почистил”</i> и успокоился. И ещё быстрее канал ствола окисляют продукты разложения капсюлей — там тоже сюрпризы без приглашения.\n\nПлюс есть ещё одна радость: стволы сильно свинцуются дробью. И если под свинцом остаётся химия от газов, под ним же и заводится ржавчина. Значит, освинцовку при чистке надо удалять, а не делать вид, что <i>“и так сойдёт”</i>.\n\nПо средствам всё просто. Для чистки используют специальные составы и ружейное масло. Если их нет — в ход идут зелёное мыло или обезвоженный керосин. Для смазки — вазелин, пушечное сало (его можно разбавить обезвоженным керосином), и то же жидкое трансформаторное масло.\n\nЕсть и проверка, если сомневаешься, что за масло тебе попалось. Намазываешь им хорошо вычищенную латунную гильзу и оставляешь. Если спустя время гильза темнеет или зеленеет — в масле примеси, оно ружью не друг. И ещё правило, которое многие игнорируют, а потом разводят руками: чистить ружьё надо не только после охоты и стрельбы, но вообще после любого выноса на открытый воздух.\n\nТеперь про чистку после дымного пороха. Тут порядок такой: сначала убираешь копоть с дульного и казённого срезов. Берёшь тряпку, обезвоженный керосин — и обтираешь. Потом снимаешь всю смазку с поверхности стволов, крюков и площадок.\n\nЕсли была восковая смазка — её снимают скипидаром. Грязь из труднодоступных мест (у соединения планки со стволами и прочее) выковыривают заострённой деревянной палочкой — металл туда лучше не пихать.\n\nДальше начинается часть, где у аккуратных людей всегда чисто, а у <i>“и так сойдёт”</i> — потом рыжие точки. Ствол ставят дулом в какую-нибудь жестянку. В казённую часть вставляют воронку и льют в каждый ствол крутой кипяток — именно кипяток, а не просто горячую воду. Чтобы не обжечь руку, верх стволов обматывают тряпкой.\n\nЗатем шомпол: на вишер тряпочку так, чтобы ходила по каналу плотно, как поршень, но без мучений. Протираешь несколько раз. Если вода стала грязной — выливаешь и снова заливаешь чистый кипяток. Кипяток быстро растворяет нагар дымного пороха, а шомполом ты этот нагар выгоняешь наружу.\n\nПосле воды — никаких <i>“потом высохнет”</i>. Стволы немедленно вытирают насухо так, чтобы нигде не осталось ни капли. Остыли — окончательная чистка обезвоженным керосином: меняешь тряпочки, пока не исчезнут тёмные пятна и пока не перестанут попадаться блёстки свинца. Свинец оставишь — под ним быстро пойдёт коррозия.\n\nЕсли стволы засвинцованы сильно, берёшь металлическую щётку, чтобы входила не туго, смазываешь её чистым скипидаром — и работаешь. Хорошие щётки делают из латунной или мягкой стальной проволоки. После щётки — пакля или тряпка, туго намотанная на вишер и обильно смоченная скипидаром. Гонишь по каналу до тех пор, пока выходит чистой.\n\nЧистить стволы лучше на руках или на столе, и обязательно подложить мягкую прокладку. И запомни железное: не ставь стволы дулом на пол. Тряпочка идёт как поршень и затянет с пола пыль и песок — и привет царапины в канале.\n\nПосле чистки каналы смазывают нейтральным маслом. Снаружи стволы протирают чистой тряпкой, чтобы убрать жировые пятна от рук. Щели и пазы колодки и затвора — тряпочкой с обезвоженным керосином, плюс деревянной палочкой, где не подлезть.\n\nВ отверстия для бойков и подъемников курков — по две капли нейтрального масла. Потом остатки керосина с колодки убираешь и протираешь её тряпкой, густо смазанной вазелином или пушечным салом. Точно так же чистятся металлические части цевья. И после всего этого стволы стоит ещё раз осмотреть и при необходимости повторить <b>чистку</b> — потому что ржавчина любит вылезать <i>“с характером”</i>.\n\nБездымный порох — отдельная песня. После него стволы чистят без промедления и тщательно. Сначала убираешь нагар, потом протираешь насухо, затем смазываешь зелёным или простым мылом и оставляешь ненадолго.\n\nПотом мыло удаляешь и чистишь обезвоженным керосином или маслом. И уже после этого можно оставить ружьё до повторной чистки, которую делают независимо от охоты, но уже без мыла.\n\nЕсть, кстати, полезная заводская штука: хромирование внутренней поверхности стволов. Оно защищает от коррозии и уменьшает оседание свинца, из-за чего срок службы ружья увеличивается. В хромированных стволах крупные дробины меньше трутся и меньше деформируются.\n\nНу и чтобы не строить из себя <i>“мастера на словах”</i>, на охоту нормально брать с собой набор для ухода. Вот что по уму кладут в отдельный мешочек или футляр:\n\n<ul><li>железную или пластмассовую баночку с пушечным салом и тряпочкой</li><li>маслёнку с двумя отделениями: для нейтрального масла и обезвоженного керосина</li><li>коробочку с зелёным мылом</li><li>металлическую и щетинную щётки</li><li>помазок-пуховку для смазывания чистых стволов</li><li>чистую белую тряпку</li><li>вишер и складной шомпол</li></ul>\n\nИ ещё момент: каждая щётка и пуховка должны храниться завернутыми в отдельные тряпочки. А при перевозке — хоть в машине, хоть в поезде, хоть на подводе — ружьё держат в жёстком чехле или ящике, стволы отделяют от ложи. В чехле укладывают так, чтобы не тряслось.\n\nВот и вся <i>“магия”</i>. Ржавчина и песок — не судьба, а результат отношения. Так что вопрос простой: ты ружьё держишь как инструмент, или как железяку, которая <i>“пока стреляет”</i>?"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "OK agent": [
+      {
+        "json": {
+          "text": "Ржавчина не пройдёт: 9 правил ухода за ружьём на охоте и дома\nКоротко: правильные масла и смазки, как проверить примеси, отличие ухода после дымного и бездымного пороха и обязательный набор для чистки в поле — чтобы ружьё не подвело.\n\"Не дайте ржавчине шансов.\"\nРазбор полётов:\nhttps://khc-ammunition.ru/tpost/flihcgdlg1-rzhavchina-ne-proidyot-9-pravil-uhoda-za"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "VK agent": [
+      {
+        "json": {
+          "text": "🛡️ Ржавчина не пройдёт: 9 правил ухода за ружьём на охоте и дома\n\nСырость, песчинки и остатки пороха — главные враги боевого состояния ружья. Коррозия может появиться не сразу, а через недели или месяцы после выстрела или неудачной чистки. Игнорировать это — значит рисковать надёжностью и безопасностью.\n\nВ материале — девять простых, но рабочих правил: какие масла и смазки действительно подходят, как быстро проверить масло на примеси, в чём разница ухода после дымного и бездымного пороха и что обязательно взять с собой в поле, чтобы почистить оружие сразу и не дать ржавчине шанса. Полезно для охоты и хранения дома — от быстрой выездной подготовки до регулярного обслуживания в мастерской.\n\nНе допускайте, чтобы мелочь стала причиной большой проблемы — прочитайте полный разбор и составьте свой чек‑лист для выезда.\n\nЧитать подробнее: https://khc-ammunition.ru/tpost/flihcgdlg1-rzhavchina-ne-proidyot-9-pravil-uhoda-za\n\n#Оружие #УходЗаРужьем #Безопасность"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "X agent": [
+      {
+        "json": {
+          "text": "\"Ржавчина не пройдёт\" https://khc-ammunition.ru/tpost/flihcgdlg1-rzhavchina-ne-proidyot-9-pravil-uhoda-za"
+        }
+      }
+    ],
+    "FB agent": [
+      {
+        "json": {
+          "text": "TITLE: Ржавчина не пройдёт: 9 правил ухода за ружьём\n\nP: Сырость, песок и следы пороха — главные враги любого ствола, и их влияние может проявиться спустя недели после охоты. Если не знать, какие масла выбирать и как правильно чистить, ружьё легко подведёт в самый неподходящий момент. Этот текст — про простые привычки, которые сохранят боеспособность и безопасность вашего оружия.\n\nP: Внутри — разбор подходящих смазок, как проверить масло на примеси, чем отличается уход после дымного и бездымного пороха и обязательный набор для полевой чистки. Практичные советы, которые можно сразу взять на заметку.\n\nCTA: Читайте разбор полётов по ссылке и соберите свой надёжный набор для ухода — не дайте ржавчине застать врасплох. Вы берёте в поле комплект для чистки?\n\nTAGS: Оружие УходЗаРужьем Безопасность\nLINK: https://khc-ammunition.ru/tpost/flihcgdlg1-rzhavchina-ne-proidyot-9-pravil-uhoda-za"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "БД: Настройки (Supabase)": {
+      "main": [
+        [
+          {
+            "node": "БД: Чаты Telegram5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Есть File ID?": {
+      "main": [
+        [
+          {
+            "node": "TG: Скачать файл",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge Context",
+            "type": "main",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "БД: Обновить URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TG: Скачать файл": {
+      "main": [
+        [
+          {
+            "node": "Merge Context",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge: X Context",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge: OK Context1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Context": {
+      "main": [
+        [
+          {
+            "node": "БД: Обновить URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TG: Post (Binary)": {
+      "main": [
+        [
+          {
+            "node": "Код: Результат",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TG: Post (Text)": {
+      "main": [
+        [
+          {
+            "node": "Код: Результат",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Код: Результат": {
+      "main": [
+        [
+          {
+            "node": "БД: Обновить статус",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Обновить статус": {
+      "main": [
+        [
+          {
+            "node": "Execution Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Чаты Telegram5": {
+      "main": [
+        [
+          {
+            "node": "Получить промты",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Куда публикуем?5": {
+      "main": [
+        [
+          {
+            "node": "TG: Есть бинарник?3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge: VK Context",
+            "type": "main",
+            "index": 1
+          },
+          {
+            "node": "VK agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "OK agent",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge: OK Context",
+            "type": "main",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge Context1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FB agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "X agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Threads agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "TG: Есть бинарник?3": {
+      "main": [
+        [
+          {
+            "node": "Telegram agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TG: Post (Text)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Код: Подготовка Данных": {
+      "main": [
+        [
+          {
+            "node": "HTTP: Получить ключи",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP: Получить ключи": {
+      "main": [
+        [
+          {
+            "node": "Код: Спарсить ключи",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Код: Спарсить ключи": {
+      "main": [
+        [
+          {
+            "node": "HTTP: posts_Add (Создать)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP: posts_Add (Создать)": {
+      "main": [
+        [
+          {
+            "node": "Код: Взять postuid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Код: Взять postuid": {
+      "main": [
+        [
+          {
+            "node": "IF: Есть картинка?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Есть картинка?": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "Payload: Только текст",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP: Upload (Бинарник)": {
+      "main": [
+        [
+          {
+            "node": "Код: Взять URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Код: Взять URL": {
+      "main": [
+        [
+          {
+            "node": "Payload: С картинкой",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Payload: С картинкой": {
+      "main": [
+        [
+          {
+            "node": "HTTP: posts_Edit (Наполнить)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Payload: Только текст": {
+      "main": [
+        [
+          {
+            "node": "HTTP: posts_Edit (Наполнить)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Код: Собрать Link": {
+      "main": [
+        [
+          {
+            "node": "БД: Сохранить URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Сохранить URL": {
+      "main": [
+        [
+          {
+            "node": "Код: Результат",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "HTTP: Upload (Бинарник)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Lock Job + FileID": {
+      "main": [
+        [
+          {
+            "node": "Код: Результат",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Есть File ID?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Обновить URL": {
+      "main": [
+        [
+          {
+            "node": "Код: Внедрить ссылку",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Код: Внедрить ссылку": {
+      "main": [
+        [
+          {
+            "node": "Куда публикуем?5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP: posts_Active (Публикация)": {
+      "main": [
+        [
+          {
+            "node": "HTTP: Получить Ссылку (posts_Get)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP: Получить Ссылку (posts_Get)": {
+      "main": [
+        [
+          {
+            "node": "Код: Собрать Link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP: posts_Edit (Наполнить)": {
+      "main": [
+        [
+          {
+            "node": "HTTP: posts_Active (Публикация)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Merge Context1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Context1": {
+      "main": [
+        [
+          {
+            "node": "Код: Подготовка Данных",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        []
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TH: Me Profile": {
+      "main": [
+        [
+          {
+            "node": "TH: Validate Token (by id)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TH: Me (simple)": {
+      "main": [
+        [
+          {
+            "node": "TH: Me (v1.0 minimal fields)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "X agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "X agent": {
+      "main": [
+        [
+          {
+            "node": "Code: Format X",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Threads agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "FB agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FB agent": {
+      "main": [
+        [
+          {
+            "node": "Code: Format FB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model4": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "OK agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OK agent": {
+      "main": [
+        [
+          {
+            "node": "Merge: OK Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model5": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Telegram agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram agent": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript3": {
+      "main": [
+        [
+          {
+            "node": "TG: Post (Binary)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model6": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "VK agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge: X Context": {
+      "main": [
+        [
+          {
+            "node": "Create tweet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Format X": {
+      "main": [
+        [
+          {
+            "node": "БД: Save X Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Save X Text": {
+      "main": [
+        [
+          {
+            "node": "Merge: X Context",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Upload Media (v1.1)1": {
+      "main": [
+        []
+      ]
+    },
+    "Code: Format FB": {
+      "main": [
+        [
+          {
+            "node": "БД: Save FB Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Save FB Text": {
+      "main": [
+        [
+          {
+            "node": "Publish photo photo facebook page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge: OK Context": {
+      "main": [
+        [
+          {
+            "node": "Code: Format OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Format OK": {
+      "main": [
+        [
+          {
+            "node": "БД: Save OK Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Save OK Text": {
+      "main": [
+        [
+          {
+            "node": "OK 1: Sign Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VK agent": {
+      "main": [
+        [
+          {
+            "node": "Merge: VK Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge: VK Context": {
+      "main": [
+        [
+          {
+            "node": "Code: Format VK",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge: VK Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Format VK": {
+      "main": [
+        [
+          {
+            "node": "БД: Save VK Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Save VK Text": {
+      "main": [
+        [
+          {
+            "node": "Code: VK Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: VK Config": {
+      "main": [
+        [
+          {
+            "node": "VK 1: Get Server",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VK 1: Get Server": {
+      "main": [
+        [
+          {
+            "node": "Merge: VK Upload",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "VK 2: Upload": {
+      "main": [
+        [
+          {
+            "node": "VK 3: Save",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VK 3: Save": {
+      "main": [
+        [
+          {
+            "node": "VK 4: Publish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VK 4: Publish": {
+      "main": [
+        [
+          {
+            "node": "Код: Результат",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge: VK Upload": {
+      "main": [
+        [
+          {
+            "node": "VK 2: Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "БД: Настройки (Supabase)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Получить промты": {
+      "main": [
+        [
+          {
+            "node": "БД: Lock Job + FileID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OK 1: Sign Upload": {
+      "main": [
+        [
+          {
+            "node": "OK 2: Get Upload URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OK 2: Get Upload URL": {
+      "main": [
+        [
+          {
+            "node": "Merge: OK Context1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "OK 3: Upload Image": {
+      "main": [
+        [
+          {
+            "node": "OK 4: Final Sig",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OK 4: Final Sig": {
+      "main": [
+        [
+          {
+            "node": "OK 5: Final Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge: OK Context1": {
+      "main": [
+        [
+          {
+            "node": "OK 3: Upload Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OK 5: Final Post": {
+      "main": [
+        [
+          {
+            "node": "Код: Результат",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Threads agent": {
+      "main": [
+        [
+          {
+            "node": "Code: Format TH",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Format TH": {
+      "main": [
+        [
+          {
+            "node": "БД: Save TH Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Save TH Text": {
+      "main": [
+        [
+          {
+            "node": "Publish image on threads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Restore TH Data": {
+      "main": [
+        [
+          {
+            "node": "Publish image on threads1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Format TH1": {
+      "main": [
+        [
+          {
+            "node": "БД: Save TH Text1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Save TH Text1": {
+      "main": [
+        [
+          {
+            "node": "Code: Restore TH Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish image on threads": {
+      "main": [
+        [
+          {
+            "node": "Код: Результат",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Tweets": {
+      "main": [
+        []
+      ]
+    },
+    "Merge": {
+      "main": [
+        []
+      ]
+    },
+    "Upload media": {
+      "main": [
+        []
+      ]
+    },
+    "Create tweet": {
+      "main": [
+        [
+          {
+            "node": "Код: Результат",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "8e3cbd6c-12ee-4cf3-b0f7-30dbafaf574f",
+  "meta": {
+    "instanceId": "a3be3517ac16055c74c794d80ee41ecf8379a31765686f5b788ba2bac8e2a816"
+  },
+  "id": "jg7g552OOMN9WNcW",
+  "tags": []
+}

@@ -6,7 +6,7 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: 'AiNews Control Center',
   icons: {
-    icon: '/favicon.svg',
+    icon: '/icon.png',
   }
 }
 import { ThemeProvider } from '@/components/ThemeProvider'

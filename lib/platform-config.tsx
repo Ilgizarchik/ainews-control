@@ -30,6 +30,8 @@ export const PLATFORM_CONFIG: Record<string, {
     bgColor: string
     borderColor: string
     ringColor: string
+    dotClass: string
+    maxLength?: number
 }> = {
     tg: {
         label: 'Telegram',
@@ -37,7 +39,9 @@ export const PLATFORM_CONFIG: Record<string, {
         color: 'text-blue-500',
         bgColor: 'bg-blue-500/10',
         borderColor: 'border-blue-200 dark:border-blue-800',
-        ringColor: 'ring-blue-500'
+        ringColor: 'ring-blue-500',
+        dotClass: 'bg-blue-500',
+        maxLength: 4096
     },
     vk: {
         label: 'VK',
@@ -45,7 +49,9 @@ export const PLATFORM_CONFIG: Record<string, {
         color: 'text-[#0077FF]',
         bgColor: 'bg-[#0077FF]/10',
         borderColor: 'border-[#0077FF]/30',
-        ringColor: 'ring-[#0077FF]'
+        ringColor: 'ring-[#0077FF]',
+        dotClass: 'bg-[#0077FF]',
+        maxLength: 14000
     },
     ok: {
         label: 'OK',
@@ -53,7 +59,9 @@ export const PLATFORM_CONFIG: Record<string, {
         color: 'text-[#F97400]',
         bgColor: 'bg-[#F97400]/10',
         borderColor: 'border-[#F97400]/30',
-        ringColor: 'ring-[#F97400]'
+        ringColor: 'ring-[#F97400]',
+        dotClass: 'bg-[#F97400]',
+        maxLength: 4000
     },
     site: {
         label: 'Website',
@@ -61,7 +69,8 @@ export const PLATFORM_CONFIG: Record<string, {
         color: 'text-emerald-500',
         bgColor: 'bg-emerald-500/10',
         borderColor: 'border-emerald-200 dark:border-emerald-800',
-        ringColor: 'ring-emerald-500'
+        ringColor: 'ring-emerald-500',
+        dotClass: 'bg-emerald-500',
     },
     threads: {
         label: 'Threads',
@@ -69,7 +78,9 @@ export const PLATFORM_CONFIG: Record<string, {
         color: 'text-black dark:text-white',
         bgColor: 'bg-zinc-500/10',
         borderColor: 'border-zinc-200 dark:border-zinc-700',
-        ringColor: 'ring-zinc-500'
+        ringColor: 'ring-zinc-500',
+        dotClass: 'bg-black dark:bg-white',
+        maxLength: 500
     },
     fb: {
         label: 'Facebook',
@@ -77,7 +88,9 @@ export const PLATFORM_CONFIG: Record<string, {
         color: 'text-[#1877F2]',
         bgColor: 'bg-[#1877F2]/10',
         borderColor: 'border-[#1877F2]/30',
-        ringColor: 'ring-[#1877F2]'
+        ringColor: 'ring-[#1877F2]',
+        dotClass: 'bg-[#1877F2]',
+        maxLength: 60000
     },
     x: {
         label: 'X',
@@ -85,7 +98,9 @@ export const PLATFORM_CONFIG: Record<string, {
         color: 'text-black dark:text-white',
         bgColor: 'bg-zinc-500/10',
         borderColor: 'border-zinc-200 dark:border-zinc-700',
-        ringColor: 'ring-zinc-500'
+        ringColor: 'ring-zinc-500',
+        dotClass: 'bg-black dark:bg-white',
+        maxLength: 280
     }
 }
 

@@ -1,0 +1,1086 @@
+{
+  "name": "Генерация контента для соц. сетей",
+  "nodes": [
+    {
+      "parameters": {
+        "model": "openai/gpt-5-mini",
+        "options": {
+          "timeout": 360000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        1456
+      ],
+      "id": "1eff04c6-6a3c-430a-8347-afbe4357b40e",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "OPxPNafAYGtjuKlH",
+          "name": "AI News"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5-mini",
+        "options": {
+          "timeout": 360000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -32,
+        2240
+      ],
+      "id": "47287577-2011-41a7-a80d-947c074e9eb6",
+      "name": "OpenRouter Chat Model1",
+      "credentials": {
+        "openRouterApi": {
+          "id": "OPxPNafAYGtjuKlH",
+          "name": "AI News"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.draft_title }}\n{{ $json.draft_announce }}\n{{ $json.published_url }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=Plain text + лимит длины.\nТеги убрать\n[q] → коротко в кавычках\nTITLE часто не нужен отдельно — можно склеить: TITLE — BODY\nLINK: обычно съедает место, но нужен. Ставь в конец.\nЕсли длина > 280: адаптер режет:\nприоритет: сохранить TITLE/1P/CTA/LINK\nостальное обрезать и добавить …\n"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.8,
+      "position": [
+        -32,
+        2032
+      ],
+      "id": "735f009b-e13d-46ec-81e6-f733163480c4",
+      "name": "X agent"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5-mini",
+        "options": {
+          "timeout": 360000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -48,
+        2720
+      ],
+      "id": "4374ef5f-cb46-4746-bda5-36b0af4c96c2",
+      "name": "OpenRouter Chat Model2",
+      "credentials": {
+        "openRouterApi": {
+          "id": "OPxPNafAYGtjuKlH",
+          "name": "AI News"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.draft_title }}\n{{ $json.draft_announce }}\n{{ $json.published_url }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=Ты — редактор постов для Threads (тема: охота/outdoor). Нужен разговорный пост-анонс, чуть “как диалог”.\n\nПРАВИЛА:\n- СТРОГО: Общий объем текста ДО 400 символов (оставь место для ссылки).\n- По-русски, живо, можно с лёгким “а у вас так было?”.\n- НЕ используй платформенную разметку: никаких *, _, /, markdown.\n- Используй только внутренние теги: [b] [i] [u] [s] [q] [code]\n- Пиши очень кратко: 1-2 емких абзаца и вопрос.\n\nВЫХОД (СТРОГО, без JSON):\nTITLE: <заголовок 1 строка или пусто>\nP: <суть поста: интрига/польза, очень сжато>\nCTA: <призыв перейти/почитать + вопрос>\nTAGS: <0-4 тега через пробел>\nLINK: <ссылка если дана, иначе пусто>"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.8,
+      "position": [
+        -48,
+        2480
+      ],
+      "id": "3010226d-3588-41cf-b1a2-f344a0813fc1",
+      "name": "Threads agent"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5-mini",
+        "options": {
+          "timeout": 360000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -32,
+        1872
+      ],
+      "id": "a95ec989-0523-4cf5-b4e8-5193a0775a6c",
+      "name": "OpenRouter Chat Model3",
+      "credentials": {
+        "openRouterApi": {
+          "id": "OPxPNafAYGtjuKlH",
+          "name": "AI News"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.draft_title }}\n{{ $json.draft_announce }}\n{{ $json.published_url }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=Ты — редактор постов для Facebook (страница/сообщество про hunting/outdoor). Нужен “человечный” анонс к материалу.\n\nПРАВИЛА:\n- По-русски, можно чуть более рассказно, но без простыней.\n- НЕ используй платформенную разметку: никаких *, _, /, markdown.\n- Используй только внутренние теги: [b] [i] [u] [s] [q] [code]\n- Допустим 1 короткий вопрос в конце для вовлечения.\n\nВЫХОД (СТРОГО, без JSON):\nTITLE: <заголовок 1 строка>\nP: <абзац 2-4 предложения: контекст + почему это заденет>\nP: <абзац 1-2 предложения: что полезного внутри>\nCTA: <призыв перейти/прочитать + опционально вопрос>\nTAGS: <0-4 тега через пробел>\nLINK: <ссылка если дана, иначе пусто>"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.8,
+      "position": [
+        -32,
+        1680
+      ],
+      "id": "e6eeeb86-da9e-478d-adbd-e6cd42a0e25e",
+      "name": "FB agent"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5-mini",
+        "options": {
+          "timeout": 360000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        1040
+      ],
+      "id": "e3185ae7-18b7-4f7c-88d5-0d6ef2426ecf",
+      "name": "OpenRouter Chat Model4",
+      "credentials": {
+        "openRouterApi": {
+          "id": "OPxPNafAYGtjuKlH",
+          "name": "AI News"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.draft_title }}\n{{ $json.draft_announce }}\n{{ $json.published_url }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=Plain text + лимит длины.\nТеги убрать\n[q] → коротко в кавычках\nTITLE часто не нужен отдельно — можно склеить: TITLE — BODY\nLINK: обычно съедает место, но нужен. Ставь в конец.\nЕсли длина > 280: адаптер режет:\nприоритет: сохранить TITLE/1P/CTA/LINK\nостальное обрезать и добавить …\n"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.8,
+      "position": [
+        -16,
+        800
+      ],
+      "id": "a64fdf11-7ea4-4f22-bd6e-3b26ef9e9713",
+      "name": "OK agent"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5-mini",
+        "options": {
+          "timeout": 360000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        0,
+        128
+      ],
+      "id": "7b7fa9eb-b70c-437f-a8e6-d472cb4e4574",
+      "name": "OpenRouter Chat Model5",
+      "credentials": {
+        "openRouterApi": {
+          "id": "OPxPNafAYGtjuKlH",
+          "name": "AI News"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.draft_title }}\n{{ $json.draft_announce }}\n{{ $json.published_url }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=Plain text + лимит длины.\nТеги убрать\n[q] → коротко в кавычках\nTITLE часто не нужен отдельно — можно склеить: TITLE — BODY\nLINK: обычно съедает место, но нужен. Ставь в конец.\nЕсли длина > 280: адаптер режет:\nприоритет: сохранить TITLE/1P/CTA/LINK\nостальное обрезать и добавить …\nТЫ ИСПОЛЬЗУЕШЬ ТЕЛЕГРАМ-ПРЕМИУМ ЭМОДЗИ.\nВместо обычных смайликов, ты ОБЯЗАН использовать специальные теги из списка ниже. Не используй стандартные Unicode эмодзи, только эти теги:\n\nСПИСОК РАЗРЕШЕННЫХ ЭМОДЗИ:\n- Для важных моментов/акцента: [fire]\n- Для успешных действий/галочек: [check]\n- Для предупреждений/внимания: [warn]\n- Для новостей/анонсов: [news]\n- Для ссылок/призывов: [link]\n- Для денег/цены: [money]\n\nПРИМЕР ТЕКСТА:\n[news] Срочные новости!\nМы обновили каталог [check].\nУспейте забрать до полуночи [fire].\nЦена: 5000р [money]\n{{ $('Получить промты').item.json.prompts.rewrite_social_tg }}"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.8,
+      "position": [
+        0,
+        -112
+      ],
+      "id": "56574728-c909-446d-8034-8dc3b5f8e340",
+      "name": "Telegram agent"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5-mini",
+        "options": {
+          "timeout": 360000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        0,
+        576
+      ],
+      "id": "1df31358-0bab-4b43-a19a-45bcfd166bf9",
+      "name": "OpenRouter Chat Model6",
+      "credentials": {
+        "openRouterApi": {
+          "id": "OPxPNafAYGtjuKlH",
+          "name": "AI News"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.draft_title }}\n{{ $json.draft_announce }}\n{{ $json.published_url }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=Ты — SMM редактор для ВКонтакте.\nТвоя задача: Написать пост к новости.\n\nТребования:\n1. Стиль: Уверенный, информативный, умеренно неформальный.\n2. Структура:\n   - Заголовок (можно использовать эмодзи).\n   - Тело новости (разбитое на абзацы).\n   - Призыв (Посетите сайт, Читайте подробнее).\n3. Ссылку поставь в конце поста или в теле, где это уместно.\n4. Хештеги: Добавь 2-3 тематических хештега в конце."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.8,
+      "position": [
+        0,
+        336
+      ],
+      "id": "48018824-506c-4f1e-be4e-517541863240",
+      "name": "VK agent"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "tg",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "0f4b4a3e-11ae-4d7d-bc06-ecf1e1d4a6ea"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "tg"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "vk",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "5a772865-47d5-4a11-8443-5960d03ed0a1"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "vk"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "ok",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "0a7cbef1-8e86-4715-9c57-8a5af9c4ac7e"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "ok"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "site",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "1a17e3a2-51c2-413b-99f3-d36b8b62e9bb"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "site"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "ed153898-3556-42bb-a373-d89abcfe15f8",
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "FB",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "FB"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "9945adef-459a-4975-989f-a85b6c2ce94a",
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "X",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "X"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "d7df20f4-a96b-4e6a-967d-f89315fd344c",
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "Threads",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "threads"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "4722a552-3dcd-4791-a269-fbd2aa78f054",
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "Instagram",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Instagram"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -576,
+        912
+      ],
+      "id": "4bc40d0b-b05a-4135-98d2-1b5d9a5373ce",
+      "name": "Куда публикуем?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.publish_jobs\nSET \n  social_content = $1,\n  updated_at = NOW()\nWHERE id = $2;",
+        "options": {
+          "queryReplacement": "={{ [ $json.social_text, $json.publish_job_id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1104,
+        976
+      ],
+      "id": "07ede8f7-eae4-4caa-942f-896882023709",
+      "name": "БД: Save FB Text",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5-mini",
+        "options": {
+          "timeout": 360000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        336,
+        112
+      ],
+      "id": "56fbe8aa-bdbf-47fa-a309-ba3c5ba564ec",
+      "name": "OpenRouter Chat Model7",
+      "credentials": {
+        "openRouterApi": {
+          "id": "OPxPNafAYGtjuKlH",
+          "name": "AI News"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.draft_longread }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=Ты — профессиональный веб-редактор. Твоя задача — техническая верстка текста для сайта.\n\nВходящие данные: Сырой текст новости.\n\nИНСТРУКЦИИ:\n\n1. КОНТЕНТ:\n   - Сохрани текст и его смысл на 100%.\n   - ЗАПРЕЩЕНО удалять предложения.\n\n2. СТРУКТУРА И АБЗАЦЫ:\n   - Разбей текст на смысловые абзацы (по 2-4 предложения).\n   - Между абзацами ставь СТРОГО разделитель `\\n\\n` (двойной перенос).\n   - Если первое предложение похоже на заголовок/лид — отдели его от тела статьи через `\\n\\n`.\n\n3. СПИСКИ (СТРОГО):\n   - Создавай HTML-список (`<ul>` или `<ol>`) ТОЛЬКО если в перечислении 4 и более пунктов.\n   - Если пунктов 3 или меньше — ОСТАВЛЯЙ их внутри предложения через запятую. Не разрывай текст ради коротких списков.\n   - Исключение: Пошаговые инструкции (Шаг 1, Шаг 2) оформляй списком даже если их мало.\n   - Внутри HTML-списка (`<ul>...</ul>`) ЗАПРЕЩЕНО использовать `\\n\\n`. Весь список должен быть одной строкой кода.\n\n4. ЖИРНЫЙ (<b>) И КУРСИВ (<i>):\n   - Выдели жирным 1-3 ключевых объекта (суть новости). Не выделяй целые предложения.\n   - Курсив — только для цитат.\n\n5. ССЫЛКИ И ГИПЕРССЫЛКИ (<a>):\n   - Любые URL в тексте должны стать кликабельными ссылками.\n   - Если URL уже внутри `<a ...>` — НЕ трогай.\n   - Формат: `<a href=\"URL\" target=\"_blank\" rel=\"noopener noreferrer\">ТЕКСТ</a>`\n   - В href должен быть полный адрес. Если начинается с `www.` — добавь `https://`.\n   - НЕ включай в href завершающую пунктуацию (.,;:!?) и закрывающие скобки. Пунктуация должна остаться СНАРУЖИ тега `<a>`.\n\n   ВЫБОР ТЕКСТА ССЫЛКИ (анкор) — по приоритету:\n\n   A) Контекстный анкор (главное правило):\n      - Если прямо перед URL в этом же предложении есть “название ссылки” (например: `сайт ГД РФ`, `на сайте Госдумы`, `проект №10375-8`, `Проект ФЗ №10375-8 (статья 13 НК РФ)`),\n        то URL заменяй на ссылку, а текстом ссылки ставь ИМЕННО эту фразу.\n      - То есть оставляй смысловую подпись, а “голый” URL прячь внутрь `<a>...</a>`.\n      Пример:\n      `сайт ГД РФ (https://sozd.duma.gov.ru)` -> `сайт ГД РФ (<a href=\"https://sozd.duma.gov.ru\" ...>сайт</a>)`\n      или если без скобок:\n      `Смотрим на сайте ГД РФ: https://sozd.duma.gov.ru` -> `Смотрим на сайте ГД РФ: <a href=\"https://sozd.duma.gov.ru\" ...>сайт</a>`\n\n   B) Спец-правило для домена sozd.duma.gov.ru:\n      - Если URL = `https://sozd.duma.gov.ru` (или с `/` на конце) — текст ссылки всегда `сайт`.\n\n   C) Спец-правило для законопроектов Госдумы:\n      - Если URL содержит `/bill/XXXXXX-8`:\n        1) Если рядом в предложении уже есть подпись вида `Проект ФЗ №XXXXXX-8 ...` — используй её (см. правило A).\n        2) Если подписи нет — сгенерируй текст ссылки:\n           `Проект ФЗ №XXXXXX-8`\n        Пример:\n        `https://sozd.duma.gov.ru/bill/10375-8` -> `<a href=\"...\" ...>Проект ФЗ №10375-8</a>`\n\n   D) Общее правило (если ни A/B/C не сработали):\n      - Если URL стоит после слов `Ссылка:`, `Ссылка на ...:`, `Ссылка здесь:` — используй текст `ссылка`.\n      - Иначе используй короткий текст `ссылка`, НЕ оставляй голый URL.\n6. ВЫВОД:\n   - Верни ТОЛЬКО готовый текст с HTML-тегами. Без markdown-кавычек, без пояснений."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.8,
+      "position": [
+        -16,
+        1264
+      ],
+      "id": "f5a89061-12a5-47ef-bb4b-5c909114ada4",
+      "name": "Агент для сайта"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -2240,
+        992
+      ],
+      "id": "6c42281d-b4da-4deb-9842-ec1bf320ab1c",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT jsonb_object_agg(key, content) AS prompts\nFROM public.system_prompts\nWHERE key IN ('rewrite_social_fb','rewrite_social_ok','rewrite_social_tg','rewrite_social_threads','rewrite_social_vk','rewrite_social_x');\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1056,
+        1008
+      ],
+      "id": "0b2ff75c-1b22-4bb3-878d-bee4b1dafa5f",
+      "name": "Получить промты",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.draft_title }}\n{{ $json.draft_announce }}\n{{ $json.published_url }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=На основе полученного текста грамотно расставь эмодзи"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.8,
+      "position": [
+        336,
+        -112
+      ],
+      "id": "898ebd69-e852-4ddb-bc86-434e786969df",
+      "name": "Telegram agent эмодзи/форматирование"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1664,
+        992
+      ],
+      "id": "cab5b79d-290f-4ed3-ad4b-70f8fea5b6a6",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  pj.id as publish_job_id,\n  pj.platform,\n  \n  -- 1. Заголовок (называем draft_title, чтобы агент его увидел)\n  COALESCE(ni.draft_title, ri.draft_title) as draft_title,\n  \n  -- 2. Анонс (называем draft_announce)\n  -- ВАЖНО: Добавил это поле, раньше его не было в выборке!\n  COALESCE(ni.draft_announce, ri.draft_announce) as draft_announce,\n\n  -- 3. Лонгрид (на всякий случай, если агенту понадобится полный текст)\n  COALESCE(ni.draft_longread, ri.draft_longread) as draft_longread,\n  \n  -- 4. Картинка (только для новостей)\n  ni.draft_image_url,\n  \n  -- 5. Ссылка (называем published_url)\n  ni.published_url\n  \nFROM public.publish_jobs pj\nLEFT JOIN public.news_items ni ON ni.id = pj.news_id\nLEFT JOIN public.review_items ri ON ri.id = pj.review_id\nWHERE pj.id = $1;",
+        "options": {
+          "queryReplacement": "={{ $json.id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1328,
+        1008
+      ],
+      "id": "c33fd304-9cba-4eb1-a7b2-d8a9b1291f1c",
+      "name": "Получить запись",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -768,
+        1008
+      ],
+      "id": "49b2b4c1-c989-495d-9a50-990c6d601748",
+      "name": "Соединить"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id \nFROM public.publish_jobs \nWHERE social_content IS NULL \n  AND status = 'queued' -- или другой статус, который вы ставите при создании\nLIMIT 20; -- Ограничиваем пачку, чтобы не зависнуть насмерть",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -2240,
+        1984
+      ],
+      "id": "47abee32-db30-4c5a-806d-c3c52a8bcc4a",
+      "name": "Получить айди публикации2",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "385a11ff-4555-493c-b795-06468250b3ad",
+              "name": "social_text",
+              "value": "={{ $json.text }}",
+              "type": "string"
+            },
+            {
+              "id": "b1195d07-7e93-4211-af3f-1d1bd8d1cbe8",
+              "name": "=publish_job_id",
+              "value": "={{ $('Получить запись').item.json.publish_job_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        848,
+        976
+      ],
+      "id": "e4fbf184-2de0-43a4-8131-06757acdd6be",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id \nFROM public.publish_jobs \nWHERE social_content IS NULL \n  AND status = 'queued' -- или другой статус, который вы ставите при создании\nLIMIT 20; -- Ограничиваем пачку, чтобы не зависнуть насмерть",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1968,
+        992
+      ],
+      "id": "f14a46ce-1a1a-4e3c-9c16-a9a90332a903",
+      "name": "Получить айди публикации за последние",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Агент для сайта",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "X agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Threads agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "FB agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model4": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "OK agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model5": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Telegram agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model6": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "VK agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Куда публикуем?": {
+      "main": [
+        [
+          {
+            "node": "Telegram agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "VK agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "OK agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Агент для сайта",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FB agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "X agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Threads agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram agent": {
+      "main": [
+        [
+          {
+            "node": "Telegram agent эмодзи/форматирование",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VK agent": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OK agent": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FB agent": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "X agent": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Threads agent": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model7": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Telegram agent эмодзи/форматирование",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Агент для сайта": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Получить айди публикации за последние",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Получить промты": {
+      "main": [
+        [
+          {
+            "node": "Соединить",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram agent эмодзи/форматирование": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Получить запись",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Save FB Text": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Получить запись": {
+      "main": [
+        [
+          {
+            "node": "Получить промты",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Соединить",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Соединить": {
+      "main": [
+        [
+          {
+            "node": "Куда публикуем?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "БД: Save FB Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Получить айди публикации за последние": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "c431c4c6-e37a-4452-9454-f05716a39218",
+  "meta": {
+    "instanceId": "a3be3517ac16055c74c794d80ee41ecf8379a31765686f5b788ba2bac8e2a816"
+  },
+  "id": "5C3i8zaCZxtLswTD",
+  "tags": []
+}

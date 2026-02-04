@@ -1,0 +1,659 @@
+{
+  "name": "Template B: AI Gate 1 + отправка в Telegram",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Input:\n- title: {{$json.title}}\n- url: {{$json.canonical_url}}\n- source: {{$json.source_name}}\n- summary: {{$json.rss_summary}}\n- published_at: {{$json.published_at}}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=You are an AI Relevancy Gate for a Russian hunting and outdoor media project.\n\nCRITICAL OUTPUT RULES (must always be followed):\n1) Return ONLY a single raw JSON object. No markdown. No code fences. No extra text.\n2) The JSON must match the schema exactly and use only allowed values.\n\nALLOWED TAGS (only these values):\n[\"hunting\",\"weapons\",\"dogs\",\"recipes\",\"culture\",\"travel\",\"law\",\"events\",\"conservation\",\"other\"]\n\nDECISION + SCORE:\n- decision = \"send\" only if the item is relevant to Russia-first hunting/outdoor (hunting, weapons in hunting/outdoor context, hunting dogs, hunting-related laws/rules, conservation relevant to hunters, or key events for hunters in Russia).\n- Otherwise decision = \"block\".\n- score 0-100:\n  - 80-100: highly relevant\n  - 50-79: indirectly relevant / worth admin review\n  - 0-49: irrelevant\n\nJSON SCHEMA (exact):\n{\n  \"decision\": \"send\" | \"block\",\n  \"score\": integer,\n  \"tags\": [\"hunting\"|\"weapons\"|\"dogs\"|\"recipes\"|\"culture\"|\"travel\"|\"law\"|\"events\"|\"conservation\"|\"other\"],\n  \"reason\": \"1-2 sentences in Russian\"\n}\n\nREASON RULES:\n- 1-2 short sentences in Russian.\n- Explain the decision (why send/block), do NOT rewrite the summary.\n- Do NOT mention rules, schema, or that you are an AI.\n\nADDITIONAL EDITORIAL RULES:\n- These rules may refine the selection logic, but must NEVER change the output format, schema, or allowed tags.\n- If any conflict with CRITICAL OUTPUT RULES / ALLOWED TAGS / JSON SCHEMA, ignore the additional rules and follow CRITICAL rules.\n\n{{ $('Получить промт').item.json.content }}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -1504,
+        224
+      ],
+      "id": "60eb37d5-f571-409f-8430-34697788a8ff",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -2608,
+        -144
+      ],
+      "id": "39b21985-546f-4455-9328-7ed290d3647d",
+      "name": "When clicking ‘Execute workflow’",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, title, canonical_url, source_name, rss_summary, published_at\nFROM public.news_items\nWHERE status = 'found'\n  AND sent_to_approve1_at IS NULL\nORDER BY published_at DESC NULLS LAST\nLIMIT 20;\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -2144,
+        208
+      ],
+      "id": "46092207-f9ca-43cc-a1b0-81e697760c4c",
+      "name": "Execute a SQL query",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const title = String($json.title || '').trim();\nconst summary = String($json.rss_summary || '').trim();\nconst url = String($json.canonical_url || '').trim();\n\nconst gate_input = `TITLE: ${title}\\nSUMMARY: ${summary}\\nURL: ${url}`;\n\nreturn [{\n  json: {\n    ...$json,\n    gate_input,\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1712,
+        224
+      ],
+      "id": "e0099597-f268-4c85-a71e-6f5cfe090ab3",
+      "name": "AI Gate 1 Prep"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "52263869-6b69-4e1c-893b-65b817aa5268",
+              "leftValue": "={{ $json.gate1_decision }}",
+              "rightValue": "send",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -512,
+        240
+      ],
+      "id": "1fb80105-48e5-43e6-a5c2-46a94ae722ca",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('БД: Чаты Telegram').item.json.rss_draft_chat_id }}",
+        "text": "=🔔 Новость на проверку (Оценка: {{$json.gate1_score}})\n\n📌 {{$json.title}}\n\n🧩 Теги: {{ Array.isArray($json.gate1_tags) ? $json.gate1_tags.join(\", \") : String($json.gate1_tags || \"\") }}\n\n📝 Причина: {{$json.gate1_reason}}\n\n🔍 Источник: {{ $json.source_name }}\n\n🕚 Дата публикации: {{ $json.published_at ? $json.published_at.split('T')[0] : 'Не указана' }}\n\n🔗 <a href=\"{{$json.canonical_url}}\">Перейти по ссылке</a>",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "✅",
+                    "additionalFields": {
+                      "callback_data": "={{ 'A1|' + $json.id }}"
+                    }
+                  },
+                  {
+                    "text": "❌",
+                    "additionalFields": {
+                      "callback_data": "={{ 'X1|' + $json.id }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "10da216f-5620-439b-ab58-a9de1b247906",
+      "name": "Send Approve 1",
+      "webhookId": "422fce44-7c35-4fec-b0a6-00b17d8875c6",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.news_items\nSET\n  gate1_decision = 'reject',\n  gate1_score = $2,\n  gate1_reason = $3,\n  gate1_tags = $4,\n  gate1_processed_at = now(),\n  locked_at = NULL,\n  status = 'rejected'\nWHERE id = $1;\n",
+        "options": {
+          "queryReplacement": "={{ [ $json.id, $json.gate1_score, $json.gate1_reason, $json.gate1_tags ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -288,
+        464
+      ],
+      "id": "8131959a-9da8-43d2-af0b-2fa275fd68c7",
+      "name": "DB Mark Rejected (Hard)",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw =\n  $json.output ??\n  $json.text ??\n  $json.response ??\n  $json.data ??\n  $json.choices?.[0]?.message?.content ??\n  \"\";\n\n// Parse AI JSON safely\nlet out;\ntry {\n  out = typeof raw === \"string\" ? JSON.parse(raw) : (raw || {});\n} catch (e) {\n  out = {};\n}\n\n// Normalize decision\nconst decision = out.decision === \"send\" ? \"send\" : \"block\";\n\n// Normalize score\nconst scoreNum = Number(out.score);\nconst score = Math.max(\n  0,\n  Math.min(100, Number.isFinite(scoreNum) ? Math.round(scoreNum) : 0)\n);\n\n// Normalize tags (strict allowlist)\nconst ALLOWED = new Set([\n  \"hunting\",\n  \"weapons\",\n  \"dogs\",\n  \"recipes\",\n  \"culture\",\n  \"travel\",\n  \"law\",\n  \"events\",\n  \"conservation\",\n  \"other\",\n]);\n\nconst tagsRaw = Array.isArray(out.tags) ? out.tags : [];\nconst tags = tagsRaw\n  .map((t) => String(t).trim())\n  .filter((t) => ALLOWED.has(t))\n  .slice(0, 10);\n\nif (!tags.length) tags.push(\"other\");\n\n// Normalize reason\nconst reason = String(out.reason ?? \"\").trim().slice(0, 500) || \"—\";\n\n// Return only gate fields + raw\nreturn [\n  {\n    json: {\n      ...$json,\n      gate1_decision: decision,\n      gate1_score: score,\n      gate1_tags: tags,\n      gate1_reason: reason,\n      gate1_raw: out,\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -928,
+        240
+      ],
+      "id": "a7c89a49-327f-4091-9059-ceb5e24076b8",
+      "name": "Parse Gate 1 Result"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.news_items\nSET\n  gate1_decision = $2,\n  gate1_score = $3,\n  gate1_tags = $4,\n  gate1_reason = $5,\n  gate1_raw = $6::jsonb\nWHERE id = $1\nRETURNING\n  id, title, draft_title, canonical_url, source_name, rss_summary, published_at,\n  gate1_decision, gate1_score, gate1_tags, gate1_reason;\n",
+        "options": {
+          "queryReplacement": "={{ [\n  $json.id,\n  $json.gate1_decision,\n  $json.gate1_score,\n  $json.gate1_tags,\n  $json.gate1_reason,\n  JSON.stringify($json.gate1_raw || {})\n] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -736,
+        240
+      ],
+      "id": "9f1a6610-63b0-4605-b7a5-d0f02e993eec",
+      "name": "DB Save Gate 1",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1952,
+        208
+      ],
+      "id": "24aa265b-0e05-468b-934a-c03a3d092213",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -1104,
+        240
+      ],
+      "id": "1cdbc0ef-b6c6-4cf9-a620-72c1262305e5",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d40d1c9a-cafc-4919-99f9-bbc57959985a",
+              "name": "news_id",
+              "value": "={{$json.id}}",
+              "type": "string"
+            },
+            {
+              "id": "fb819a4b-036d-4460-9ce8-03d11db0d907",
+              "name": "source_name",
+              "value": "={{ $json.source_name }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -240,
+        224
+      ],
+      "id": "7e2ebb03-cc51-4a13-b623-b8297e4de187",
+      "name": "Подготовка данных для отправки"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        224,
+        208
+      ],
+      "id": "87900893-d361-4e28-ba13-ecbbb562044b",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.news_items\nSET\n  sent_to_approve1_at = COALESCE(sent_to_approve1_at, now()),\n  approve1_message_id = COALESCE(approve1_message_id, $2),\n  approve1_chat_id    = COALESCE(approve1_chat_id, $3)\nWHERE id = $1\n  AND sent_to_approve1_at IS NULL\nRETURNING\n  id,\n  sent_to_approve1_at,\n  approve1_message_id,\n  approve1_chat_id;",
+        "options": {
+          "queryReplacement": "={{ [ $('Подготовка данных для отправки').item.json.news_id, $json.result.message_id, $json.result.chat.id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        432,
+        208
+      ],
+      "id": "c0b585b2-0921-425a-b664-4ae53abd6378",
+      "name": "Записать отправку на проверку 1",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  MAX(chat_id) FILTER (WHERE purpose = 'rss_draft') AS rss_draft_chat_id,\n  MAX(chat_id) FILTER (WHERE purpose = 'approve')   AS approve_chat_id,\n  MAX(chat_id) FILTER (WHERE purpose = 'publish')   AS publish_chat_id\nFROM public.telegram_chats\nWHERE project_key = 'ainews'\n  AND is_active = true;\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -2336,
+        208
+      ],
+      "id": "35f12646-915d-4ade-b710-ca9b3fe54a68",
+      "name": "БД: Чаты Telegram",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('БД: Чаты Telegram').item.json.rss_draft_chat_id }}",
+        "text": "=Не про Охоту\n{{ $('DB Save Gate 1').item.json.canonical_url }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -16,
+        464
+      ],
+      "id": "8b1f551a-ea36-4d14-96be-2bb196721e86",
+      "name": "Send Approve ",
+      "webhookId": "422fce44-7c35-4fec-b0a6-00b17d8875c6",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "system_prompts",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "key",
+              "keyValue": "gate_filter"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -2576,
+        208
+      ],
+      "id": "9f59ebdf-803f-4f97-bac1-0281880f4173",
+      "name": "Получить промт",
+      "credentials": {
+        "supabaseApi": {
+          "id": "0jybqWrEmbw0Wb5i",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5-nano",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -1504,
+        464
+      ],
+      "id": "4945660c-14bb-4c79-809e-8694c06bae57",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "OPxPNafAYGtjuKlH",
+          "name": "AI News"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 6
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -2768,
+        208
+      ],
+      "id": "662626f2-ede8-4e31-918e-ecbe04eef912",
+      "name": "Schedule Trigger"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        []
+      ]
+    },
+    "Execute a SQL query": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Gate 1 Prep": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Подготовка данных для отправки",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "DB Mark Rejected (Hard)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Gate 1 Result": {
+      "main": [
+        [
+          {
+            "node": "DB Save Gate 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB Save Gate 1": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Approve 1": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "AI Gate 1 Prep",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB Mark Rejected (Hard)": {
+      "main": [
+        [
+          {
+            "node": "Send Approve ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Parse Gate 1 Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Подготовка данных для отправки": {
+      "main": [
+        [
+          {
+            "node": "Send Approve 1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Записать отправку на проверку 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Записать отправку на проверку 1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Чаты Telegram": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Approve ": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Получить промт": {
+      "main": [
+        [
+          {
+            "node": "БД: Чаты Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Получить промт",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "111tTOvNeCW5G0rn"
+  },
+  "versionId": "0dd25cf3-eee6-43e1-b604-e5f6ad9b10df",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a3be3517ac16055c74c794d80ee41ecf8379a31765686f5b788ba2bac8e2a816"
+  },
+  "id": "Gt7cJgJFHbT3GYIu",
+  "tags": []
+}

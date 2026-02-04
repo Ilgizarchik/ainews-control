@@ -1,0 +1,5225 @@
+{
+  "name": "Template G",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ JSON.stringify({\n  // Данные сообщения (как было)\n  chat_id: $json.message.chat.id,\n  message_id: $json.message.message_id,\n  text: $json.message.text ?? null,\n  photo_file_id: $json.message.photo ? $json.message.photo[$json.message.photo.length - 1].file_id : null,\n  document_file_id: $json.message.document?.file_id ?? null,\n\n  // ВАЖНО: Добавляем контекст из БД\n  db_status: $json.status,\n  db_title: $json.title_seed,\n  db_factpack: $json.factpack,\n  db_image_id: $json.draft_image_file_id\n}, null, 2) }}",
+        "options": {
+          "systemMessage": "You are the \"Intake Manager\" for a product review pipeline. Your ONLY goal is to gather a Title, optional Details, and a Photo, then output \"READY\".\n\n### 1. CURRENT CONTEXT (from JSON input)\n- **Title:** The user message JSON contains `db_title`. If present, it is LOCKED.\n- **Status:** The user message JSON contains `db_status`.\n- **Has Image:** {{ $json.draft_image_file_id ? \"YES\" : \"NO\" }}\n- **Factpack:** The user message JSON contains `db_factpack`.\n\n### 2. STEP 1: INPUT ANALYSIS & FILTERING (CRITICAL)\nBefore deciding to update DB, analyze the User Input:\n- **Noise Filter:** If input is a generic greeting (\"Привет\", \"Start\", \"Go\", \"Нужен обзор\", \"Отправь товар\") -> **IGNORE IT**. Return `{}`. Do NOT save this as description.\n- **Skip Logic:** If input is \"no\", \"skip\", \"nothing\", \"нет\" -> **IGNORE IT**. Return `{}`. Proceed to Photo phase.\n- **Valid Content:** Only if input contains ACTUAL product specs/details -> Save to `description` or `specs`.\n\n### 3. STEP 2: STRICT JSON RULES\nWhen calling `upsert_review_tool` via `factpack_patch`:\n1. **Allowed Keys:** ONLY \"description\", \"specs\", \"price\", \"notes\".\n2. **Forbidden Keys:** NEVER include \"status\", \"id\", \"chat_id\", \"title_seed\", \"factpack\", \"draft_image_file_id\", \"latest_user_message\".\n3. **Empty Patch:** If input was Noise or Skip -> send `{}`.\n\n### 4. STEP 3: LOGIC & RESPONSES (Russian)\n\n**PHASE 1: IMAGE RECEIVED (Success)**\nIF (Input is Photo OR `db_image_id` exists):\n   - Action: Save photo (auto-handled).\n   - Reply: \"READY. Фото получено. Начинаю генерацию обзора...\"\n   - Stop: Do not ask anything else.\n\n**PHASE 2: MISSING TITLE**\nIF (`db_title` is empty/null):\n   - Action: Save user text as Title (if not Noise).\n   - Reply: \"Привет! Напиши точное название товара для обзора.\"\n\n**PHASE 3: MISSING DETAILS**\nIF (`db_title` exists AND `db_factpack` has no meaningful description/specs AND Input is NOT \"skip\"/\"no\"):\n   - Action: Save user text as `description` (ONLY if it passes Noise Filter).\n   - Reply: \"Название принято. Есть особые пожелания, характеристики или описание? Или напиши 'нет', чтобы перейти к фото.\"\n\n**PHASE 4: ASK FOR PHOTO**\nIF (`db_title` exists AND (Details exist OR User said \"skip\"/\"no\")):\n   - Action: Send `{}` to tool.\n   - Reply: \"Данные записал. Теперь пришли фото товара одним сообщением.\""
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -4224,
+        1216
+      ],
+      "id": "13808c5d-69c0-49d0-9521-d82e71371a8d",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -4224,
+        1408
+      ],
+      "id": "bbfae449-2296-4f43-b21d-2ba501a5909b",
+      "name": "OpenAI Chat Model4",
+      "credentials": {
+        "openAiApi": {
+          "id": "U1pcqbZS37eHdBPO",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5.2",
+          "mode": "list",
+          "cachedResultName": "gpt-5.2"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -2576,
+        1408
+      ],
+      "id": "6b55c9e2-123a-4b11-bef5-75fca2100811",
+      "name": "OpenAI Chat Model5",
+      "credentials": {
+        "openAiApi": {
+          "id": "U1pcqbZS37eHdBPO",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5.2",
+          "mode": "list",
+          "cachedResultName": "gpt-5.2"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -2224,
+        1408
+      ],
+      "id": "9b8fa27f-cb95-49ad-b549-0e1c0ea2029d",
+      "name": "OpenAI Chat Model6",
+      "credentials": {
+        "openAiApi": {
+          "id": "U1pcqbZS37eHdBPO",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5.2",
+          "mode": "list",
+          "cachedResultName": "gpt-5.2"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -1904,
+        1424
+      ],
+      "id": "9609ec6c-81c9-4a4f-afb9-e752a9e9bca6",
+      "name": "OpenAI Chat Model7",
+      "credentials": {
+        "openAiApi": {
+          "id": "U1pcqbZS37eHdBPO",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "7022e65f-0e7e-403d-baaf-a51a2bf7c32d",
+              "leftValue": "={{ $json.result.text }}",
+              "rightValue": "READY",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -3536,
+        1216
+      ],
+      "id": "979b4bb2-bea4-463f-979c-aa72773b4894",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message",
+          "callback_query"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -6080,
+        1200
+      ],
+      "id": "ce8020c4-cd79-4454-984e-0c9623f5119f",
+      "name": "Telegram Trigger",
+      "webhookId": "6a7620e2-23de-4570-8c58-51b96032d899",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "This tool upserts a review draft in public.review_items.\n\nRules:\n- Allowed status values: intake, brief_ready, await_manual_image, drafts_ready, approve2_sent, published, rejected.\n- On INSERT always set status = 'intake'. Never insert with any other status.\n- NEVER create multiple rows for the same chat if there is an existing open draft.\n\nOpen draft = latest row for this chat with status IN ('intake','brief_ready','await_manual_image','drafts_ready').\n\nInputs (positional params):\n$1 = user_chat_id (int)\n$2 = title_seed (text, nullable)\n$3 = factpack_json (json string, nullable)\n\nOutput: returns [{ id, status, title_seed, factpack, draft_image_file_id }]\n",
+        "operation": "executeQuery",
+        "query": "WITH existing AS (\n  SELECT id\n  FROM public.review_items\n  WHERE user_chat_id = $1\n    AND status IN ('intake','brief_ready','await_manual_image','drafts_ready')\n  ORDER BY created_at DESC\n  LIMIT 1\n),\nupd AS (\n  UPDATE public.review_items\n  SET\n    -- do NOT overwrite title_seed once it is set\n    title_seed = COALESCE(NULLIF(title_seed, ''), $2),\n\n    -- merge jsonb patches, keep old fields\n    factpack = COALESCE(factpack, '{}'::jsonb)\n              || COALESCE($3::jsonb, '{}'::jsonb)\n              || CASE WHEN $2 IS NOT NULL THEN jsonb_build_object('latest_user_message', $2) ELSE '{}'::jsonb END,\n\n    -- save file_id if present\n    draft_image_file_id = COALESCE($4, draft_image_file_id),\n\n    -- status transitions (edit required keys as you like)\n    status = CASE\n      WHEN COALESCE($4, draft_image_file_id) IS NOT NULL THEN 'drafts_ready'::review_status\n      WHEN\n        COALESCE(NULLIF(title_seed, ''), $2) IS NOT NULL\n        AND (COALESCE(factpack, '{}'::jsonb) || COALESCE($3::jsonb, '{}'::jsonb)) ? 'description'\n        AND (COALESCE(factpack, '{}'::jsonb) || COALESCE($3::jsonb, '{}'::jsonb)) ? 'specs'\n        AND (COALESCE(factpack, '{}'::jsonb) || COALESCE($3::jsonb, '{}'::jsonb)) ? 'price'\n      THEN 'await_manual_image'::review_status\n      ELSE status\n    END,\n\n    updated_at = NOW()\n  WHERE id = (SELECT id FROM existing)\n  RETURNING id, status, title_seed, factpack, draft_image_file_id\n),\nins AS (\n  INSERT INTO public.review_items (user_chat_id, status, title_seed, factpack, draft_image_file_id)\n  SELECT\n    $1,\n    'intake'::review_status,\n    $2,\n    COALESCE($3::jsonb, '{}'::jsonb)\n      || CASE WHEN $2 IS NOT NULL THEN jsonb_build_object('latest_user_message', $2) ELSE '{}'::jsonb END,\n    $4\n  WHERE NOT EXISTS (SELECT 1 FROM existing)\n  RETURNING id, status, title_seed, factpack, draft_image_file_id\n)\nSELECT * FROM upd\nUNION ALL\nSELECT * FROM ins;\n",
+        "options": {
+          "queryReplacement": "={{ [\n  $json.message.chat.id,\n  ($json.message.text ?? null),\n  $fromAI('factpack_patch', '', 'string') || null,\n  (\n    $json.message.photo\n      ? $json.message.photo[$json.message.photo.length - 1].file_id\n      : ($json.message.document?.file_id ?? null)\n  )\n] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.6,
+      "position": [
+        -3952,
+        1408
+      ],
+      "id": "9f3ea44a-9e72-45f3-92b6-e6970ac5cde7",
+      "name": "Execute a SQL query in Postgres",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ $json.output }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -3824,
+        1216
+      ],
+      "id": "28d330e9-b1f5-46a6-93ec-56a0ead7f3e2",
+      "name": "Send a text message",
+      "webhookId": "82563cbf-7c5c-4f39-8f74-f723ad30b6ed",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT title_seed, factpack, status, draft_image_file_id\nFROM public.review_items\nWHERE user_chat_id = $1\n  AND status IN ('intake', 'brief_ready', 'await_manual_image', 'drafts_ready')\nORDER BY created_at DESC\nLIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ $('Telegram Trigger').item.json.message.chat.id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -4720,
+        1232
+      ],
+      "id": "437fbf4c-d80c-49e3-a93a-6583a6a0f308",
+      "name": "Execute a SQL query",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, factpack, title_seed, draft_image_file_id \nFROM public.review_items \nWHERE user_chat_id = $1 \nAND status = 'drafts_ready' \nORDER BY updated_at DESC \nLIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ $('Telegram Trigger').item.json.message.chat.id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -3264,
+        1200
+      ],
+      "id": "b21061ea-9cb9-4acb-b058-d5622454a108",
+      "name": "Postgres (Get Factpack)",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -4448,
+        1216
+      ],
+      "id": "469d46b1-375f-4265-ac0f-f274424b024b",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ $('DB: Save Drafts').first().json.draft_announce }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -208,
+        848
+      ],
+      "id": "14c0f3ab-8b60-4c0a-955b-49cbbe4822e1",
+      "name": "TG: Апрув-2 (анонс)",
+      "webhookId": "aab7cb83-c65c-4149-9c5c-f8bc942d23bb",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const MAX_LEN = 3800;\n\n// Функция очистки HTML для Telegram\nfunction cleanForTelegram(text) {\n  if (!text) return \"\";\n  return String(text)\n    .replace(/<br\\s*\\/?>/gi, '\\n')       // <br> -> перенос\n    .replace(/<\\/p>/gi, '\\n\\n')          // </p> -> два переноса\n    .replace(/<p[^>]*>/gi, '')           // <p> -> удалить\n    .replace(/<\\/?(div|span)[^>]*>/gi, '') // div/span -> удалить\n    .replace(/<ul>/gi, '')               // <ul> -> удалить\n    .replace(/<\\/ul>/gi, '\\n')\n    .replace(/<li>/gi, '• ')             // <li> -> буллит\n    .replace(/<\\/li>/gi, '\\n');\n}\n\nfunction splitByParagraphs(text, maxLen) {\n  const parts = [];\n  // Сначала чистим текст от запрещенных тегов\n  const cleanText = cleanForTelegram(text);\n  \n  const paras = cleanText.split(/\\n\\s*\\n/);\n  let buf = \"\";\n\n  function pushBuf() {\n    const t = buf.trim();\n    if (t) parts.push(t);\n    buf = \"\";\n  }\n\n  for (const pRaw of paras) {\n    const p = pRaw.trim();\n    if (!p) continue;\n\n    if ((buf.length ? buf.length + 2 : 0) + p.length <= maxLen) {\n      buf = buf ? (buf + \"\\n\\n\" + p) : p;\n      continue;\n    }\n\n    pushBuf();\n\n    if (p.length <= maxLen) {\n      buf = p;\n      continue;\n    }\n\n    let s = p;\n    while (s.length > maxLen) {\n      parts.push(s.slice(0, maxLen));\n      s = s.slice(maxLen);\n    }\n    buf = s;\n  }\n\n  pushBuf();\n  return parts;\n}\n\n// --- ИСПРАВЛЕНИЕ ССЫЛОК ---\n// 1. Берем данные из правильной ноды\nconst dbItem = $('DB: Save Drafts').first();\nconst llmItem = $('LLM: Лонгрид').first();\n\n// 2. Достаем текст (приоритет у базы)\nconst longread = (dbItem ? dbItem.json.draft_longread : null) || \n                 (llmItem ? llmItem.json.output : null) || \n                 \"\";\n// -------------------------\n\nconst chunks = splitByParagraphs(longread, MAX_LEN);\n\nif (chunks.length === 0) {\n    return [{ json: { text: \"Ошибка: Текст лонгрида пуст\" } }];\n}\n\nreturn chunks.map((t, i) => ({\n  json: {\n    text: (chunks.length > 1 ? `[${i + 1}/${chunks.length}]\\n\\n` : \"\") + t\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        336,
+        848
+      ],
+      "id": "b9927628-a0e0-4442-89cf-702a5018695a",
+      "name": "Код: Разбить лонгрид для ТГ"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        624,
+        848
+      ],
+      "id": "08a939e6-7eb4-42ff-a3a3-49e2afb3adbe",
+      "name": "Цикл: Части лонгрида"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        992,
+        864
+      ],
+      "id": "305b5a51-9010-4e00-840b-27a95792d3f2",
+      "name": "TG: Апрув-2 (лонгрид часть)",
+      "webhookId": "88689bdd-ddd8-4d67-a057-afcc0fcaac00",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.review_items\nSET approve2_text_message_id = $2\nWHERE id = $1\nRETURNING id AS review_id, approve2_text_message_id;",
+        "options": {
+          "queryReplacement": "={{ [ $('DB: Save Drafts').first().json.review_id, $json.result.message_id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        32,
+        848
+      ],
+      "id": "22eca055-7dd6-4280-b90b-794a106fcdcd",
+      "name": "БД: Сохранить ID анонса",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.review_items\nSET\n  approve2_message_id = $2,\n  approve2_chat_id = $3\nWHERE id = $1;",
+        "options": {
+          "queryReplacement": "={{ [\n  $('DB: Save Drafts').first().json.review_id,\n  $json.result.message_id,\n  $json.result.chat.id\n] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1056,
+        592
+      ],
+      "id": "97bb400d-931c-42e4-a8ca-44eeda9e30e3",
+      "name": "БД: Сохранить id кнопок",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH \nchats AS (\n  SELECT\n    MAX(chat_id) FILTER (WHERE purpose = 'rss_draft') AS rss_draft_chat_id,\n    MAX(chat_id) FILTER (WHERE purpose = 'approve_review')   AS approve_chat_id,\n    MAX(chat_id) FILTER (WHERE purpose = 'publish')   AS publish_chat_id\n  FROM public.telegram_chats\n  WHERE project_key = 'ainews'\n    AND is_active = true\n),\nprompts AS (\n  SELECT jsonb_object_agg(key, content) AS prompts\n  FROM public.system_prompts\n  WHERE key IN ('review_title', 'review_announce', 'review_longread', 'image_prompt')\n)\nSELECT * FROM chats, prompts;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -3024,
+        992
+      ],
+      "id": "2f9372f4-6a46-4f46-bc24-5a9d79b8afac",
+      "name": "Получить чаты и промты",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=CONTEXT:\n{{ $json.output }}\n",
+        "options": {
+          "systemMessage": "={{ $('Получить чаты и промты').first().json.prompts.review_title }}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -1904,
+        1184
+      ],
+      "id": "39d197e2-38d9-4b42-8d80-6b7558be5237",
+      "name": "Заголовок"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=LONGREAD_HTML:\n{{ $json.output }}\n",
+        "options": {
+          "systemMessage": "={{ $('Получить чаты и промты').first().json.prompts.review_announce }}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -2224,
+        1184
+      ],
+      "id": "3b053dac-eb90-4804-a0b5-28ee65426d90",
+      "name": "LLM: Анонс"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Title: {{ $('Postgres (Get Factpack)').item.json.title_seed }}\nFacts: {{ JSON.stringify($('Postgres (Get Factpack)').item.json.factpack) }}",
+        "options": {
+          "systemMessage": "={ $('Получить чаты и промты').first().json.prompts.review_longread }}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -2576,
+        1184
+      ],
+      "id": "33548445-0a75-4b08-b8d9-975bd123ace5",
+      "name": "LLM: Лонгрид"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.review_items \nSET \n  draft_title = $1, \n  draft_longread = $2, \n  draft_announce = $3, \n  status = 'needs_review', \n  updated_at = NOW() \nWHERE id = $4 \nRETURNING id AS review_id, draft_image_file_id, draft_announce, draft_title;",
+        "options": {
+          "queryReplacement": "={{ [\n  $('Заголовок').first().json.output,      // $1 - Заголовок\n  $('LLM: Лонгрид').first().json.output,   // $2 - Лонгрид\n  $('LLM: Анонс').first().json.output,     // $3 - Анонс\n  $('Postgres (Get Factpack)').first().json.id // $4 - ID (берем из начала ветки)\n] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1232,
+        848
+      ],
+      "id": "f7869d36-4d4c-4c81-aa25-534736ca7941",
+      "name": "DB: Save Drafts",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "numberInputs": 3,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -1488,
+        832
+      ],
+      "id": "0a94f61a-e1dd-4f8f-b849-36c4a396f5f8",
+      "name": "Merge2"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "review_items",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "status",
+              "keyValue": "intake"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        -4080,
+        1408
+      ],
+      "id": "c1051575-47b9-4e67-bbe0-36729bb52596",
+      "name": "Получить данные",
+      "credentials": {
+        "supabaseApi": {
+          "id": "0jybqWrEmbw0Wb5i",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -2816,
+        1184
+      ],
+      "id": "d5aa180f-687f-48a6-b114-4b2012d42c5c",
+      "name": "Соединить"
+    },
+    {
+      "parameters": {
+        "operation": "sendPhoto",
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "file": "={{ $json.draft_image_file_id }}",
+        "additionalFields": {
+          "caption": "={{ $json.draft_title }}"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -784,
+        368
+      ],
+      "id": "9abb63ff-79b9-492b-a35a-eef6a7ac2c6d",
+      "name": "TG: Апрув-2 (фото)",
+      "webhookId": "0a567f92-1cda-4ab8-affd-8cf9ba927238",
+      "retryOnFail": true,
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, rewrite2_state, status \nFROM public.review_items \nWHERE user_chat_id = $1 \n  AND (\n    rewrite2_state LIKE 'awaiting%' \n    OR \n    status = 'needs_review'\n  )\nORDER BY updated_at DESC\nLIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ $json.message?.chat?.id || $json.callback_query?.message?.chat?.id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -5600,
+        1040
+      ],
+      "id": "25456e82-dc65-42b7-badf-9febf95c23dd",
+      "name": "БД: Проверка статуса правки",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Telegram Trigger').item.json.callback_query?.id }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    },
+                    "id": "72ff55ca-fef9-416e-9c25-3ca30b211941"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Кнопка (Callback)"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.rewrite2_state }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty"
+                    },
+                    "id": "ecb53a8f-1fc2-4f93-b31b-f8070171005c"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Текст (Правка)"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Telegram Trigger').item.json.message?.message_id }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    },
+                    "id": "a24d2414-c3ae-4097-b1b5-f37152eafd97"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Новый контент (Intake)"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "b1855861-fb12-4dbb-a1fa-788f453ef22e",
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "=needs_review",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Уже есть активный обзор"
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -5120,
+        1184
+      ],
+      "id": "98770c21-631f-4791-a073-cc2ae48f04bd",
+      "name": "Роутер: Кнопка или Текст?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  MAX(chat_id) FILTER (WHERE purpose = 'rss_draft') AS rss_draft_chat_id,\n  MAX(chat_id) FILTER (WHERE purpose = 'approve_review')   AS approve_chat_id,\n  MAX(chat_id) FILTER (WHERE purpose = 'publish')   AS publish_chat_id\nFROM public.telegram_chats\nWHERE project_key = 'ainews'\n  AND is_active = true;\n",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        -4880,
+        2624
+      ],
+      "id": "4fc33406-b441-4ad7-ace0-acf520862a81",
+      "name": "БД: Получить ID чатов",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalization for Telegram updates (callback_query + message)\n// Works even if trigger node name differs (Telegram Trigger / Триггер Telegram)\n\nfunction pickTriggerItem() {\n  // Try by exact node names (most stable in complex flows)\n  try {\n    const a = $items(\"Триггер Telegram\");\n    if (a && a[0]) return a[0];\n  } catch (e) {}\n\n  try {\n    const b = $items(\"Telegram Trigger\");\n    if (b && b[0]) return b[0];\n  } catch (e) {}\n\n  // Fallback: sometimes the trigger payload is already in $json\n  const inItem = $input.first();\n  if (inItem && inItem.json) return inItem;\n\n  throw new Error(\"Telegram trigger item not found. Rename trigger node or execute workflow from trigger.\");\n}\n\nfunction unwrapTelegramPayload(j) {\n  // Different n8n/telegram nodes may wrap payload differently\n  // Prefer explicit wrappers, else return as-is\n  if (j && typeof j === \"object\") {\n    if (j.body && typeof j.body === \"object\") return j.body;\n    if (j.update && typeof j.update === \"object\") return j.update;\n  }\n  return j;\n}\n\nconst tgItem = pickTriggerItem();\nconst raw = tgItem.json || {};\nconst body = unwrapTelegramPayload(raw);\n\n// 1) CALLBACK HANDLING\nif (body && body.callback_query) {\n  const cq = body.callback_query;\n  const data = String(cq.data || cq.callback_data || \"\");\n  const parts = data.split(\"|\");\n\n  // Normalization: remove prefixes to match Switch node logic (A2, R2, etc.)\n  let rawAction = (parts[0] || \"\").trim();\n  const action = rawAction.replace(\"REVIEW_\", \"\").replace(\"NEWS_\", \"\");\n\n  const newsId = (parts[1] || \"\").trim();\n  const target = (parts[2] || \"\").trim();\n\n  const msg = cq.message || null;\n  const chatId = msg && msg.chat ? msg.chat.id : null;\n  const messageId = msg ? msg.message_id : null;\n  const messageText = msg ? String(msg.text || msg.caption || \"\") : \"\";\n\n  return [{\n    json: {\n      type: \"callback\",\n      action: action,\n      router_action: action,\n      router_data: data,\n\n      news_id: newsId,\n      review_id: newsId, // Compatibility with existing flow\n      target: target || null,\n\n      query_id: cq.id || null,\n      from_id: cq.from ? cq.from.id : null,\n      chat_id: chatId,\n      message_id: messageId,\n      message_text: messageText\n    }\n  }];\n}\n\n// 2) MESSAGE HANDLING (text/voice/reply)\nif (body && body.message) {\n  const m = body.message;\n\n  return [{\n    json: {\n      type: \"message\",\n      from_id: m.from ? m.from.id : null,\n      chat_id: m.chat ? m.chat.id : null,\n      message_id: m.message_id || null,\n      text: String(m.text || \"\"),\n\n      voice_file_id: m.voice ? m.voice.file_id : null,\n      reply_to_message_id: (m.reply_to_message && m.reply_to_message.message_id) ? m.reply_to_message.message_id : null\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    type: \"unknown\",\n    debug_input: body\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        -4656,
+        2624
+      ],
+      "id": "6c28d3c0-e37d-41f8-9b0d-70d550ca9d1b",
+      "name": "Метаданные обзора"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.type }}",
+              "value2": "callback"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -4432,
+        2624
+      ],
+      "id": "2c2c29e4-7aae-4f4d-9fde-25cce3636a96",
+      "name": "Если: Это кнопка?"
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "queryId": "={{ $json.query_id }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -4208,
+        2480
+      ],
+      "id": "4093243b-564d-4ccc-bcae-5615f417da6f",
+      "name": "TG: Answer Callback",
+      "webhookId": "f116e3ac-79a4-4018-9c5f-e9ab6b5b3b4b",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Метаданные обзора').item.json.action }}",
+                    "rightValue": "A1",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "6861ac48-1d95-42ab-8187-5c97cfd2223a"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "A2 (Одобрить)"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Метаданные обзора').item.json.action }}",
+                    "rightValue": "R2",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "557116ab-5d37-4175-bf35-3fa7b3eff3df"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "R2 (Правки)"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Метаданные обзора').item.json.action }}",
+                    "rightValue": "X2",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "6d2f3549-f14b-44f3-a8cc-c60e7410545a"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "X2 (Скип)"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Метаданные обзора').item.json.action }}",
+                    "rightValue": "Edit",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "e4223388-caca-4d60-9497-a392620a24e1"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Выбор типа правки"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Метаданные обзора').item.json.action }}",
+                    "rightValue": "CancelEdit",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "36231a10-d5fc-4f72-8087-50141f64fec5"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Отмена"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Метаданные обзора').item.json.action }}",
+                    "rightValue": "PubNow",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "6b1020bc-1346-44ef-99b8-facf93e1f0f9"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Публикация: Сейчас"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Метаданные обзора').item.json.action }}",
+                    "rightValue": "PubLater",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "1737a162-f3d1-4bb6-a511-d1b060909d4e"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Публикация: Потом"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -3936,
+        2400
+      ],
+      "id": "362f2287-ca8d-4224-afed-cfda3c871197",
+      "name": "Switch: Действие"
+    },
+    {
+      "parameters": {
+        "operation": "editMessageText",
+        "chatId": "={{ $('БД: Получить ID чатов').first().json.approve_chat_id }}",
+        "messageId": "={{ $('Метаданные обзора').item.json.message_id }}",
+        "replyMarkup": "inlineKeyboard",
+        "text": "⏰ Когда публикуем обзор?",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "🚀 Прямо сейчас",
+                    "additionalFields": {
+                      "callback_data": "={{ 'PubNow|' + $('Метаданные обзора').first().json.review_id }}"
+                    }
+                  },
+                  {
+                    "text": "📅 Запланировать",
+                    "additionalFields": {
+                      "callback_data": "={{ 'PubLater|' + $('Метаданные обзора').first().json.review_id }}"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "🔙 Назад",
+                    "additionalFields": {
+                      "callback_data": "={{ 'CancelEdit|' + $('Метаданные обзора').item.json.review_id }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -3568,
+        1920
+      ],
+      "id": "2efd5339-664e-4c48-80e0-6bb966773665",
+      "name": "TG: Выбор времени",
+      "webhookId": "778376b4-6155-4ee8-a381-4fdd212cee5c",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "editMessageText",
+        "chatId": "={{ $('БД: Получить ID чатов').first().json.approve_chat_id }}",
+        "messageId": "={{ $('Метаданные обзора').item.json.message_id }}",
+        "replyMarkup": "inlineKeyboard",
+        "text": "👇 Что именно будем править?",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "📢 Анонс",
+                    "additionalFields": {
+                      "callback_data": "={{ 'Edit|' + $('Метаданные обзора').item.json.review_id + '|announce' }}"
+                    }
+                  },
+                  {
+                    "text": "📜 Лонгрид",
+                    "additionalFields": {
+                      "callback_data": "={{ 'Edit|' + $('Метаданные обзора').item.json.review_id + '|longread' }}"
+                    }
+                  },
+                  {
+                    "text": "🖼 Картинка",
+                    "additionalFields": {
+                      "callback_data": "={{ 'Edit|' + $('Метаданные обзора').item.json.review_id + '|image' }}"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "🔙 Отмена (показать меню)",
+                    "additionalFields": {
+                      "callback_data": "={{ 'CancelEdit|' + $('Метаданные обзора').item.json.review_id }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -3296,
+        2112
+      ],
+      "id": "520922e6-029a-42a5-9557-e8ad3e86acf2",
+      "name": "TG: Меню правок",
+      "webhookId": "071824ba-ea8a-4c41-afd6-ea388076da1f",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "editMessageText",
+        "chatId": "={{ $('БД: Получить ID чатов').first().json.approve_chat_id }}",
+        "messageId": "={{ $('Метаданные обзора').item.json.message_id }}",
+        "text": "🗑 Обзор в корзине",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -3616,
+        2368
+      ],
+      "id": "dde96e5a-f7bb-4cb2-bb77-78413f32ce3e",
+      "name": "TG: Удалить кнопки (X2)",
+      "webhookId": "fc8ea779-088d-436b-96f1-ebdbd9f11b43",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('БД: Получить ID чатов').first().json.approve_chat_id }}",
+        "text": "={{ '✏️ Выбрано: ' + ($('Метаданные обзора').item.json.target === 'announce' ? 'Анонс' : ($('Метаданные обзора').item.json.target === 'longread' ? 'Лонгрид' : ($('Метаданные обзора').item.json.target === 'image' ? 'Картинка' : 'Неизвестно (' + $('Метаданные обзора').item.json.target + ')'))) + '\\n\\nНапиши (или скажи), что изменить?' }}",
+        "replyMarkup": "forceReply",
+        "forceReply": {},
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -3632,
+        2544
+      ],
+      "id": "57658e8a-e6b7-4721-9adc-7c7e050129cd",
+      "name": "TG: Запрос инструкции",
+      "webhookId": "bf11dc16-5a69-4262-8ff6-f139a142c03e",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "editMessageText",
+        "chatId": "={{ $('БД: Получить ID чатов').first().json.approve_chat_id }}",
+        "messageId": "={{ $('Метаданные обзора').item.json.message_id }}",
+        "replyMarkup": "inlineKeyboard",
+        "text": "=Публикуем?",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "✅ Публикация",
+                    "additionalFields": {
+                      "callback_data": "={{ 'A2|' + $json.id }}"
+                    }
+                  },
+                  {
+                    "text": "✍️ Правки",
+                    "additionalFields": {
+                      "callback_data": "={{ 'R2|' + $json.review_id }}"
+                    }
+                  },
+                  {
+                    "text": "🗑️ Скип",
+                    "additionalFields": {
+                      "callback_data": "={{ 'X2|' + $json.review_id }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -3408,
+        2736
+      ],
+      "id": "225cb606-11c5-4078-8dfc-72eb2d1e729d",
+      "name": "TG: Вернуть меню",
+      "webhookId": "ed7f3341-259d-4a17-9306-1982a0e65b6d",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('БД: Получить ID чатов').first().json.approve_chat_id }}",
+        "text": "🚀 Обзор поставлена в очередь (мгновенно). Ждите публикации.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -2480,
+        2976
+      ],
+      "id": "6127fba8-42e2-4df0-90f8-91993c32868a",
+      "name": "TG: Подтверждение (Now)",
+      "webhookId": "067f1c81-7814-4638-951a-6a625581c701",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('БД: Получить ID чатов').first().json.approve_chat_id }}",
+        "text": "📅 Напиши дату и время публикации.\nПример: \"завтра в 10:00\" или \"через 2 часа\".",
+        "replyMarkup": "forceReply",
+        "forceReply": {},
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -3616,
+        3168
+      ],
+      "id": "a47d53b7-cb91-455d-bd91-cba13b8c4ac9",
+      "name": "TG: Спросить дату",
+      "webhookId": "2139404f-ef40-4c7d-b1b4-e3a719a3ec3c",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.voice_file_id }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -4256,
+        3712
+      ],
+      "id": "03793fb3-4552-4406-bb3a-0125a0478007",
+      "name": "Если: Это голос?"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.voice_file_id }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -4032,
+        3536
+      ],
+      "id": "dd2a3c52-7780-4971-922c-6c9fff721e74",
+      "name": "TG: Скачать аудио",
+      "webhookId": "65213544-abe0-497a-b38c-06d2820b0a59",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {
+          "language": "ru"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [
+        -3776,
+        3536
+      ],
+      "id": "4bce1be1-1651-4ad6-b795-033eed44b54c",
+      "name": "OpenAI: Транскрибация",
+      "credentials": {
+        "openAiApi": {
+          "id": "U1pcqbZS37eHdBPO",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.rewrite2_state }}",
+                    "rightValue": "awaiting_announce",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Анонс"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.rewrite2_state }}",
+                    "rightValue": "awaiting_longread",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Лонгрид"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.rewrite2_state }}",
+                    "rightValue": "awaiting_image",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Картинка"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.rewrite2_state }}",
+                    "rightValue": "awaiting_pub_date",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Дата публикации"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -2864,
+        3696
+      ],
+      "id": "f9e858cf-3448-4930-b619-18861a66b17e",
+      "name": "Что правим?"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('БД: Получить ID чатов').first().json.approve_chat_id }}",
+        "text": "={{ '📅 Запланировано на: ' +\n  new Date($items('Код: Генерация Jobs1')[$itemIndex].json.publish_at)\n    .toLocaleString('ru-RU', {\n      timeZone: 'Europe/Moscow',\n      year: 'numeric',\n      month: '2-digit',\n      day: '2-digit',\n      hour: '2-digit',\n      minute: '2-digit'\n    })\n}}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -1360,
+        4560
+      ],
+      "id": "f98182a9-af37-4b57-8103-53cb364df27a",
+      "name": "TG: Подтверждение (План)",
+      "webhookId": "39e626a0-5678-43c6-a37c-b05da7b73f9b",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "review_items",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "keyValue": "={{ $('Метаданные обзора').item.json.review_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -3632,
+        2736
+      ],
+      "id": "73a533bc-81a4-4206-ad2a-2c969254287e",
+      "name": "БД: Данные восстановления",
+      "credentials": {
+        "supabaseApi": {
+          "id": "0jybqWrEmbw0Wb5i",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "review_items",
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "rewrite2_state",
+              "condition": "like",
+              "keyValue": "awaiting%"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -3152,
+        3728
+      ],
+      "id": "3559fe16-69bc-4692-a231-63f35cb56f0a",
+      "name": "БД: Найти активную правку",
+      "credentials": {
+        "supabaseApi": {
+          "id": "0jybqWrEmbw0Wb5i",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "review_items",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('БД: Проверка статуса правки').item.json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "rewrite2_state",
+              "fieldValue": "selecting"
+            },
+            {
+              "fieldId": "rewrite2_requester_id",
+              "fieldValue": "={{ $('Метаданные обзора').item.json.from_id }}"
+            },
+            {
+              "fieldId": "rewrite2_requested_at",
+              "fieldValue": "={{ $now }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -3520,
+        2112
+      ],
+      "id": "c7abaa85-9a2e-4ea3-b2e1-ef7095bb2dec",
+      "name": "БД: Старт правки (R2)",
+      "credentials": {
+        "supabaseApi": {
+          "id": "0jybqWrEmbw0Wb5i",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "review_items",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('БД: Найти активную правку').item.json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "draft_longread",
+              "fieldValue": "={{ $json.output }}"
+            },
+            {
+              "fieldId": "rewrite2_state",
+              "fieldValue": "={{ null }}"
+            },
+            {
+              "fieldId": "drafts_updated_at",
+              "fieldValue": "={{ $now }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -2176,
+        3648
+      ],
+      "id": "d524a16c-f0a7-4d1a-8566-d874446a4d80",
+      "name": "БД: Обновить лонгрид",
+      "credentials": {
+        "supabaseApi": {
+          "id": "0jybqWrEmbw0Wb5i",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "review_items",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Метаданные обзора').item.json.review_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "rewrite2_state",
+              "fieldValue": "awaiting_pub_date"
+            },
+            {
+              "fieldId": "rewrite2_request_message_id",
+              "fieldValue": "={{ $json.result.message_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -3424,
+        3168
+      ],
+      "id": "4d97566f-22f5-4710-955e-9cd8c35b401d",
+      "name": "БД: Ждем дату",
+      "credentials": {
+        "supabaseApi": {
+          "id": "0jybqWrEmbw0Wb5i",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "review_items",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('БД: Найти активную правку').item.json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "draft_image_prompt",
+              "fieldValue": "={{ $('AI: Промт для DALL-E').item.json.output }}"
+            },
+            {
+              "fieldId": "draft_image_file_id",
+              "fieldValue": "={{ $json.result.photo[3].file_id }}"
+            },
+            {
+              "fieldId": "drafts_updated_at",
+              "fieldValue": "={{ $now }}"
+            },
+            {
+              "fieldId": "rewrite2_state",
+              "fieldValue": "={{ null }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1040,
+        4112
+      ],
+      "id": "c8656a67-878d-4077-8c57-7705b04d24a4",
+      "name": "БД: Обновить картинку",
+      "credentials": {
+        "supabaseApi": {
+          "id": "0jybqWrEmbw0Wb5i",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "deleteMessage",
+        "chatId": "={{ $('БД: Получить ID чатов').first().json.approve_chat_id }}",
+        "messageId": "={{ $('Метаданные обзора').item.json.message_id }}"
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -2752,
+        2976
+      ],
+      "id": "df71e8dc-b365-4e32-afb2-b89048db7f6e",
+      "name": "TG: Удалить меню времени",
+      "webhookId": "5661c516-167a-4dc9-9b6d-cbb31be16d42",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "review_items",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('БД: Найти активную правку').item.json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "draft_announce",
+              "fieldValue": "={{ $json.output }}"
+            },
+            {
+              "fieldId": "rewrite2_state",
+              "fieldValue": "={{ null }}"
+            },
+            {
+              "fieldId": "drafts_updated_at",
+              "fieldValue": "={{ $now }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -2224,
+        3296
+      ],
+      "id": "02193001-1114-4eb5-8ef8-7a973231a6e4",
+      "name": "БД: Обновить анонс",
+      "credentials": {
+        "supabaseApi": {
+          "id": "0jybqWrEmbw0Wb5i",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "text-set",
+              "name": "text",
+              "value": "={{ $json.text }}",
+              "type": "string"
+            },
+            {
+              "id": "reply-set",
+              "name": "reply_to_message_id",
+              "value": "={{ $('Telegram Trigger').item.json.message.reply_to_message.message_id }}",
+              "type": "string"
+            },
+            {
+              "id": "chat-set",
+              "name": "chat_id",
+              "value": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+              "type": "string"
+            },
+            {
+              "id": "from-set",
+              "name": "from_id",
+              "value": "={{ $('Telegram Trigger').item.json.message.from.id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -3456,
+        3728
+      ],
+      "id": "dcbbff70-28d2-41cd-9711-ee3ccc42eac7",
+      "name": "Финальный текст"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "review_items",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "keyValue": "={{ $('БД: Найти активную правку').item.json.id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1952,
+        3296
+      ],
+      "id": "88fc3dfe-382f-4eb8-8c83-83f354e44d7f",
+      "name": "БД: Получить свежие данные",
+      "credentials": {
+        "supabaseApi": {
+          "id": "0jybqWrEmbw0Wb5i",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "deleteMessage",
+        "chatId": "={{ $('БД: Получить ID чатов').first().json.approve_chat_id }}",
+        "messageId": "={{ $('Метаданные обзора').item.json.message_id }}"
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -1728,
+        3296
+      ],
+      "id": "d0b6bd6e-e484-4ff3-b3db-02496d050591",
+      "name": "TG: Удалить ответ юзера",
+      "webhookId": "20292647-c666-42b4-9861-a3d764e67bf7",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "deleteMessage",
+        "chatId": "={{ $('БД: Получить ID чатов').first().json.approve_chat_id }}",
+        "messageId": "={{ $('БД: Получить свежие данные').item.json.rewrite2_question_message_id }}"
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -1520,
+        3296
+      ],
+      "id": "3700dddc-324b-4251-890a-a4f9805d0d74",
+      "name": "TG: Удалить вопрос бота",
+      "webhookId": "00cd84ae-bd3b-4485-8fbb-efdbb3c5c568",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "review_items",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Метаданные обзора').item.json.review_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "rewrite2_state",
+              "fieldValue": "={{ 'awaiting_' + $('Метаданные обзора').item.json.target }}"
+            },
+            {
+              "fieldId": "rewrite2_request_message_id",
+              "fieldValue": "={{ $('Метаданные обзора').item.json.message_id }}"
+            },
+            {
+              "fieldId": "rewrite2_question_message_id",
+              "fieldValue": "={{ $('TG: Запрос инструкции').item.json.result.message_id }}"
+            },
+            {
+              "fieldId": "rewrite2_requester_id",
+              "fieldValue": "={{ $('Метаданные обзора').item.json.from_id }}"
+            },
+            {
+              "fieldId": "rewrite2_chat_id",
+              "fieldValue": "={{ $('Метаданные обзора').item.json.chat_id }}"
+            },
+            {
+              "fieldId": "rewrite2_requested_at",
+              "fieldValue": "={{ $now }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -3408,
+        2544
+      ],
+      "id": "f440235e-1b00-4760-bdea-443a9934bace",
+      "name": "БД: Сохранить цель правки",
+      "credentials": {
+        "supabaseApi": {
+          "id": "0jybqWrEmbw0Wb5i",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "editMessageText",
+        "chatId": "={{ $('БД: Получить ID чатов').first().json.approve_chat_id }}",
+        "messageId": "={{ $('БД: Получить свежие данные').first().json.approve2_text_message_id }}",
+        "text": "=✅ Обновленный вариант: \n\n{{ $('БД: Получить свежие данные').item.json.draft_announce }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -1280,
+        3120
+      ],
+      "id": "ce4f12df-99d6-40fd-85ef-8244581f76dc",
+      "name": "Обновить анонс",
+      "webhookId": "7a099cfe-b97f-4d20-b997-245848763007",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "review_items",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "keyValue": "={{ $('БД: Найти активную правку').item.json.id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1968,
+        3648
+      ],
+      "id": "b23f5643-4cd8-4281-bfc8-37f415cee76f",
+      "name": "БД: Получить свежие данные1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "0jybqWrEmbw0Wb5i",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "deleteMessage",
+        "chatId": "={{ $('БД: Получить ID чатов').first().json.approve_chat_id }}",
+        "messageId": "={{ $('Метаданные обзора').item.json.message_id }}"
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -1744,
+        3648
+      ],
+      "id": "022d111d-d61a-4194-88e7-8df687524912",
+      "name": "TG: Удалить ответ юзера1",
+      "webhookId": "20292647-c666-42b4-9861-a3d764e67bf7",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "deleteMessage",
+        "chatId": "={{ $('БД: Получить ID чатов').first().json.approve_chat_id }}",
+        "messageId": "={{ $('БД: Получить свежие данные1').item.json.rewrite2_question_message_id }}"
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -1488,
+        3648
+      ],
+      "id": "ef91a35c-acb3-4db8-beeb-0a902f6b978a",
+      "name": "TG: Удалить вопрос бота1",
+      "webhookId": "00cd84ae-bd3b-4485-8fbb-efdbb3c5c568",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "editMessageText",
+        "chatId": "={{ $('БД: Получить ID чатов').first().json.approve_chat_id }}",
+        "messageId": "={{ $('БД: Получить свежие данные').item.json.approve2_message_id }}",
+        "replyMarkup": "inlineKeyboard",
+        "text": "=✅ Анонс обновлен. Публикуем обзор?",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "✅ Публикация",
+                    "additionalFields": {
+                      "callback_data": "={{ 'A2|' + $('БД: Получить свежие данные').item.json.id }}"
+                    }
+                  },
+                  {
+                    "text": "✍️ Правки",
+                    "additionalFields": {
+                      "callback_data": "={{ 'R2|' + $('БД: Получить свежие данные').item.json.id }}"
+                    }
+                  },
+                  {
+                    "text": "🗑️ Скип",
+                    "additionalFields": {
+                      "callback_data": "={{ 'X2|' + $('БД: Получить свежие данные').item.json.id }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -1280,
+        3424
+      ],
+      "id": "07cccd2a-ee6f-493c-bbcf-ff5a88753c12",
+      "name": "Уведомление + кнопки",
+      "webhookId": "7a099cfe-b97f-4d20-b997-245848763007",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Получаем данные\nconst item = $('БД: Получить свежие данные1').first();\n// Берем текст драфта\nconst text = item.json.draft_longread || item.json.longread || \"\";\n// Берем список старых ID (если есть)\nconst oldIds = item.json.approve2_longread_msg_ids || [];\n// Берем ID старого меню с кнопками\nconst oldButtonMsgId = item.json.approve2_message_id;\n\n// 3. Функция разбивки на чанки (3800 символов с запасом)\nfunction splitSmart(str, max) {\n  const res = [];\n  const parts = str.split(/\\n\\s*\\n/);\n  let buf = \"\";\n  for (const p of parts) {\n    if ((buf.length + p.length + 2) > max) { res.push(buf.trim()); buf = \"\"; }\n    buf = buf ? buf + \"\\n\\n\" + p : p;\n  }\n  if (buf) res.push(buf.trim());\n  return res.length ? res : [str];\n}\n\nconst chunks = splitSmart(text, 3800);\n\n// ЛОГИКА РЕШЕНИЯ:\n// Редактируем (Edit) ТОЛЬКО если:\n// 1. Старое сообщение было ровно одно.\n// 2. Новое сообщение тоже влезает в один чанк.\nconst canEdit = (oldIds.length === 1) && (chunks.length === 1);\n\nreturn {\n  json: {\n    can_edit: canEdit,\n    target_msg_id: oldIds[0],      // Для ветки Edit\n    old_ids: oldIds,               // Массив для удаления в ветке Rebuild\n    old_btn_id: oldButtonMsgId,    // Старая кнопка для удаления\n    chunks: chunks                 // Новые куски текста\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -848,
+        3648
+      ],
+      "id": "60bfb169-84d5-4f1f-82da-9f4da760dcdf",
+      "name": "Код: Анализ (Edit или Rebuild?)"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "review_items",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "keyValue": "={{ $('БД: Найти активную правку').item.json.id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1680,
+        4112
+      ],
+      "id": "53e283b3-9fdc-4b2e-a9b6-46e414a00e35",
+      "name": "БД: Получить свежие данные2",
+      "credentials": {
+        "supabaseApi": {
+          "id": "0jybqWrEmbw0Wb5i",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "editMessageText",
+        "chatId": "={{ $('БД: Получить ID чатов').first().json.approve_chat_id }}",
+        "messageId": "={{ $('БД: Получить свежие данные2').item.json.approve2_message_id }}",
+        "replyMarkup": "inlineKeyboard",
+        "text": "=✅ Картинка обновлена. Публикуем?",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "✅ Публикация",
+                    "additionalFields": {
+                      "callback_data": "={{ 'A2|' + $('БД: Получить свежие данные2').item.json.id }}"
+                    }
+                  },
+                  {
+                    "text": "✍️ Правки",
+                    "additionalFields": {
+                      "callback_data": "={{ 'R2|' + $('БД: Получить свежие данные2').item.json.id }}"
+                    }
+                  },
+                  {
+                    "text": "🗑️ Скип",
+                    "additionalFields": {
+                      "callback_data": "={{ 'X2|' + $('БД: Получить свежие данные2').item.json.id }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -816,
+        4112
+      ],
+      "id": "7f1a07cb-2864-43bb-8905-678f05a85d8d",
+      "name": "Уведомление + кнопки1",
+      "webhookId": "7a099cfe-b97f-4d20-b997-245848763007",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "deleteMessage",
+        "chatId": "={{ $('БД: Получить ID чатов').first().json.approve_chat_id }}",
+        "messageId": "={{ $('Метаданные обзора').item.json.message_id }}"
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -1424,
+        3904
+      ],
+      "id": "301e7575-78aa-4c4c-838e-c1e31bc0de6d",
+      "name": "TG: Удалить ответ юзера2",
+      "webhookId": "20292647-c666-42b4-9861-a3d764e67bf7",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "deleteMessage",
+        "chatId": "={{ $('БД: Получить ID чатов').first().json.approve_chat_id }}",
+        "messageId": "={{ $('БД: Получить свежие данные2').item.json.rewrite2_question_message_id }}"
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -1424,
+        4304
+      ],
+      "id": "933bcbdc-ff83-477b-b904-f6ae7099ea01",
+      "name": "TG: Удалить вопрос бота2",
+      "webhookId": "00cd84ae-bd3b-4485-8fbb-efdbb3c5c568",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "review_items",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "keyValue": "={{ $('БД: Найти активную правку').first().json.id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1120,
+        4560
+      ],
+      "id": "de36ef60-c100-4f82-ba07-ec4339e71ab3",
+      "name": "БД: Получить свежие данные3",
+      "credentials": {
+        "supabaseApi": {
+          "id": "0jybqWrEmbw0Wb5i",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "deleteMessage",
+        "chatId": "={{ $('БД: Получить ID чатов').first().json.approve_chat_id }}",
+        "messageId": "={{ $('Метаданные обзора').item.json.message_id }}"
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -752,
+        4464
+      ],
+      "id": "73ce60a8-2b45-45d2-b4e3-45cd42954af2",
+      "name": "TG: Удалить ответ юзера3",
+      "webhookId": "20292647-c666-42b4-9861-a3d764e67bf7",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "deleteMessage",
+        "chatId": "={{ $('БД: Получить ID чатов').first().json.approve_chat_id }}",
+        "messageId": "={{ $json.rewrite2_request_message_id }}"
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -736,
+        4656
+      ],
+      "id": "01e7bd2a-8318-4e2e-9ecc-984d0ae8d8c7",
+      "name": "TG: Удалить вопрос бота3",
+      "webhookId": "00cd84ae-bd3b-4485-8fbb-efdbb3c5c568",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "deleteMessage",
+        "chatId": "={{ $('БД: Получить ID чатов').first().json.approve_chat_id }}",
+        "messageId": "={{ $json.approve2_message_id }}"
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -752,
+        4848
+      ],
+      "id": "62099c72-b18e-4cf6-903f-a64dff0eec52",
+      "name": "TG: Удалить меню времени1",
+      "webhookId": "5661c516-167a-4dc9-9b6d-cbb31be16d42",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "publish_recipes",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "is_active",
+              "condition": "eq",
+              "keyValue": "true"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -3616,
+        2976
+      ],
+      "id": "b4f5c913-9b83-4856-9564-4a2bd9ebe217",
+      "name": "БД: Получить Рецепты",
+      "credentials": {
+        "supabaseApi": {
+          "id": "0jybqWrEmbw0Wb5i",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Берем рецепты (входящие данные)\nconst recipes = $input.all().map(r => r.json);\n\n// 2. ИЩЕМ ID НОВОСТИ (Умный поиск)\nlet reviewId;\n\ntry {\n  // Попытка 1: Взять из начала сценария (Правильный путь для боевого режима)\n  // .first() берет первый элемент, даже если их там много\n  const normItem = $('Метаданные обзора').first();\n  if (normItem && normItem.json && normItem.json.review_id) {\n     reviewId = normItem.json.review_id;\n  }\n} catch (error) {\n  // Ошибка значит, что мы тестируем ноду отдельно и n8n не видит прошлые шаги\n  console.log('Тестовый режим: Нода нормализации недоступна');\n}\n\n// Попытка 2: Если не нашли (или тестируем), берем ID из рецепта (если вдруг он там есть) \n// или ставим ЗАГЛУШКУ, чтобы ты увидел, что код работает.\nif (!reviewId) {\n   reviewId = \"00000000-0000-0000-0000-000000000000\"; // Тестовый ID (чтобы не было undefined)\n}\n\n// 3. ПОЛУЧАЕМ ДАТУ\nlet baseDateStr;\ntry {\n   // Пытаемся взять дату от AI (ветка План)\n   baseDateStr = $('AI: Парсинг даты').first().json.output;\n} catch (e) {\n   // Если ветка \"Сейчас\" или ошибка — берем текущее время\n   baseDateStr = new Date().toISOString();\n}\nconst baseDate = new Date(baseDateStr);\n\nconst results = [];\n\n// 4. Генерируем задачи\nfor (const recipe of recipes) {\n  let publishAt = new Date(baseDate);\n  \n  // Добавляем задержку (если это не главная платформа)\n  if (!recipe.is_main) {\n    publishAt.setHours(publishAt.getHours() + (recipe.delay_hours || 0));\n  }\n\n  results.push({\n    json: {\n      review_id: reviewId,\n      platform: recipe.platform,\n      status: 'queued',\n      publish_at: publishAt.toISOString(),\n      created_at: new Date().toISOString()\n    }\n  });\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3424,
+        2976
+      ],
+      "id": "5d4ed5fc-4b9a-42e0-b4d7-4e3bae130e6a",
+      "name": "Код: Генерация Jobs"
+    },
+    {
+      "parameters": {
+        "tableId": "publish_jobs",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "review_id",
+              "fieldValue": "={{ $json.review_id }}"
+            },
+            {
+              "fieldId": "platform",
+              "fieldValue": "={{ $json.platform }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "={{ $json.status }}"
+            },
+            {
+              "fieldId": "created_at",
+              "fieldValue": "={{ $json.created_at }}"
+            },
+            {
+              "fieldId": "publish_at",
+              "fieldValue": "={{ $json.publish_at }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -3200,
+        2976
+      ],
+      "id": "c476827b-1f05-4a64-b83e-6ed6ba76c53b",
+      "name": "Create a row",
+      "executeOnce": false,
+      "credentials": {
+        "supabaseApi": {
+          "id": "0jybqWrEmbw0Wb5i",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "publish_recipes",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "is_active",
+              "condition": "eq",
+              "keyValue": "true"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -2192,
+        4560
+      ],
+      "id": "11a55a43-2835-4783-a0ab-2078063dbd6d",
+      "name": "БД: Получить Рецепты1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "0jybqWrEmbw0Wb5i",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1) Recipes\nconst recipes = $('БД: Получить Рецепты1').all().map(r => r.json);\n\n// 2) News id (take from \"Что правим?\")\nconst reviewId = $('Что правим?').first().json.id;\nif (!reviewId) throw new Error('review_id is missing in node \"Что правим?\" (field: id)');\n\n// 3) Base datetime: take from AI node if possible\nconst aiItem = $('AI: Парсинг даты').first().json;\nconst aiStr = aiItem && aiItem.output ? String(aiItem.output) : '';\n\nlet baseMs = Date.parse(aiStr);\nif (Number.isNaN(baseMs)) {\n  baseMs = Date.now();\n}\n\n// 4) Build jobs\nconst nowIso = new Date().toISOString();\nconst results = [];\n\nfor (const recipe of recipes) {\n  const delayHours = Number(recipe.delay_hours || 0);\n  const isMain = recipe.is_main === true;\n\n  const publishMs = isMain ? baseMs : (baseMs + delayHours * 3600 * 1000);\n\n  results.push({\n    json: {\n      review_id: reviewId,\n      platform: recipe.platform,\n      status: 'queued',\n      publish_at: new Date(publishMs).toISOString(),\n      created_at: nowIso,\n    }\n  });\n}\n\nreturn results;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1984,
+        4560
+      ],
+      "id": "d0778cab-a9e7-4e82-b134-000877ebcce7",
+      "name": "Код: Генерация Jobs1"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "review_items",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.review_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "approved_for_publish"
+            },
+            {
+              "fieldId": "rewrite2_state",
+              "fieldValue": "={{ null }}"
+            },
+            {
+              "fieldId": "approve2_decision",
+              "fieldValue": "approved"
+            },
+            {
+              "fieldId": "approve2_decided_at",
+              "fieldValue": "={{ $now }}"
+            },
+            {
+              "fieldId": "approve2_decided_by",
+              "fieldValue": "={{ $('Метаданные обзора').item.json.from_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1568,
+        4560
+      ],
+      "id": "0cb9b0dc-af86-41b0-98a9-54e8d0607194",
+      "name": "БД: Статус Approved1",
+      "executeOnce": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "0jybqWrEmbw0Wb5i",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Article context (short):\n{{ ($json.draft_announce || '').slice(0, 900) }}\n\nAdmin visual notes (optional, short):\n{{ (($('Финальный текст').item.json.text || '') + '').slice(0, 600) }}\n\n",
+        "options": {
+          "systemMessage": "Составь короткий промт для генерации тематического изображения, учитывая контекст анонса и заметки админа. "
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -2480,
+        4112
+      ],
+      "id": "f75689a1-c33c-44b8-8f5d-8e8e4b82844b",
+      "name": "AI: Промт для DALL-E",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Ты — редактор Telegram-канала про охоту.\n\nТвоя задача — переписать анонс, улучшив стиль и интригу, \nНО СТРОГО СОБЛЮДАЯ СТРУКТУРУ И ФОРМАТ ВЫХОДА.\n\nСТРУКТУРА ВЫХОДНОГО ТЕКСТА (ОБЯЗАТЕЛЬНО):\n1) Интрига — 2–3 предложения.\n2) Хэштеги — с новой строки, 2–3 тега, без #Охота.\n3) Призыв — СТРОГО последней строкой.\n\nКРИТИЧЕСКИЕ ПРАВИЛА (НАРУШАТЬ ЗАПРЕЩЕНО):\n- Последняя строка ОБЯЗАТЕЛЬНО должна быть призывом.\n- Последний символ всего текста ОБЯЗАТЕЛЬНО должен быть двоеточием (:).\n- После двоеточия НИЧЕГО не писать: ни пробелов, ни ссылок, ни символов.\n- Запрещено удалять или изменять формат призыва.\n- Если в процессе редактирования призыв был утерян — ВОССТАНОВИ его.\n\nДОПУСТИМЫЕ ВАРИАНТЫ ПРИЗЫВА (выбери один):\n- Читать далее:\n- Подробнее по ссылке:\n- Полный разбор ситуации:\n- Читайте подробности на сайте:\n\nОГРАНИЧЕНИЯ:\n- Общая длина текста — не более 900 символов.\n- Тон: живой, профессиональный, без воды.\n\nИСХОДНЫЕ ДАННЫЕ:\nИсходный анонс:\n{{ $json.draft_announce }}\n\nПожелания пользователя:\n{{ $('Финальный текст').item.json.text }}\n\nПЕРЕД ВЫВОДОМ:\nПроверь, что последняя строка — призыв и текст заканчивается двоеточием.\n\nВерни ТОЛЬКО финальный текст анонса. Без комментариев.\n",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -2560,
+        3248
+      ],
+      "id": "3fa88573-e7e7-4181-9227-4e4f9a374187",
+      "name": "AI: Переписать анонс",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Сейчас: {{ $now }}. Часовой пояс +3 (Москва).\nПользователь написал: \n{{ $('Финальный текст').item.json.text }}\n\nЗАДАЧА:\nПереведи этот текст в дату формата ISO 8601 (YYYY-MM-DDTHH:mm:ssZ).\nЕсли пользователь написал \"завтра в 10\", считай от текущего времени.\nВерни ТОЛЬКО строку даты.",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -2512,
+        4560
+      ],
+      "id": "09cea80f-3593-4d86-a489-5c537d47bd70",
+      "name": "AI: Парсинг даты",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Исходный лонгрид:\n{{ $json.draft_longread }}\n\nЗАДАЧА:\nПерепиши лонгрид, учитывая пожелания:\n{{ $('Финальный текст').item.json.text }}\n\nВерни ТОЛЬКО markdown текст.",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -2544,
+        3648
+      ],
+      "id": "0a867773-6b38-4a3c-b029-7ca1d8133f9f",
+      "name": "AI: Переписать лонгрид",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.can_edit }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        3648
+      ],
+      "id": "e62db0ab-fb2d-4ab1-9c3a-31560de259f2",
+      "name": "IF: Можно просто обновить?"
+    },
+    {
+      "parameters": {
+        "operation": "editMessageText",
+        "chatId": "={{ $('БД: Получить ID чатов').first().json.approve_chat_id }}",
+        "messageId": "={{ $('БД: Получить свежие данные1').item.json.approve2_longread_msg_ids[0] }}",
+        "text": "=✅ Обновленный вариант: \n\n{{ $json.chunks[0] }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -304,
+        3008
+      ],
+      "id": "07729942-2027-4201-890f-f09a26e28ff0",
+      "name": "TG: Просто обновить (Edit)",
+      "webhookId": "141c058f-8709-4061-913f-7474dc4629ab",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Подготовка к УДАЛЕНИЮ СТАРЫХ СООБЩЕНИЙ\nreturn $json.old_ids.map(id => ({ json: { msg_id: id } }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16,
+        3808
+      ],
+      "id": "08d2674f-d33b-4de2-9164-0ed913c016bb",
+      "name": "Код: ID для удаления"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        224,
+        3808
+      ],
+      "id": "253c5804-bc88-4967-853f-78ffc4cae474",
+      "name": "Цикл: Удаление"
+    },
+    {
+      "parameters": {
+        "operation": "deleteMessage",
+        "chatId": "={{ $('БД: Получить ID чатов').first().json.approve_chat_id }}",
+        "messageId": "={{ $json.msg_id }}"
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        448,
+        3952
+      ],
+      "id": "887f0ceb-dba0-4e52-896a-44365aaf190c",
+      "name": "TG: Удалить (Loop)",
+      "webhookId": "1a976dce-b778-42a1-ab53-c8e3273e2c5c",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Получаем данные (массив чанков или сырой текст) из ноды анализа\n// Важно: в твоем случае данные лежат в ноде \"Код: Анализ (Edit или Rebuild?)\"\nconst analysisNode = $('Код: Анализ (Edit или Rebuild?)').first();\nlet chunks = analysisNode ? analysisNode.json.chunks : [];\n\n// ЗАЩИТА: Если чанков нет или они пустые\nif (!chunks || chunks.length === 0) {\n  return []; // Возвращаем пустоту, чтобы цикл не сломался\n}\n\n// 2. ФУНКЦИЯ ОЧИСТКИ (Самое важное)\n// Убирает ```markdown в начале и ``` в конце, если они есть\nfunction cleanText(text) {\n  if (!text) return \"\";\n  return String(text)\n    .replace(/^```[a-z]*\\s*/i, \"\") // Убирает ```markdown\n    .replace(/```\\s*$/, \"\")         // Убирает ``` в конце\n    .trim();\n}\n\n// 3. Формируем массив для отправки\n// Проходимся по всем чанкам и чистим каждый (на всякий случай)\nreturn chunks.map((chunk, i) => {\n  const cleanChunk = cleanText(chunk);\n  \n  // Добавляем нумерацию [1/3], если сообщений больше одного\n  const prefix = chunks.length > 1 ? `[${i + 1}/${chunks.length}]\\n\\n` : \"\";\n  \n  return {\n    json: {\n      text: prefix + cleanChunk\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        3712
+      ],
+      "id": "ed90ae6f-520b-4046-9012-cec390d13606",
+      "name": "Код: Чанки для отправки"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        688,
+        3712
+      ],
+      "id": "f7842b6c-6c53-42f5-bc2f-c65ee18b9b26",
+      "name": "Цикл: Отправка"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('БД: Получить ID чатов').first().json.approve_chat_id }}",
+        "text": "=✅ Обновленный вариант: \n\n{{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        960,
+        3872
+      ],
+      "id": "1507ce40-62b0-4c83-a2b6-5d0932e4228f",
+      "name": "TG: Отправить (Loop)",
+      "webhookId": "4be7477a-5f4e-41ec-8d2f-7d83889ccbc8",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "editMessageText",
+        "chatId": "={{ $('БД: Получить ID чатов').first().json.approve_chat_id }}",
+        "messageId": "={{ $('БД: Получить свежие данные1').item.json.approve2_message_id }}",
+        "replyMarkup": "inlineKeyboard",
+        "text": "=✅ Лонгрид обновлен. Публикуем обзор?",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "✅ Публикация",
+                    "additionalFields": {
+                      "callback_data": "={{ 'A2|' + $('БД: Получить свежие данные1').item.json.id }}"
+                    }
+                  },
+                  {
+                    "text": "✍️ Правки",
+                    "additionalFields": {
+                      "callback_data": "={{ 'R2|' + $('БД: Получить свежие данные1').item.json.id }}"
+                    }
+                  },
+                  {
+                    "text": "🗑️ Скип",
+                    "additionalFields": {
+                      "callback_data": "={{ 'X2|' + $('БД: Получить свежие данные1').item.json.id }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -96,
+        3008
+      ],
+      "id": "3bc69760-ae48-424e-a628-198dc7650945",
+      "name": "Уведомление + кнопки2",
+      "webhookId": "455f169c-1494-4300-baa5-67d13265f56f",
+      "executeOnce": true,
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "deleteMessage",
+        "chatId": "={{ $('БД: Получить ID чатов').first().json.approve_chat_id }}",
+        "messageId": "={{ $('Код: Анализ (Edit или Rebuild?)').first().json.old_btn_id }}"
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1888,
+        3664
+      ],
+      "id": "4950a24a-4167-4c16-8489-e1e52be5f597",
+      "name": "TG: Удалить старые кнопки",
+      "webhookId": "455f169c-1494-4300-baa5-67d13265f56f",
+      "executeOnce": true,
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const nodeName = \"TG: Отправить (Loop)\";\nconst allIds = [];\nlet runIndex = 0;\nlet safetyBreak = 0;\n\n// 1. БЕСКОНЕЧНЫЙ ЦИКЛ ПО ИСТОРИИ ЗАПУСКОВ\nwhile(safetyBreak < 100) {\n    try {\n        // $items(ИмяНоды, ИндексВыхода, ИндексЗапуска)\n        const executionItems = $items(nodeName, 0, runIndex);\n        \n        if (!executionItems || executionItems.length === 0) {\n            break;\n        }\n\n        // Забираем ID\n        executionItems.forEach(item => {\n            if (item.json.result && item.json.result.message_id) {\n                allIds.push(item.json.result.message_id);\n            }\n        });\n\n        runIndex++;\n        safetyBreak++;\n    } catch (error) {\n        break;\n    }\n}\n\n// 2. Получаем ID обзора из контекста (выше по потоку)\nlet reviewId = null;\ntry {\n  // В этом участке схемы данные лежат в ноде \"БД: Получить свежие данные1\"\n  reviewId = $('БД: Получить свежие данные1').first().json.id;\n} catch(e) {\n  reviewId = null;\n}\n\nreturn {\n    json: {\n        review_id: reviewId,\n        final_review_id: reviewId,\n        final_msg_ids: JSON.stringify(allIds), \n        count: allIds.length\n    }\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        3664
+      ],
+      "id": "518a3d74-b0e6-415d-b32a-da2469f676c1",
+      "name": "Код: Собрать ID (Rebuild)"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.review_items\nSET\n  approve2_longread_msg_ids = $2\nWHERE id = $1;",
+        "options": {
+          "queryReplacement": "={{ [ $json.final_review_id, $json.final_msg_ids ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1184,
+        3664
+      ],
+      "id": "f21f5258-d955-407c-bbc9-286d113785e1",
+      "name": "БД: Сохранить лонгрид (Rebuild)",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.review_items\nSET\n  approve2_message_id = $2,\n  approve2_chat_id = $3\nWHERE id = $1;",
+        "options": {
+          "queryReplacement": "={{ [\n  $('Код: Собрать ID (Rebuild)').first().json.final_review_id,\n  $json.result.message_id,\n  $json.result.chat.id\n] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1632,
+        3664
+      ],
+      "id": "55805d0c-9cd5-408e-80f5-df92a25fa3ee",
+      "name": "БД: Сохранить кнопку (Rebuild)",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('БД: Получить ID чатов').first().json.approve_chat_id }}",
+        "text": "✅ Лонгрид обновлен. Публикуем?",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "✅ Публикация",
+                    "additionalFields": {
+                      "callback_data": "={{ 'A2|' + $('БД: Получить свежие данные1').first().json.id }}"
+                    }
+                  },
+                  {
+                    "text": "✍️ Правки",
+                    "additionalFields": {
+                      "callback_data": "={{ 'R2|' + $('БД: Получить свежие данные1').first().json.id }}"
+                    }
+                  },
+                  {
+                    "text": "🗑️ В корзину",
+                    "additionalFields": {
+                      "callback_data": "={{ 'X2|' + $('БД: Получить свежие данные1').first().json.id }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1408,
+        3664
+      ],
+      "id": "41cb955d-73c3-4116-ab15-97faaa2d7b72",
+      "name": "TG: Апрув-2 (НОВЫЕ кнопки)1",
+      "webhookId": "d8c99276-b352-4077-831b-02939ef152e6",
+      "executeOnce": true,
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "efd22d68-eb0e-41f4-b904-ed8f72126447",
+              "leftValue": "={{ $json.title }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -2960,
+        1920
+      ],
+      "id": "c44037b1-2ae5-4fbc-958f-6003325f4710",
+      "name": "Если: Уже есть активная правка?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT title FROM public.review_items\nWHERE rewrite2_state IS NOT NULL\nAND id != $1\nLIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ [ $json.callback_query.data.split('|')[1] ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -3264,
+        1920
+      ],
+      "id": "045fb3f5-e425-458f-9a0d-7db316e68314",
+      "name": "БД: Проверка занятости",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "editMessageText",
+        "chatId": "={{ $('Telegram Trigger').first().json.callback_query.message.chat.id }}",
+        "messageId": "={{ $('Telegram Trigger').first().json.callback_query.message.message_id }}",
+        "replyMarkup": "inlineKeyboard",
+        "text": "=Нельзя редактировать две обзора одновременно!\nСейчас в работе:\n{{ $json.title }}.  \nПожалуйста, завершите её, а потом возвращайтесь к этой.",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "🔙 Понял",
+                    "additionalFields": {
+                      "callback_data": "={{ 'CancelEdit|' + $('Метаданные обзора').item.json.review_id }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -2672,
+        1904
+      ],
+      "id": "d50cca38-9fb4-4ae9-89bb-708163cf9e9e",
+      "name": "TG: Ошибка (Занято)",
+      "webhookId": "3413bd5b-5e01-41c8-b319-7c58070d1657",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot8509009391:AAGBWp-mq4OGs7WZJH0umlu8-0JORZc_H7A/editMessageMedia",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{ $('БД: Получить свежие данные2').item.json.approve2_chat_id }}"
+            },
+            {
+              "name": "message_id",
+              "value": "={{ $('БД: Получить свежие данные2').item.json.approve2_photo_message_id }}"
+            },
+            {
+              "name": "media",
+              "value": "={{ JSON.stringify({ type: 'photo', media: 'attach://photo', caption: $('БД: Получить свежие данные2').item.json.title || '', parse_mode: 'HTML' }) }}"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "photo",
+              "inputDataFieldName": "photo"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -1248,
+        4112
+      ],
+      "id": "8c6ea527-5ee5-41ba-a5e0-996818dfeeb3",
+      "name": "HTTP Request1",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "review_items",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Метаданные обзора').item.json.review_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "approve2_decision",
+              "fieldValue": "skip"
+            },
+            {
+              "fieldId": "approve2_decided_at",
+              "fieldValue": "={{ $now }}"
+            },
+            {
+              "fieldId": "approve2_decided_by",
+              "fieldValue": "={{ $('Метаданные обзора').item.json.from_id }}"
+            },
+            {
+              "fieldId": "rewrite2_state",
+              "fieldValue": "={{ null }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -3392,
+        2368
+      ],
+      "id": "a22c17b8-d6cc-4f90-b81d-b6ec32d774d3",
+      "name": "БД: Скип (X2)",
+      "executeOnce": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "0jybqWrEmbw0Wb5i",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "review_items",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Метаданные обзора').item.json.review_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "approve2_decision",
+              "fieldValue": "approved"
+            },
+            {
+              "fieldId": "approve2_decided_at",
+              "fieldValue": "={{ $now }}"
+            },
+            {
+              "fieldId": "approve2_decided_by",
+              "fieldValue": "={{ $('Метаданные обзора').item.json.from_id }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "approved_for_publish"
+            },
+            {
+              "fieldId": "rewrite2_state",
+              "fieldValue": "={{ null }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -3008,
+        2976
+      ],
+      "id": "b90ecb92-7836-4637-86f8-f90462941fbd",
+      "name": "БД: Статус Approved",
+      "executeOnce": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "0jybqWrEmbw0Wb5i",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "publish_jobs",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "review_id",
+              "fieldValue": "={{ $('БД: Найти активную правку').first().json.id }}"
+            },
+            {
+              "fieldId": "platform",
+              "fieldValue": "={{ $json.platform }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "={{ $json.status }}"
+            },
+            {
+              "fieldId": "created_at",
+              "fieldValue": "={{ $json.created_at }}"
+            },
+            {
+              "fieldId": "publish_at",
+              "fieldValue": "={{ $json.publish_at }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1792,
+        4560
+      ],
+      "id": "85d75a1a-90b8-4002-bd1a-c5dce0c0e289",
+      "name": "Создать запись публикации",
+      "executeOnce": false,
+      "credentials": {
+        "supabaseApi": {
+          "id": "0jybqWrEmbw0Wb5i",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5.2",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -2544,
+        3872
+      ],
+      "id": "e1655fa2-6f31-4993-8a95-a6bd726d157b",
+      "name": "r. gpt 5.2",
+      "credentials": {
+        "openRouterApi": {
+          "id": "OPxPNafAYGtjuKlH",
+          "name": "AI News"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5.2",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -2480,
+        4304
+      ],
+      "id": "547585d3-ee04-4c5a-953c-386cc7627515",
+      "name": "r. gpt 5.2 (1)",
+      "credentials": {
+        "openRouterApi": {
+          "id": "OPxPNafAYGtjuKlH",
+          "name": "AI News"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5.2",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -2560,
+        3456
+      ],
+      "id": "f451a120-8947-4467-bdfd-e233521c28df",
+      "name": "r. gpt 5.2 (2)",
+      "credentials": {
+        "openRouterApi": {
+          "id": "OPxPNafAYGtjuKlH",
+          "name": "AI News"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5-nano",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -2512,
+        4784
+      ],
+      "id": "1bc4325a-f66c-4c26-ae92-5d9c25bf5fea",
+      "name": "r. gpt 5  nano",
+      "credentials": {
+        "openRouterApi": {
+          "id": "OPxPNafAYGtjuKlH",
+          "name": "AI News"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const msg = $json.choices?.[0]?.message || {};\nconst dataUrl =\n  msg.images?.[0]?.image_url?.url ||\n  msg.images?.[0]?.imageUrl?.url;\n\nif (!dataUrl || !dataUrl.startsWith(\"data:\")) {\n  throw new Error(\"No image data URL\");\n}\n\nconst comma = dataUrl.indexOf(\",\");\nconst meta = dataUrl.slice(5, comma); // \"image/png;base64\"\nconst mimeType = meta.split(\";\")[0];\nconst base64 = dataUrl.slice(comma + 1);\n\nconst bytes = Math.floor(base64.length * 3 / 4);\nconst mb = +(bytes / 1024 / 1024).toFixed(2);\n\nreturn {\n  json: {\n    size_mb: mb,\n    caption: msg.content || \"\"\n  },\n  binary: {\n    photo: {\n      data: base64,\n      mimeType: mimeType,\n      fileName: \"img.png\"\n    }\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1904,
+        4112
+      ],
+      "id": "7ff3758b-de70-43ed-9a92-ba2d2ae190dc",
+      "name": "DataURL -> Binary"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "HTTP-Referer",
+              "value": "https://n8n.io"
+            },
+            {
+              "name": "X-Title",
+              "value": "n8n-dev"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"model\": \"google/gemini-2.5-flash-image\",\n  \"messages\": [{ \"role\": \"user\", \"content\": \"{{ $json.output }}\" }],\n  \"modalities\": [\"image\", \"text\"],\n  \"image_config\": {\n    \"aspect_ratio\": \"16:9\",\n    \"image_size\": \"1K\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -2144,
+        4112
+      ],
+      "id": "f4d4e026-e847-4723-bc37-13864d8f10ec",
+      "name": "OpenRouter: Image1",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "Ujxf37NtSZLQ3mZC",
+          "name": "Openrouter API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -1440,
+        4112
+      ],
+      "id": "e9ff3215-5729-4b91-a43e-ba7cc0ffd6b6",
+      "name": "Merge3"
+    },
+    {
+      "parameters": {
+        "operation": "sendDocument",
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "file": "={{ $json.draft_image_file_id }}",
+        "additionalFields": {
+          "caption": "={{ $json.draft_title }}"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -784,
+        144
+      ],
+      "id": "2fa8e2f9-0dd2-4323-a3f8-29b8fb5a8821",
+      "name": "TG: Апрув-2 (файл)",
+      "webhookId": "c1c059d9-ef0b-4802-a0a2-ab0831089ec4",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "854cbf3c-d37b-44d0-a022-ec4696c5ae4d",
+              "leftValue": "={{ $json.draft_image_file_id }}",
+              "rightValue": "BQ",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1088,
+        368
+      ],
+      "id": "0488bb59-3e69-43e5-86ea-cc786acb28ca",
+      "name": "Это файл или фото?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.review_items\nSET\n  approve2_photo_message_id = $2,\n  draft_image_file_id = $3\nWHERE id = $1;",
+        "options": {
+          "queryReplacement": "={{ [\n  $('DB: Save Drafts').first().json.review_id,\n  $json.result.message_id,\n  ($json.result.photo ? $json.result.photo.slice(-1)[0].file_id : $json.result.document.file_id)\n] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -336,
+        368
+      ],
+      "id": "84b59b0e-fec9-471c-8021-4ebc91dcac71",
+      "name": "БД: Сохранить ID фото",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "98877d50-9e2c-4776-89d7-d7a6a8ae1d46",
+              "leftValue": "={{ $('Execute a SQL query').item.json.status }}",
+              "rightValue": "drafts_ready",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -4304,
+        688
+      ],
+      "id": "8014a247-4082-4e2d-9c95-dd1b3798f276",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "65b674ca-5fe6-4d75-b5c9-d2c7a9523686",
+              "name": "result.text",
+              "value": "READY",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -3888,
+        848
+      ],
+      "id": "ceb51e24-abad-4a88-b2ed-661291639928",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.review_items\nSET\n  -- Добавляем новый ID в конец существующего массива (или создаем новый)\n  approve2_longread_msg_ids = COALESCE(approve2_longread_msg_ids, '[]'::jsonb) || jsonb_build_array($2::bigint)\nWHERE id = $1;",
+        "options": {
+          "queryReplacement": "={{ [\n  $('DB: Save Drafts').first().json.review_id,\n  $json.result.message_id\n] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1168,
+        864
+      ],
+      "id": "e5a03f8f-82ab-448d-96ba-8010a90bd253",
+      "name": "БД: Добавить ID в массив",
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "Сначала опубликуй или скипни новость!",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -4976,
+        512
+      ],
+      "id": "060dc20e-1a64-4214-b5ca-5aef019fa3e4",
+      "name": "Send a text message1",
+      "webhookId": "9089adcc-1b65-46d0-91a3-039315b19ec7",
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "8eb749e9-80ff-4f2c-9fd1-8bd28b3a2ad6",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "needs_review",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -5200,
+        528
+      ],
+      "id": "52442f49-ff74-49c9-bce9-fe75cae3b5df",
+      "name": "Есть активная новость?"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "6861ac48-1d95-42ab-8187-5c97cfd2223a",
+                    "leftValue": "={{ $('Метаданные обзора').item.json.action }}",
+                    "rightValue": "A2",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  },
+                  {
+                    "id": "new-condition-a1",
+                    "leftValue": "={{ $('Метаданные обзора').item.json.action }}",
+                    "rightValue": "A1",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "or"
+              },
+              "renameOutput": true,
+              "outputKey": "A2 (Одобрить)"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Метаданные обзора').item.json.action }}",
+                    "rightValue": "R2",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "R2 (Правки)"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Метаданные обзора').item.json.action }}",
+                    "rightValue": "X2",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "X2 (Скип)"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Метаданные обзора').item.json.action }}",
+                    "rightValue": "Edit",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Выбор типа правки"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Метаданные обзора').item.json.action }}",
+                    "rightValue": "CancelEdit",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Отмена"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Метаданные обзора').item.json.action }}",
+                    "rightValue": "PubNow",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Публикация: Сейчас"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Метаданные обзора').item.json.action }}",
+                    "rightValue": "PubLater",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Публикация: Потом"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -4400,
+        1888
+      ],
+      "id": "3f1428c6-174a-43af-9680-fa200ad59633",
+      "name": "Switch: Действие1"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "Публикуем?",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "✅ Публикация",
+                    "additionalFields": {
+                      "callback_data": "={{ 'REVIEW_A1|' + $('DB: Save Drafts').first().json.review_id }}"
+                    }
+                  },
+                  {
+                    "text": "✍️ Правки",
+                    "additionalFields": {
+                      "callback_data": "={{ 'REVIEW_EDIT|' + $('DB: Save Drafts').first().json.review_id }}"
+                    }
+                  },
+                  {
+                    "text": "🗑️ В корзину",
+                    "additionalFields": {
+                      "callback_data": "={{ 'REVIEW_X1|' + $('DB: Save Drafts').first().json.review_id }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        768,
+        592
+      ],
+      "id": "60f71a05-7afa-4ebb-959e-38ce13aaaef8",
+      "name": "TG: Апрув-2 (кнопки)1",
+      "webhookId": "8fcc92df-de95-45aa-8ccf-883a554fdbe2",
+      "executeOnce": true,
+      "credentials": {
+        "telegramApi": {
+          "id": "XWRfnd8MJgwnkvmg",
+          "name": "KHC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "5C3i8zaCZxtLswTD",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/5C3i8zaCZxtLswTD",
+          "cachedResultName": "Генерация контента для соц. сетей"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -2864,
+        2768
+      ],
+      "id": "2acaefa4-3264-498d-b7da-9ccab7921ab2",
+      "name": "Call 'Генерация контента для соц. сетей'"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "5C3i8zaCZxtLswTD",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/5C3i8zaCZxtLswTD",
+          "cachedResultName": "Генерация контента для соц. сетей"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -1648,
+        4368
+      ],
+      "id": "45240051-0787-4d6e-a901-7fd1a79f6954",
+      "name": "Call 'Генерация контента для соц. сетей'1"
+    }
+  ],
+  "pinData": {
+    "Заголовок": [
+      {
+        "json": {
+          "output": "**Atlas BT65-LW17 Gen 2: сошка, которая превращает винтовку в «станок» — кому реально нужна и как не промахнуться с версией**"
+        }
+      }
+    ],
+    "LLM: Анонс": [
+      {
+        "json": {
+          "output": "<b>Atlas BT65-LW17 Gen. 2 CAL</b> — премиальная телескопическая сошка для охоты и тактики: жёсткая, стабильная, с точной регулировкой ног и удобной работой с упора (земля, капот, бревно, рюкзак).\n\nВ лонгриду — кому она реально нужна (от засидки и гор до тяжёлых калибров), главные плюсы/минусы и практическая заметка про правильную «загрузку» сошки.\n\nОтдельно разобрали, как не ошибиться с версией: крепление (Picatinny/Stud), нужная высота, панорамирование и выбор «пятаков» под грунт/снег/камень.  \n#охота #сошки #точнаястрельба"
+        }
+      }
+    ],
+    "LLM: Лонгрид": [
+      {
+        "json": {
+          "output": "<b>Что за товар</b><br/>\n<b>Atlas BT65-LW17 Gen. 2 CAL</b> — это премиальная телескопическая сошка для охотничьих и тактических винтовок, рассчитанная на уверенную стрельбу с упора (земля, капот, бревно, рюкзак) и точную работу по месту. Модель относится к линейке Atlas с характерной компоновкой: две независимые ноги с регулировкой длины, развитая система наклона/панорамирования (в зависимости от конкретной комплектации) и прочная конструкция, ориентированная на стабильность выстрела и повторяемость вкладки.<br/><br/>\n<i>Важно:</i> у Atlas есть вариации по креплению (Picatinny/Weaver или антабочный Stud), а индекс <b>CAL</b> указывается в названии конкретной версии/партии. Перед покупкой уточните тип крепления и наличие панорамирования (panning) у вашей комплектации.\n\n<br/><br/>\n<b>Кому подходит</b><br/>\n<ul>\n  <li><b>Охотникам на открытых пространствах</b> (степь/поля/горы), где часто стреляют лёжа и важна стабильная опора.</li>\n  <li><b>Тем, кто охотится «из засидки»</b> и хочет максимально предсказуемую точку прицеливания при длительном ожидании.</li>\n  <li><b>Стрелкам с тяжёлыми калибрами/жёсткой отдачей</b>, которым нужна жёсткая, не «ватная» сошка, не уходящая в стороны на выстреле.</li>\n  <li><b>Любителям точной стрельбы</b> (контроль кучности, пристрелка, стрельба по сурку/лисице), когда важны микронастройки и одинаковое положение винтовки.</li>\n  <li><b>Тем, кто часто меняет позиции</b>: разная высота травы/снега/камней — телескопические ноги удобнее фиксированных.</li>\n</ul>\n\n<b>Плюсы</b><br/>\n<ul>\n  <li><b>Высокая жёсткость и стабильность</b>: конструкция Atlas обычно меньше «играет» на выстреле и лучше держит линию прицеливания, чем многие бюджетные аналоги.</li>\n  <li><b>Точная регулировка высоты</b>: независимые ноги позволяют быстро «поймать» горизонт на неровном рельефе.</li>\n  <li><b>Быстрая адаптация под местность</b>: удобно работать с уклонов, кочек, камней, на склоне.</li>\n  <li><b>Качественные материалы и ресурс</b>: рассчитана на интенсивную эксплуатацию, регулярную стрельбу и транспортировку.</li>\n  <li><b>Удобство при пристрелке</b>: помогает повторяемо укладывать винтовку, снижая влияние ошибок удержания.</li>\n</ul>\n\n<b>Минусы</b><br/>\n<ul>\n  <li><b>Цена</b>: Atlas — это верхний сегмент, и переплата будет заметна, особенно если сошка нужна «на пару выездов в год».</li>\n  <li><b>Вес и габарит</b> относительно ультралёгких охотничьих сошек: на ходовой охоте каждый грамм может быть важен.</li>\n  <li><b>Сложность выбора версии</b>: разные крепления, разные функции (наклон/пан/стопоры), разные «пятаки» — легко взять не то.</li>\n  <li><b>Требует привычки</b>: при неправильной загрузке сошки (preload) можно получить «подпрыгивание»/срыв в момент выстрела.</li>\n</ul>\n\n<blockquote>\n<b>Практическая заметка:</b> премиальная сошка не заменяет правильную технику. Максимальная отдача от Atlas появляется, когда вы одинаково «загружаете» сошку корпусом и контролируете приклад, а не «кладёте винтовку как попало».\n</blockquote>\n\n<b>Советы по выбору (чтобы не ошибиться с Atlas BT65-LW17 Gen. 2 CAL)</b><br/>\n<ul>\n  <li><b>Уточните тип крепления</b>:\n    <ul>\n      <li>если на ложе/цевье <b>Picatinny</b> — удобнее вариант под планку (быстрее снять/поставить, меньше люфтов при хорошем кронштейне);</li>\n      <li>если классическая <b>антабка (Stud)</b> — берите версию под Stud или сразу планируйте адаптер.</li>\n    </ul>\n  </li>\n  <li><b>Определите рабочую высоту</b>: BT65 обычно выбирают под стрельбу лёжа и с низких упоров. Если часто стреляете из высокой травы/снега или с колена — возможно, нужна модель с большим диапазоном высоты.</li>\n  <li><b>Нужен ли «пан» (поворот по горизонту)</b>: для охоты по движущейся цели или при работе по разным направлениям, не меняя позицию, панорамирование полезно. Для чистой «точности» некоторые предпочитают жёстче фиксировать сошку.</li>\n  <li><b>Проверьте совместимость с вашим ложем/цевьём</b>: важно, чтобы при складывании ноги не упирались в ствол, антабку, ДТК или элементы ремня.</li>\n  <li><b>Подберите опоры (пятки)</b> под условия:\n    <ul>\n      <li>резина — универсально и тихо на камне/металле;</li>\n      <li>шипы/когти — для грунта, льда, дерна, чтобы сошка не «уезжала»;</li>\n      <li>широкие «лыжи» — для песка/снега.</li>\n    </ul>\n  </li>\n  <li><b>Подумайте про ремень</b>: если сошка ставится в точку крепления ремня, продумайте, как будете носить винтовку (иногда нужен отдельный QD-слот/антабка).</li>\n</ul>\n\n<b>Вывод</b><br/>\n<b>Atlas BT65-LW17 Gen. 2 CAL</b> — отличный выбор для охотника, который реально стреляет с сошек и хочет максимум стабильности, жёсткости и предсказуемости выстрела. Она особенно раскрывается на дальних/точных выстрелах и в сложном рельефе, где бюджетные сошки часто «гуляют» и требуют постоянных поправок по положению. Если же охота в основном ходовая и вы редко стреляете лёжа, имеет смысл взвесить цену/вес и рассмотреть более лёгкие решения.<br/><br/>\n<i>Если напишете, какая у вас винтовка и какое крепление (Picatinny или антабка), а также тип охоты (ходовая/засидка/горы), подскажу, подходит ли именно BT65 по высоте и какую версию крепления лучше брать.</i>"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model4": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model5": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "LLM: Лонгрид",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model6": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "LLM: Анонс",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model7": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Заголовок",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Postgres (Get Factpack)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "БД: Проверка статуса правки",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query in Postgres": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a text message": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Postgres (Get Factpack)": {
+      "main": [
+        [
+          {
+            "node": "Соединить",
+            "type": "main",
+            "index": 1
+          },
+          {
+            "node": "Получить чаты и промты",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TG: Апрув-2 (анонс)": {
+      "main": [
+        [
+          {
+            "node": "БД: Сохранить ID анонса",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Код: Разбить лонгрид для ТГ": {
+      "main": [
+        [
+          {
+            "node": "Цикл: Части лонгрида",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Цикл: Части лонгрида": {
+      "main": [
+        [
+          {
+            "node": "TG: Апрув-2 (кнопки)1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TG: Апрув-2 (лонгрид часть)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TG: Апрув-2 (лонгрид часть)": {
+      "main": [
+        [
+          {
+            "node": "БД: Добавить ID в массив",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Получить чаты и промты": {
+      "main": [
+        [
+          {
+            "node": "Соединить",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Заголовок": {
+      "main": [
+        [
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "LLM: Анонс": {
+      "main": [
+        [
+          {
+            "node": "Заголовок",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "LLM: Лонгрид": {
+      "main": [
+        [
+          {
+            "node": "LLM: Анонс",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB: Save Drafts": {
+      "main": [
+        [
+          {
+            "node": "Это файл или фото?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge2": {
+      "main": [
+        [
+          {
+            "node": "DB: Save Drafts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Получить данные": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Соединить": {
+      "main": [
+        [
+          {
+            "node": "LLM: Лонгрид",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TG: Апрув-2 (фото)": {
+      "main": [
+        [
+          {
+            "node": "БД: Сохранить ID фото",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Проверка статуса правки": {
+      "main": [
+        [
+          {
+            "node": "Роутер: Кнопка или Текст?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Роутер: Кнопка или Текст?": {
+      "main": [
+        [
+          {
+            "node": "БД: Получить ID чатов",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "БД: Получить ID чатов",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "БД: Получить ID чатов": {
+      "main": [
+        [
+          {
+            "node": "Метаданные обзора",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Метаданные обзора": {
+      "main": [
+        [
+          {
+            "node": "Если: Это кнопка?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Если: Это кнопка?": {
+      "main": [
+        [
+          {
+            "node": "TG: Answer Callback",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Если: Это голос?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TG: Answer Callback": {
+      "main": [
+        [
+          {
+            "node": "Switch: Действие",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch: Действие": {
+      "main": [
+        [
+          {
+            "node": "TG: Выбор времени",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "БД: Старт правки (R2)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TG: Удалить кнопки (X2)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TG: Запрос инструкции",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "БД: Данные восстановления",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "БД: Получить Рецепты",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TG: Спросить дату",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TG: Удалить кнопки (X2)": {
+      "main": [
+        [
+          {
+            "node": "БД: Скип (X2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TG: Запрос инструкции": {
+      "main": [
+        [
+          {
+            "node": "БД: Сохранить цель правки",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TG: Спросить дату": {
+      "main": [
+        [
+          {
+            "node": "БД: Ждем дату",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Если: Это голос?": {
+      "main": [
+        [
+          {
+            "node": "TG: Скачать аудио",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Финальный текст",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TG: Скачать аудио": {
+      "main": [
+        [
+          {
+            "node": "OpenAI: Транскрибация",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI: Транскрибация": {
+      "main": [
+        [
+          {
+            "node": "Финальный текст",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Что правим?": {
+      "main": [
+        [
+          {
+            "node": "AI: Переписать анонс",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI: Переписать лонгрид",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI: Промт для DALL-E",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI: Парсинг даты",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TG: Подтверждение (План)": {
+      "main": [
+        [
+          {
+            "node": "БД: Получить свежие данные3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Данные восстановления": {
+      "main": [
+        [
+          {
+            "node": "TG: Вернуть меню",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Найти активную правку": {
+      "main": [
+        [
+          {
+            "node": "Что правим?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Старт правки (R2)": {
+      "main": [
+        [
+          {
+            "node": "TG: Меню правок",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Обновить лонгрид": {
+      "main": [
+        [
+          {
+            "node": "БД: Получить свежие данные1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Обновить картинку": {
+      "main": [
+        [
+          {
+            "node": "Уведомление + кнопки1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TG: Удалить меню времени": {
+      "main": [
+        [
+          {
+            "node": "TG: Подтверждение (Now)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Обновить анонс": {
+      "main": [
+        [
+          {
+            "node": "БД: Получить свежие данные",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Финальный текст": {
+      "main": [
+        [
+          {
+            "node": "БД: Найти активную правку",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Получить свежие данные": {
+      "main": [
+        [
+          {
+            "node": "TG: Удалить ответ юзера",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TG: Удалить ответ юзера": {
+      "main": [
+        [
+          {
+            "node": "TG: Удалить вопрос бота",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TG: Удалить вопрос бота": {
+      "main": [
+        [
+          {
+            "node": "Обновить анонс",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Уведомление + кнопки",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Получить свежие данные1": {
+      "main": [
+        [
+          {
+            "node": "TG: Удалить ответ юзера1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TG: Удалить ответ юзера1": {
+      "main": [
+        [
+          {
+            "node": "TG: Удалить вопрос бота1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TG: Удалить вопрос бота1": {
+      "main": [
+        [
+          {
+            "node": "Код: Анализ (Edit или Rebuild?)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Код: Анализ (Edit или Rebuild?)": {
+      "main": [
+        [
+          {
+            "node": "IF: Можно просто обновить?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Получить свежие данные2": {
+      "main": [
+        [
+          {
+            "node": "TG: Удалить вопрос бота2",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "TG: Удалить ответ юзера2",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge3",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "БД: Получить свежие данные3": {
+      "main": [
+        [
+          {
+            "node": "TG: Удалить ответ юзера3",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "TG: Удалить вопрос бота3",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "TG: Удалить меню времени1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Получить Рецепты": {
+      "main": [
+        [
+          {
+            "node": "Код: Генерация Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Код: Генерация Jobs": {
+      "main": [
+        [
+          {
+            "node": "Create a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a row": {
+      "main": [
+        [
+          {
+            "node": "БД: Статус Approved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Получить Рецепты1": {
+      "main": [
+        [
+          {
+            "node": "Код: Генерация Jobs1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Код: Генерация Jobs1": {
+      "main": [
+        [
+          {
+            "node": "Создать запись публикации",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Статус Approved1": {
+      "main": [
+        [
+          {
+            "node": "TG: Подтверждение (План)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Промт для DALL-E": {
+      "main": [
+        [
+          {
+            "node": "OpenRouter: Image1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Переписать анонс": {
+      "main": [
+        [
+          {
+            "node": "БД: Обновить анонс",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Парсинг даты": {
+      "main": [
+        [
+          {
+            "node": "БД: Получить Рецепты1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Переписать лонгрид": {
+      "main": [
+        [
+          {
+            "node": "БД: Обновить лонгрид",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Можно просто обновить?": {
+      "main": [
+        [
+          {
+            "node": "TG: Просто обновить (Edit)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Код: ID для удаления",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TG: Просто обновить (Edit)": {
+      "main": [
+        [
+          {
+            "node": "Уведомление + кнопки2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Код: ID для удаления": {
+      "main": [
+        [
+          {
+            "node": "Цикл: Удаление",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Цикл: Удаление": {
+      "main": [
+        [
+          {
+            "node": "Код: Чанки для отправки",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TG: Удалить (Loop)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TG: Удалить (Loop)": {
+      "main": [
+        [
+          {
+            "node": "Цикл: Удаление",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Код: Чанки для отправки": {
+      "main": [
+        [
+          {
+            "node": "Цикл: Отправка",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Цикл: Отправка": {
+      "main": [
+        [
+          {
+            "node": "Код: Собрать ID (Rebuild)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TG: Отправить (Loop)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TG: Отправить (Loop)": {
+      "main": [
+        [
+          {
+            "node": "Цикл: Отправка",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Код: Собрать ID (Rebuild)": {
+      "main": [
+        [
+          {
+            "node": "БД: Сохранить лонгрид (Rebuild)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Сохранить лонгрид (Rebuild)": {
+      "main": [
+        [
+          {
+            "node": "TG: Апрув-2 (НОВЫЕ кнопки)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Сохранить кнопку (Rebuild)": {
+      "main": [
+        [
+          {
+            "node": "TG: Удалить старые кнопки",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TG: Апрув-2 (НОВЫЕ кнопки)1": {
+      "main": [
+        [
+          {
+            "node": "БД: Сохранить кнопку (Rebuild)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Если: Уже есть активная правка?": {
+      "main": [
+        [
+          {
+            "node": "TG: Ошибка (Занято)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Проверка занятости": {
+      "main": [
+        [
+          {
+            "node": "Если: Уже есть активная правка?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "БД: Обновить картинку",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Статус Approved": {
+      "main": [
+        [
+          {
+            "node": "TG: Удалить меню времени",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Call 'Генерация контента для соц. сетей'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Создать запись публикации": {
+      "main": [
+        [
+          {
+            "node": "БД: Статус Approved1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Call 'Генерация контента для соц. сетей'1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "r. gpt 5.2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI: Переписать лонгрид",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "r. gpt 5.2 (1)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI: Промт для DALL-E",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "r. gpt 5.2 (2)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI: Переписать анонс",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "r. gpt 5  nano": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI: Парсинг даты",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DataURL -> Binary": {
+      "main": [
+        [
+          {
+            "node": "БД: Получить свежие данные2",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter: Image1": {
+      "main": [
+        [
+          {
+            "node": "DataURL -> Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge3": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Это файл или фото?": {
+      "main": [
+        [
+          {
+            "node": "TG: Апрув-2 (файл)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TG: Апрув-2 (фото)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TG: Апрув-2 (файл)": {
+      "main": [
+        [
+          {
+            "node": "БД: Сохранить ID фото",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Сохранить ID фото": {
+      "main": [
+        [
+          {
+            "node": "TG: Апрув-2 (анонс)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Сохранить ID анонса": {
+      "main": [
+        [
+          {
+            "node": "Код: Разбить лонгрид для ТГ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "БД: Добавить ID в массив": {
+      "main": [
+        [
+          {
+            "node": "Цикл: Части лонгрида",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Есть активная новость?": {
+      "main": [
+        [
+          {
+            "node": "Send a text message1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "TG: Апрув-2 (кнопки)1": {
+      "main": [
+        [
+          {
+            "node": "БД: Сохранить id кнопок",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TG: Выбор времени": {
+      "main": [
+        []
+      ]
+    },
+    "Call 'Генерация контента для соц. сетей'": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "a0622143-6a5f-472a-9731-74633adfbfde",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a3be3517ac16055c74c794d80ee41ecf8379a31765686f5b788ba2bac8e2a816"
+  },
+  "id": "R5yHS8oRMdWMxIzA",
+  "tags": []
+}

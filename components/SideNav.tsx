@@ -1,23 +1,23 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Calendar, FileText, Terminal, Settings, LayoutDashboard, ChevronDown, ChevronRight } from 'lucide-react'
+import { Calendar, FileText, Terminal, Settings, LayoutDashboard, ChevronDown, ChevronRight, BookOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
-const items = [
-  { title: 'Publications', href: '/publications', icon: Calendar },
-  { title: 'Content', href: '/content', icon: FileText },
-  {
-    title: 'Prompts',
-    href: '/prompts',
-    icon: Terminal,
-    subItems: [
-      { title: 'Системная логика', href: '/prompts?tab=system' },
-      { title: 'Промпты для соц. сетей', href: '/prompts?tab=social' }
-    ]
-  },
-  { title: 'Recipes', href: '/recipes', icon: Settings },
+type NavItem = {
+  title: string
+  href: string
+  icon: any
+  subItems?: { title: string; href: string }[]
+}
+
+const items: NavItem[] = [
+  { title: 'Публикации', href: '/publications', icon: Calendar },
+  { title: 'Контент', href: '/content', icon: FileText },
+  { title: 'Промпты', href: '/prompts', icon: Terminal },
+  { title: 'Рецепты', href: '/recipes', icon: BookOpen },
+  { title: 'Настройки', href: '/settings', icon: Settings },
 ]
 
 export function SideNav() {
@@ -32,12 +32,22 @@ export function SideNav() {
     )
   }
 
+
+
   return (
-    <nav className="flex flex-col gap-2 p-4 w-64 border-r border-border h-full bg-card">
-      <div className="flex items-center gap-2 mb-8 px-2">
-        <LayoutDashboard className="h-6 w-6 text-blue-500" />
-        <span className="font-bold text-lg text-foreground">AiNews Control</span>
-      </div>
+    <nav className="flex flex-col gap-2 p-4 w-64 border-r border-border h-full bg-card" suppressHydrationWarning>
+      <Link
+        href="/publications"
+        className="flex items-center gap-3 mb-8 px-2 transition-opacity hover:opacity-80"
+      >
+        <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-border bg-muted">
+          <img src="/logo.png" alt="AiNews Control" className="h-full w-full object-cover" />
+        </div>
+        <div className="flex flex-col">
+          <span className="font-bold text-base leading-tight text-foreground tracking-tight">AiNews</span>
+          <span className="font-bold text-base leading-tight text-foreground/80 tracking-tight text-[13px]">Control</span>
+        </div>
+      </Link>
       {items.map((item) => {
         const isActive = pathname.startsWith(item.href)
         const isExpanded = expandedItems.includes(item.href)

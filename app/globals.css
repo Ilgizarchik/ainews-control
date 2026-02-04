@@ -2,6 +2,9 @@
 
 @plugin "tailwindcss-animate";
 
+/* React Day Picker Base Styles */
+@import "react-day-picker/style.css";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme {
@@ -76,6 +79,26 @@
   }
 }
 
+@layer utilities {
+  @keyframes premium-dot-bounce {
+    0% {
+      transform: translateY(6px) scale(0.8);
+      opacity: 0.3;
+    }
+    50% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(-6px) scale(1.1);
+      opacity: 0.3;
+    }
+  }
+
+  .animate-premium-dot {
+    animation: premium-dot-bounce 0.8s infinite alternate ease-in-out;
+  }
+}
+
 @layer base {
   * {
     @apply border-border;
@@ -88,7 +111,7 @@
 
 /* FullCalendar Dark Theme Customization */
 .dark .fc {
-  --fc-border-color: hsl(var(--border));
+  --fc-border-color: hsl(var(--border) / 0.5);
   --fc-page-bg-color: transparent;
   --fc-neutral-bg-color: hsl(var(--muted));
   --fc-neutral-text-color: hsl(var(--foreground));
@@ -122,6 +145,75 @@
 
 .dark .fc .fc-toolbar-title {
   color: hsl(var(--foreground));
+}
+
+/* React Day Picker Custom Styles */
+.rdp {
+  --rdp-accent-color: hsl(var(--primary));
+  --rdp-background-color: hsl(var(--accent));
+  --rdp-accent-background-color: hsl(var(--primary));
+  --rdp-font-family: inherit;
+}
+
+.dark .rdp {
+  --rdp-accent-color: hsl(var(--primary));
+  --rdp-background-color: hsl(var(--accent));
+}
+
+/* Исправляем баг с заголовками дней недели - принудительно через !important */
+.rdp-weekdays {
+  display: flex !important;
+  gap: 0.25rem;
+}
+
+.rdp-weekday {
+  flex: 1 !important;
+  text-align: center !important;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Исправляем сетку месяцев */
+.rdp-months {
+  display: flex !important;
+  gap: 1.5rem;
+}
+
+.rdp-month {
+  flex: 1;
+}
+
+/* Корректная сетка дней */
+.rdp-week {
+  display: flex !important;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+}
+
+.rdp-day {
+  flex: 1 !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  transition: all 0.2s ease;
+}
+
+.rdp-day:hover:not([disabled]) {
+  background-color: hsl(var(--accent) / 0.5);
+  border-radius: 0.375rem;
+}
+
+/* Таблица календаря как блочный элемент */
+.rdp-month_grid {
+  width: 100% !important;
+  display: block !important;
+}
+
+.rdp-tbody {
+  display: block !important;
 }
 
 @theme inline {
@@ -167,7 +259,7 @@
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
+  --background: oklch(0.985 0 0);
   --foreground: oklch(0.141 0.005 285.823);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.141 0.005 285.823);
@@ -238,6 +330,7 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }

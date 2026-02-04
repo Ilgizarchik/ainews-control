@@ -128,6 +128,15 @@ const getSocialConfig = (key: string) => {
       textColor: 'text-zinc-900 dark:text-zinc-100'
     }
   }
+  if (keyLower.includes('_site')) {
+    return {
+      icon: Globe,
+      color: '#10b981',
+      bg: 'from-emerald-500/15 to-emerald-600/10',
+      borderColor: 'border-emerald-500/20',
+      textColor: 'text-emerald-600 dark:text-emerald-400'
+    }
+  }
 
   // Default для системных промптов
   return {
@@ -305,21 +314,16 @@ function PromptsContent() {
     })
   )
 
-  // Разделяем промпты на системные и социальные
-  const systemPrompts = useMemo(() =>
-    prompts.filter(p => !p.key.toLowerCase().startsWith('rewrite_social_')),
-    [prompts]
-  )
-
-  const socialPrompts = useMemo(() =>
-    prompts.filter(p => p.key.toLowerCase().startsWith('rewrite_social_')),
-    [prompts]
-  )
+  // Categorize prompts
+  const systemPrompts = useMemo(() => prompts.filter(p => p.category === 'system' || !p.category), [prompts])
+  const newsPrompts = useMemo(() => prompts.filter(p => p.category === 'news'), [prompts])
+  const reviewsPrompts = useMemo(() => prompts.filter(p => p.category === 'reviews'), [prompts])
+  const socialPrompts = useMemo(() => prompts.filter(p => p.category === 'social'), [prompts])
 
   const fetchPrompts = useCallback(async () => {
     const { data: promptsData, error: promptsError } = await (supabase as any)
       .from('system_prompts')
-      .select('*')
+      .select('id, key, content, category, updated_at')
 
     if (promptsError) {
       toast.error('Failed to load prompts')
@@ -365,7 +369,7 @@ function PromptsContent() {
   // Синхронизируем activeTab с URL
   useEffect(() => {
     const tab = searchParams.get('tab')
-    if (tab && (tab === 'system' || tab === 'social')) {
+    if (tab && ['system', 'news', 'reviews', 'social'].includes(tab)) {
       setActiveTab(tab)
     }
   }, [searchParams])
@@ -383,9 +387,10 @@ function PromptsContent() {
     const idStr = String(id)
     setSaving(prev => ({ ...prev, [idStr]: true }))
 
+    const now = new Date().toISOString()
     const { error } = await (supabase as any)
       .from('system_prompts')
-      .update({ content } as any)
+      .update({ content, updated_at: now } as any)
       .eq('id', id)
 
     if (error) {
@@ -397,7 +402,7 @@ function PromptsContent() {
     toast.success('Prompt saved successfully')
 
     setPrompts(prev =>
-      prev.map(p => (String(p.id) === idStr ? { ...p, content } : p))
+      prev.map(p => (String(p.id) === idStr ? { ...p, content, updated_at: now } : p))
     )
 
     setEditedPrompts(prev => {
@@ -484,9 +489,11 @@ function PromptsContent() {
       </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="system">Системная логика</TabsTrigger>
-          <TabsTrigger value="social">Промпты для соц. сетей</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="system">Системные</TabsTrigger>
+          <TabsTrigger value="news">Новости</TabsTrigger>
+          <TabsTrigger value="reviews">Обзоры</TabsTrigger>
+          <TabsTrigger value="social">Соцсети</TabsTrigger>
         </TabsList>
 
         <TabsContent value="system" className="mt-6">
@@ -496,6 +503,28 @@ function PromptsContent() {
             <div className="text-center py-12 text-zinc-500">
               <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p className="text-lg font-medium">Нет системных промптов</p>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="news" className="mt-6">
+          {newsPrompts.length > 0 ? (
+            renderPrompts(newsPrompts)
+          ) : (
+            <div className="text-center py-12 text-zinc-500">
+              <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium">Нет промптов для новостей</p>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="reviews" className="mt-6">
+          {reviewsPrompts.length > 0 ? (
+            renderPrompts(reviewsPrompts)
+          ) : (
+            <div className="text-center py-12 text-zinc-500">
+              <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium">Нет промптов для обзоров</p>
             </div>
           )}
         </TabsContent>

@@ -1,89 +1,61 @@
 "use client"
 
 import * as React from "react"
+import Calendar, { type CalendarProps } from "react-calendar"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { DayPicker } from "react-day-picker"
-
+import { format } from "date-fns"
+import { ru } from "date-fns/locale"
 import { cn } from "@/lib/utils"
-import { buttonVariants } from "@/components/ui/button"
+import "react-calendar/dist/Calendar.css"
+import "@/app/react-calendar.css"
 
-export type CalendarProps = React.ComponentProps<typeof DayPicker>
+type ValuePiece = Date | null
+type Value = ValuePiece | [ValuePiece, ValuePiece]
 
-function Calendar({
+interface CustomCalendarProps
+  extends Omit<CalendarProps, 'className' | 'value' | 'onChange' | 'selectRange'> {
+  value?: Value
+  onChange?: (value: Value) => void
+  selectRange?: boolean
+  className?: string
+}
+
+export function CustomCalendar({
+  value,
+  onChange,
+  selectRange = true,
   className,
-  classNames,
-  showOutsideDays = true,
-  components,
-  ...props
-}: CalendarProps) {
+  ...calendarProps
+}: CustomCalendarProps) {
   return (
-    <DayPicker
-      showOutsideDays={showOutsideDays}
-      className={cn("p-3", className)}
-      classNames={{
-        months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
-        month: "space-y-4",
-        // Caption: relative container for the title and nav buttons. 
-        // mb-4 creates space between the header and the grid.
-        caption: "flex justify-center pt-1 relative items-center mb-4",
-        caption_label: "text-sm font-medium",
-        nav: "space-x-1 flex items-center",
-
-        // Navigation buttons: Absolute positioned relative to the 'caption' container.
-        // top-1 aligns them nicely with the text.
-        button_previous: cn(
-          buttonVariants({ variant: "outline" }),
-          "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 absolute left-1 top-1"
-        ),
-        button_next: cn(
-          buttonVariants({ variant: "outline" }),
-          "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 absolute right-1 top-1"
-        ),
-
-        // Grid
-        month_grid: "w-full border-collapse space-y-1",
-
-        // Header
-        weekdays: "flex",
-        weekday: "text-muted-foreground rounded-md w-9 font-normal text-[0.8rem]",
-
-        // Body
-        week: "flex w-full mt-2",
-
-        // Day Cell
-        day: "h-9 w-9 text-center text-sm p-0 relative [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
-
-        // Day Button
-        day_button: cn(
-          buttonVariants({ variant: "ghost" }),
-          "h-9 w-9 p-0 font-normal aria-selected:opacity-100 overflow-visible relative group"
-        ),
-
-        // Modifiers
-        range_end: "day-range-end",
-        selected:
-          "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
-        today: "bg-accent text-accent-foreground",
-        outside:
-          "day-outside text-muted-foreground opacity-50 aria-selected:bg-accent/50 aria-selected:text-muted-foreground aria-selected:opacity-30",
-        disabled: "text-muted-foreground opacity-50",
-        range_middle:
-          "aria-selected:bg-accent aria-selected:text-accent-foreground",
-        hidden: "invisible",
-
-        ...classNames,
-      }}
-      components={{
-        Chevron: ({ orientation }) => {
-          const Icon = orientation === 'left' ? ChevronLeft : ChevronRight
-          return <Icon className="h-4 w-4" />
-        },
-        ...components,
-      }}
-      {...props}
-    />
+    <div className={cn("custom-calendar-wrapper p-4", className)}>
+      <Calendar
+        value={value}
+        onChange={onChange}
+        selectRange={selectRange}
+        locale="ru-RU"
+        {...calendarProps}
+        // Две буквы для дней недели: ПН ВТ СР...
+        formatShortWeekday={(locale, date) => {
+          const day = format(date, "EEEEEE", { locale: ru }).toUpperCase()
+          return day === "ПН" ? "ПН" : day === "ВТ" ? "ВТ" : day === "СР" ? "СР" :
+            day === "ЧТ" ? "ЧТ" : day === "ПТ" ? "ПТ" : day === "СБ" ? "СБ" : "ВС"
+        }}
+        formatMonthYear={(locale, date) => format(date, "LLLL yyyy", { locale: ru })}
+        prevLabel={<ChevronLeft className="w-4 h-4" />}
+        nextLabel={<ChevronRight className="w-4 h-4" />}
+        prev2Label={null}
+        next2Label={null}
+        showNeighboringMonth={false}
+        // ВАЖНО: разрешаем переключение на год/месяц
+        minDetail="year"
+        maxDetail="month"
+        // Показываем 2 месяца рядом для range picker
+        showDoubleView={selectRange}
+      />
+    </div>
   )
 }
-Calendar.displayName = "Calendar"
 
-export { Calendar }
+// Экспорт для обратной совместимости
+export { CustomCalendar as Calendar }

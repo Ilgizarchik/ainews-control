@@ -223,7 +223,6 @@ export default function RecipesPage() {
   }
 
   const handleUpdateDelay = async (id: string, delay: number) => {
-    // @ts-expect-error - Supabase generated types are incompatible
     const { error } = await supabase.from('publish_recipes').update({ delay_hours: delay }).eq('id', id)
     if (error) throw new Error(error.message)
     await fetchRecipes()
@@ -244,7 +243,6 @@ export default function RecipesPage() {
 
         supabase
           .from('project_settings')
-          // @ts-expect-error - Supabase generated types are incompatible
           .upsert({
             project_key: 'ainews',
             key: 'recipes_order',

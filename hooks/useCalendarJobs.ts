@@ -4,11 +4,16 @@ import { Database } from '@/types/database.types'
 import { toast } from 'sonner'
 
 type JobWithNews = Database['public']['Tables']['publish_jobs']['Row'] & {
+  review_id?: string | null // Manually added until types are regenerated
   news_items: {
     title: string
     draft_title: string | null
     canonical_url: string
     image_url: string | null
+  } | null
+  review_items: {
+    title_seed: string | null
+    draft_title: string | null
   } | null
 }
 
@@ -21,13 +26,22 @@ export function useCalendarJobs() {
     setLoading(true)
     const { data, error } = await supabase
       .from('publish_jobs')
-      .select(`*, news_items (title, draft_title, canonical_url, image_url)`)
+      .select(`
+        *,
+        news_items (title, draft_title, canonical_url, image_url),
+        review_items (title_seed, draft_title)
+      `)
       .gte('publish_at', start.toISOString())
       .lt('publish_at', end.toISOString())
 
     if (error) {
       console.error('Error fetching jobs:', error)
-      toast.error('Не удалось загрузить задачи публикации')
+      if (typeof error === 'object' && error !== null) {
+        console.error('Error Message:', (error as any).message)
+        console.error('Error Details:', (error as any).details)
+        console.error('Error Hint:', (error as any).hint)
+      }
+      toast.error(`Не удалось загрузить задачи публикации: ${(error as any).message || 'Ошибка'}`)
     } else {
       setJobs(data as JobWithNews[])
     }
@@ -37,7 +51,6 @@ export function useCalendarJobs() {
   const updateJobTime = async (jobId: string, newDate: Date) => {
     const { error } = await supabase
       .from('publish_jobs')
-      // @ts-expect-error - Supabase generated types are incompatible with update
       .update({
         publish_at: newDate.toISOString(),
         updated_at: new Date().toISOString()
@@ -51,15 +64,19 @@ export function useCalendarJobs() {
       if (u.id) {
         return supabase
           .from('publish_jobs')
-          // @ts-expect-error - Supabase generated types are incompatible with update
           .update({ publish_at: u.publish_at, updated_at: new Date().toISOString() })
           .eq('id', u.id)
       } else if (u.news_id && u.platform) {
         return supabase
           .from('publish_jobs')
-          // @ts-expect-error - Supabase generated types are incompatible with update
           .update({ publish_at: u.publish_at, updated_at: new Date().toISOString() })
           .eq('news_id', u.news_id)
+          .eq('platform', u.platform)
+      } else if (u.review_id && u.platform) {
+        return supabase
+          .from('publish_jobs')
+          .update({ publish_at: u.publish_at, updated_at: new Date().toISOString() })
+          .eq('review_id', u.review_id)
           .eq('platform', u.platform)
       }
       return Promise.resolve({ error: 'Invalid params' })

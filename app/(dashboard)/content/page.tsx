@@ -1,106 +1,176 @@
-'use client'
-import { useState, useEffect, useRef } from 'react'
+﻿'use client'
+
+import { useEffect, useMemo, useState } from 'react'
+import { ContentBoard } from '@/components/content/ContentBoard'
+import { ContentItem, ContentFilter, ContentStats } from '@/types/content'
+import { LoadingDots } from '@/components/ui/loading-dots'
 import { createClient } from '@/lib/supabase/client'
-import { useRealtime } from '@/hooks/useRealtime'
-import Link from 'next/link'
-import { format } from 'date-fns'
-import { StatusBadge } from '@/components/StatusBadge'
-import { Button } from '@/components/ui/button'
-import { toast } from 'sonner'
+import { getContentStats } from '@/app/actions/content-actions'
+
+const PAGE_SIZE = 50
+
+// ... imports
 
 export default function ContentPage() {
-  const [data, setData] = useState<any[]>([])
-  const [loading, setLoading] = useState(false)
-  const [hasMore, setHasMore] = useState(true)
-  const supabase = createClient()
-  const PAGE_SIZE = 30
+  const [items, setItems] = useState<ContentItem[]>([])
+  const [stats, setStats] = useState<ContentStats>({ total: 0, pending: 0, approved: 0, rejected: 0 })
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [currentFilter, setCurrentFilter] = useState<ContentFilter>('pending')
+  const [selectedSources, setSelectedSources] = useState<string[]>([])
+  const [page, setPage] = useState(0)
+  const [totalCount, setTotalCount] = useState(0)
+  const supabase = useMemo(() => createClient(), [])
 
-  const loadingRef = useRef(false)
+  const buildQuery = (filter: ContentFilter, sources: string[]) => {
+    let query = (supabase.from('news_items' as any) as any).select('*', { count: 'exact' })
 
-  const loadMore = async () => {
-    if (loadingRef.current || !hasMore) return
+    if (filter === 'pending') {
+      query = query.eq('gate1_decision', 'send').is('approve1_decision', null)
+    } else if (filter === 'approved') {
+      query = query.eq('approve1_decision', 'approved')
+    } else if (filter === 'rejected') {
+      query = query.eq('approve1_decision', 'rejected')
+    } else {
+      query = query.neq('gate1_decision', null)
+    }
 
-    loadingRef.current = true
-    setLoading(true)
-    const from = data.length
+    if (sources.length > 0) {
+      query = query.in('source_name', sources)
+    }
+
+    return query
+  }
+
+  const fetchPage = async (filter: ContentFilter, sources: string[], pageIndex: number) => {
+    const from = pageIndex * PAGE_SIZE
     const to = from + PAGE_SIZE - 1
 
+    const { data, error, count } = await buildQuery(filter, sources)
+      .order('created_at', { ascending: false }) // Use creation time as primary to show newest first in queue
+      .order('published_at', { ascending: false })
+      .range(from, to)
+
+    if (error) {
+      console.error('[ContentPage] fetchPage error:', error)
+      return { data: [] as ContentItem[], count: 0 }
+    }
+
+    return { data: (data || []) as ContentItem[], count: count || 0 }
+  }
+
+  const loadData = async (filter: ContentFilter, sources: string[], isInitial: boolean) => {
+    if (isInitial) setLoading(true)
+    else setRefreshing(true)
+
     try {
-      const { data: newItems, error } = await supabase
-        .from('news_items')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .range(from, to) as any
+      // Parallel fetch but with individual error handling or fallback
+      const [pageResults, statsResults] = await Promise.allSettled([
+        fetchPage(filter, sources, 0),
+        getContentStats(),
+      ])
 
-      if (error) throw error
-
-      if (newItems) {
-        setData(prev => {
-          const existingIds = new Set(prev.map((i: any) => i.id))
-          const uniqueNewItems = newItems.filter((i: any) => !existingIds.has(i.id))
-          return [...prev, ...uniqueNewItems]
-        })
-        if (newItems.length < PAGE_SIZE) {
-          setHasMore(false)
-        }
+      if (pageResults.status === 'fulfilled') {
+        const { data: itemsData, count } = pageResults.value
+        setItems(itemsData)
+        setTotalCount(count)
+        setPage(0)
+      } else {
+        console.error('[ContentPage] Failed to fetch items:', pageResults.reason)
       }
+
+      if (statsResults.status === 'fulfilled') {
+        setStats(statsResults.value)
+      } else {
+        console.error('[ContentPage] Failed to fetch stats:', statsResults.reason)
+      }
+
     } catch (error) {
-      console.error('Error fetching data:', error)
-      toast.error('Не удалось загрузить контент')
+      console.error('[ContentPage] Critical error in loadData:', error)
     } finally {
-      loadingRef.current = false
-      setLoading(false)
+      if (isInitial) setLoading(false)
+      setRefreshing(false)
     }
   }
 
-  // Infinite scroll observer
+  const loadMore = async () => {
+    if (loadingMore) return
+    const nextPage = page + 1
+    setLoadingMore(true)
+    try {
+      const { data: moreItems } = await fetchPage(currentFilter, selectedSources, nextPage)
+      setItems(prev => {
+        const existingIds = new Set(prev.map(i => i.id))
+        const uniqueNewItems = moreItems.filter(i => !existingIds.has(i.id))
+        return [...prev, ...uniqueNewItems]
+      })
+      setPage(nextPage)
+    } catch (error) {
+      console.error('Error loading more content:', error)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loadingRef.current) {
-          loadMore()
-        }
-      },
-      { threshold: 0.1 }
-    )
+    // Only use full screen loading for the very first mount
+    loadData(currentFilter, selectedSources, loading)
+  }, [currentFilter, selectedSources])
 
-    const trigger = document.getElementById('scroll-trigger')
-    if (trigger) observer.observe(trigger)
+  const handleItemUpdated = async (id: string, outcome?: 'updated' | 'stale') => {
+    // Optimistic remove for pending
+    if (currentFilter === 'pending' && outcome) {
+      setItems(prev => prev.filter(item => item.id !== id))
+    }
+    // Refresh stats and current page
+    await loadData(currentFilter, selectedSources, false)
+  }
 
-    return () => observer.disconnect()
-  }, [data.length, hasMore])
+  const handleFilterChange = (filter: ContentFilter) => {
+    setCurrentFilter(filter)
+    // We don't clear items here to avoid white flash
+  }
 
-  // Realtime updates (simplified: just refetch latest if list is empty, or maybe handle inserts?)
-  // For now, let's keep it simple and disable full refetch on realtime to avoid resetting scroll
-  // useRealtime('news_items', fetch) 
-
-  return (
-    <div className="space-y-4 h-full flex flex-col">
-      <h1 className="text-2xl font-bold text-foreground shrink-0">Content Feed</h1>
-      <div className="border border-border rounded-md bg-card flex-1 overflow-hidden flex flex-col">
-        <div className="overflow-y-auto flex-1">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-muted text-muted-foreground border-b border-border sticky top-0 z-10">
-              <tr><th className="p-4">Date</th><th className="p-4">Title</th><th className="p-4">Status</th></tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {data.map(i => (
-                <tr key={i.id} className="hover:bg-muted/50 transition-colors">
-                  <td className="p-4 text-muted-foreground whitespace-nowrap w-[150px]">{format(new Date(i.created_at), 'MM/dd HH:mm')}</td>
-                  <td className="p-4 text-foreground">{i.title}</td>
-                  <td className="p-4 w-[100px]"><StatusBadge status={i.status} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {/* Loading trigger & indicator */}
-          <div id="scroll-trigger" className="p-4 flex justify-center w-full">
-            {loading && <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>}
-            {!hasMore && data.length > 0 && <span className="text-muted-foreground text-xs">No more items</span>}
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] animate-in fade-in duration-500">
+        <div className="relative p-10 rounded-3xl bg-white/50 dark:bg-black/20 backdrop-blur-sm border border-white/20 shadow-2xl overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/5 animate-pulse" />
+          <div className="relative z-10 space-y-8 text-center">
+            <LoadingDots className="h-12" />
+            <div className="space-y-2">
+              <p className="text-xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/60">
+                Синхронизация...
+              </p>
+              <p className="text-sm text-muted-foreground font-medium max-w-[200px] mx-auto opacity-70">
+                Загружаем свежий контент из ваших источников
+              </p>
+            </div>
           </div>
         </div>
       </div>
+    )
+  }
+
+  const canLoadMore = items.length < totalCount
+
+  return (
+    <div className="container max-w-7xl mx-auto py-8 px-4">
+      <ContentBoard
+        items={items}
+        stats={stats}
+        onFilterChange={handleFilterChange}
+        currentFilter={currentFilter}
+        totalCount={totalCount}
+        onLoadMore={loadMore}
+        canLoadMore={canLoadMore}
+        loadingMore={loadingMore}
+        onItemUpdated={handleItemUpdated}
+        selectedSources={selectedSources}
+        onSourcesChange={setSelectedSources}
+        isRefreshing={refreshing}
+      />
     </div>
   )
 }

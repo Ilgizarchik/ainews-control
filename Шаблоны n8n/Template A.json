@@ -1,0 +1,621 @@
+{
+  "name": "Template A",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// const WEEK_MS = 7 * 24 * 60 * 60 * 1000; // Убрали ограничение в 7 дней\n\nfunction normalizeUrl(raw) {\n  try {\n    const u = new URL(String(raw || '').trim());\n    u.hash = '';\n    const dropKeys = new Set(['fbclid', 'gclid', 'yclid']);\n    for (const key of Array.from(u.searchParams.keys())) {\n      const k = key.toLowerCase();\n      if (k.startsWith('utm_') || dropKeys.has(k)) u.searchParams.delete(key);\n    }\n    return u.toString();\n  } catch (e) {\n    return String(raw || '').trim();\n  }\n}\n\nfunction stripTags(s) {\n  return String(s || '')\n    .replace(/<[^>]*>/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nfunction hostFromUrl(url) {\n  try {\n    return new URL(url).hostname.toLowerCase().replace(/^www\\./, '');\n  } catch {\n    return null;\n  }\n}\n\nconst items = $input.all();\nconst out = [];\n\nfor (const it of items) {\n  const j = it.json;\n\n  const title = String(j.title || '').trim();\n  const canonical_url = normalizeUrl(j.link || j.url || j.guid || '');\n  if (!canonical_url) continue;\n\n  // summary\n  const summaryRaw = j.contentSnippet || j.content || j.summary || j.description || '';\n  const rss_summary = stripTags(summaryRaw);\n\n  // image\n  const image_url = j.enclosure?.url || j['media:content']?.url || j.image?.url || null;\n\n  // published\n  const cand = j.isoDate || j.pubDate || j.published || j.date || '';\n  const d = cand ? new Date(cand) : null;\n  \n  // Если дата невалидна, пропускаем. Если валидна — идем дальше.\n  if (!d || Number.isNaN(d.getTime())) continue;\n\n  // filter last week — ОТКЛЮЧЕНО\n  // if (Date.now() - d.getTime() > WEEK_MS) continue;\n\n  out.push({\n    json: {\n      title,\n      canonical_url,\n      source_name: hostFromUrl(canonical_url) || 'unknown',\n      rss_summary,\n      published_at: d.toISOString(),\n      image_url,\n    }\n  });\n}\n\nreturn out;"
+      },
+      "id": "62c09c1e-cd99-4372-93d7-a4f571264bd0",
+      "name": "Normalize + Prep SQL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        48,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.news_items \n(title, canonical_url, source_name, status, rss_summary, published_at, image_url)\nVALUES \n($1, $2, $3, 'found', $4, $5, $6)\nON CONFLICT (canonical_url) \nDO UPDATE SET title = EXCLUDED.title \nRETURNING id, title, canonical_url;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [\n  $json.title ?? null,\n  $json.canonical_url ?? null,\n  $json.source_name ?? 'hunting.ru',\n  $json.rss_summary ?? null,\n  $json.published_at ?? null,\n  $json.image_url ?? null\n] }}"
+        }
+      },
+      "id": "f8329832-cc17-4b2e-96a9-39a15e8529ba",
+      "name": "DB Insert (Dedupe by URL)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.3,
+      "position": [
+        1120,
+        608
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Apw2GZOwP2Hlrwwo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://www.hunting.ru/news/",
+        "options": {}
+      },
+      "name": "Download hunting.ru/news",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -384,
+        384
+      ],
+      "id": "ef0f3ecb-3032-418d-ae09-2cf8acc0a69c",
+      "typeVersion": 4.3
+    },
+    {
+      "parameters": {
+        "jsCode": "function strip(s) {\n  return String(s || \"\").replace(/\\s+/g, \" \").trim();\n}\n\nfunction absUrl(u) {\n  const s = strip(u);\n  if (!s) return null;\n  if (s.startsWith(\"http://\") || s.startsWith(\"https://\")) return s;\n  if (s.startsWith(\"//\")) return \"https:\" + s;\n  if (s.startsWith(\"/\")) return \"https://www.hunting.ru\" + s;\n  return \"https://www.hunting.ru/\" + s;\n}\n\nconst RU_MONTHS = {\n  \"января\":0,\"февраля\":1,\"марта\":2,\"апреля\":3,\"мая\":4,\"июня\":5,\n  \"июля\":6,\"августа\":7,\"сентября\":8,\"октября\":9,\"ноября\":10,\"декабря\":11\n};\n\nfunction parseRuDate(s) {\n  const t = strip(s).toLowerCase();\n  if (!t) return null;\n  const m = t.match(/(\\d{1,2})\\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\\s+(\\d{4})/);\n  if (!m) return null;\n  const d = new Date(Date.UTC(+m[3], RU_MONTHS[m[2]], +m[1]));\n  return isNaN(d.getTime()) ? null : d.toISOString();\n}\n\nreturn $input.all().map((item) => {\n  const j = item.json || {};\n  return {\n    json: {\n      title: strip(j.title) || null,\n      canonical_url: absUrl(j.canonical_url),\n      source_name: \"hunting.ru\",\n      rss_summary: strip(j.rss_summary) || null,\n      published_at: parseRuDate(j.published_text),\n      image_url: absUrl(j.image_url)\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        272,
+        384
+      ],
+      "id": "eb2deae8-5d2e-4df7-a92f-923582ed7fe8",
+      "name": "Format Data"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "item_html",
+              "cssSelector": ".content__central .record.btn-hidden-wrap",
+              "returnValue": "html",
+              "returnArray": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        -160,
+        384
+      ],
+      "id": "4ff74f03-3088-48b5-a9f7-db3064ae0b13",
+      "name": "HTML1"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "dataPropertyName": "item_html",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "title",
+              "cssSelector": "a.record__title"
+            },
+            {
+              "key": "canonical_url",
+              "cssSelector": "a.record__title",
+              "returnValue": "attribute",
+              "attribute": "href"
+            },
+            {
+              "key": "rss_summary",
+              "cssSelector": ".record__text"
+            },
+            {
+              "key": "published_text",
+              "cssSelector": ".record__date"
+            },
+            {
+              "key": "image_url",
+              "cssSelector": ".record__img-wrapper img",
+              "returnValue": "attribute",
+              "attribute": "src"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        64,
+        384
+      ],
+      "id": "68b31d9c-ef93-4474-b609-58b0720f8e56",
+      "name": "HTML2 (вытащить поля из item_html)"
+    },
+    {
+      "parameters": {
+        "url": "https://mooir.ru/official/world-news/",
+        "options": {}
+      },
+      "name": "https://mooir.ru/official/world-news/",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -288,
+        624
+      ],
+      "id": "7102c956-1be7-4cf2-89a9-50f34c49426f",
+      "typeVersion": 4.3
+    },
+    {
+      "parameters": {
+        "url": "https://mooir.ru/official/prikras/",
+        "options": {}
+      },
+      "name": "https://mooir.ru/official/prikras/",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -288,
+        816
+      ],
+      "id": "b9156a5e-0c34-41fa-ac78-c997d173bcad",
+      "typeVersion": 4.3
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "item_html",
+              "cssSelector": "a[href^=\"/official/world-news/\"]:not([href*=\"?page=\"]):not([href=\"archive/\"])",
+              "returnValue": "html",
+              "returnArray": true
+            },
+            {
+              "key": "href",
+              "cssSelector": "a[href^=\"/official/world-news/\"]:not([href*=\"?page=\"]):not([href=\"archive/\"])",
+              "returnValue": "attribute",
+              "attribute": "href",
+              "returnArray": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        -64,
+        624
+      ],
+      "id": "723c1621-d33b-44de-92f7-c369de830524",
+      "name": "HTML1: Список ссылок (item_html)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const titles = Array.isArray($json.item_html) ? $json.item_html : [];\nconst hrefs = Array.isArray($json.href) ? $json.href : [];\nconst n = Math.min(titles.length, hrefs.length);\n\nfunction clean(s) {\n  return String(s || \"\").replace(/\\s+/g, \" \").trim();\n}\nfunction absUrl(h) {\n  const s = clean(h);\n  if (!s) return null;\n  if (s.startsWith(\"http://\") || s.startsWith(\"https://\")) return s;\n  if (s.startsWith(\"//\")) return \"https:\" + s;\n  if (s.startsWith(\"/\")) return \"https://mooir.ru\" + s;\n  return \"https://mooir.ru/\" + s.replace(/^\\.\\//, \"\");\n}\n\nreturn Array.from({ length: n }, (_, i) => {\n  const title = clean(titles[i]);\n  const url = absUrl(hrefs[i]);\n\n  // фильтр мусора: пусто и /official/world-news/ без id\n  const ok = /\\/official\\/world-news\\/\\d+\\/?$/.test(url || \"\");\n  if (!ok) return null;\n\n  return {\n    json: {\n      title,\n      canonical_url: url,\n      source_name: \"mooir.ru\"\n    }\n  };\n}).filter(Boolean);\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        624
+      ],
+      "id": "82373b63-fe09-489c-b3ff-35a4da81e617",
+      "name": "Format Data1"
+    },
+    {
+      "parameters": {
+        "url": "https://huntportal.ru/rss.xml",
+        "options": {}
+      },
+      "id": "2d3eafcf-1e9e-48a2-a4f1-858b912a99cf",
+      "name": "https://huntportal.ru/rss.xml",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [
+        -176,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://rhm-magazine.ru/magazine/rss.php",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        -176,
+        -64
+      ],
+      "id": "1ee64db9-86f9-454e-8af8-e0b239b0ba1c",
+      "name": "https://rhm-magazine.ru/magazine/rss.php"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "titles",
+              "cssSelector": "a[href^=\"/official/prikras/\"]",
+              "returnValue": "html",
+              "returnArray": true
+            },
+            {
+              "key": "hrefs",
+              "cssSelector": "a[href^=\"/official/prikras/\"]",
+              "returnValue": "attribute",
+              "attribute": "href",
+              "returnArray": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        -64,
+        816
+      ],
+      "id": "d82c01fe-0e74-4c0d-bb37-af979c91d24b",
+      "name": "HTML: Приказы/распоряжения — ссылки (arrays)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const titles = Array.isArray($json.titles) ? $json.titles : [];\nconst hrefs = Array.isArray($json.hrefs) ? $json.hrefs : [];\nconst n = Math.min(titles.length, hrefs.length);\n\nfunction clean(s) {\n  return String(s || \"\").replace(/\\s+/g, \" \").trim();\n}\n\nfunction absUrl(h) {\n  const s = clean(h);\n  if (!s) return null;\n  if (s.startsWith(\"http://\") || s.startsWith(\"https://\")) return s;\n  if (s.startsWith(\"//\")) return \"https:\" + s;\n  if (s.startsWith(\"/\")) return \"https://mooir.ru\" + s;\n  return \"https://mooir.ru/\" + s.replace(/^\\.\\//, \"\");\n}\n\nreturn Array.from({ length: n }, (_, i) => {\n  const title = clean(titles[i]);\n  const url = absUrl(hrefs[i]);\n\n  // keep only real doc links with numeric id\n  const ok = /\\/official\\/prikras\\/\\d+\\/?$/.test(url || \"\");\n  if (!ok) return null;\n\n  return {\n    json: {\n      title: title || null,\n      canonical_url: url,\n      source_name: \"mooir.ru\",\n      rss_summary: null,\n      published_at: null,\n      image_url: null\n    }\n  };\n}).filter(Boolean);\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        816
+      ],
+      "id": "d1ccbf04-8cc2-4c09-bc3e-e2c47693f7ac",
+      "name": "Format Data: Приказы/распоряжения"
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node (JavaScript) - normalize RSS items\n\nfunction stripHtml(html) {\n  const s = String(html || \"\");\n  return s\n    .replace(/<script[\\s\\S]*?>[\\s\\S]*?<\\/script>/gi, \" \")\n    .replace(/<style[\\s\\S]*?>[\\s\\S]*?<\\/style>/gi, \" \")\n    .replace(/<[^>]+>/g, \" \")\n    .replace(/\\s+/g, \" \")\n    .trim();\n}\n\nfunction decodeEntities(s) {\n  return String(s || \"\")\n    .replace(/&nbsp;/g, \" \")\n    .replace(/&amp;/g, \"&\")\n    .replace(/&quot;/g, \"\\\"\")\n    .replace(/&#39;/g, \"'\")\n    .replace(/&lt;/g, \"<\")\n    .replace(/&gt;/g, \">\");\n}\n\nfunction toIsoDate(item) {\n  if (item.isoDate) return new Date(item.isoDate).toISOString();\n  if (item.pubDate) {\n    const d = new Date(item.pubDate);\n    if (!isNaN(d.getTime())) return d.toISOString();\n  }\n  return null;\n}\n\nfunction hostFromUrl(u) {\n  try {\n    return new URL(String(u)).host || null;\n  } catch (e) {\n    return null;\n  }\n}\n\nreturn $input.all().map((it) => {\n  const j = it.json || {};\n  const title = decodeEntities(stripHtml(j.title));\n  const url = String(j.link || \"\").trim() || null;\n\n  const summaryRaw =\n    j.contentSnippet ||\n    j.content ||\n    \"\";\n\n  const rssSummary = decodeEntities(stripHtml(summaryRaw)) || null;\n\n  const imageUrl =\n    (j.enclosure && j.enclosure.url ? String(j.enclosure.url).trim() : null) || null;\n\n  const publishedAt = toIsoDate(j);\n\n  const categories = Array.isArray(j.categories) ? j.categories : [];\n\n  return {\n    json: {\n      title: title || null,\n      canonical_url: url,\n      source_name: hostFromUrl(url) || \"rhm-magazine.ru\",\n      rss_summary: rssSummary,\n      published_at: publishedAt,\n      image_url: imageUrl,\n      categories\n    }\n  };\n});\n"
+      },
+      "id": "01660e87-5d2c-4abf-81ff-4e1ef29ce842",
+      "name": "Normalize + Prep SQL1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        48,
+        -64
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "titles",
+              "cssSelector": "ul.listing__body h3.read-material__title",
+              "returnArray": true
+            },
+            {
+              "key": "hrefs",
+              "cssSelector": "ul.listing__body article.read-material a.cursor:not(.read-material__img)",
+              "returnValue": "attribute",
+              "attribute": "href",
+              "returnArray": true
+            },
+            {
+              "key": "summaries",
+              "cssSelector": "ul.listing__body p.read-material__text",
+              "returnArray": true
+            },
+            {
+              "key": "published_texts",
+              "cssSelector": "ul.listing__body div.meta__date time",
+              "returnArray": true
+            },
+            {
+              "key": "image_urls",
+              "cssSelector": "ul.listing__body a.read-material__img img",
+              "returnValue": "attribute",
+              "attribute": "data-src",
+              "returnArray": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        -64,
+        1008
+      ],
+      "id": "f4a08727-de0a-4b3b-8f5c-23dcc2129ac3",
+      "name": "HTML: ohotniki поиск — массивы"
+    },
+    {
+      "parameters": {
+        "jsCode": "const titles = Array.isArray($json.titles) ? $json.titles : [];\nconst hrefs = Array.isArray($json.hrefs) ? $json.hrefs : [];\nconst summaries = Array.isArray($json.summaries) ? $json.summaries : [];\nconst publishedTexts = Array.isArray($json.published_texts) ? $json.published_texts : [];\nconst imageUrls = Array.isArray($json.image_urls) ? $json.image_urls : [];\n\nfunction clean(s) {\n  return String(s || \"\").replace(/\\s+/g, \" \").trim();\n}\n\nfunction absUrl(h) {\n  const s = clean(h);\n  if (!s) return null;\n  if (s.startsWith(\"http://\") || s.startsWith(\"https://\")) return s;\n  if (s.startsWith(\"//\")) return \"https:\" + s;\n  if (s.startsWith(\"/\")) return \"https://www.ohotniki.ru\" + s;\n  return \"https://www.ohotniki.ru/\" + s.replace(/^\\.?\\//, \"\");\n}\n\nfunction normalizeUrl(raw) {\n  const u = absUrl(raw);\n  if (!u) return null;\n  try {\n    const url = new URL(u);\n    url.hash = \"\";\n    return url.toString();\n  } catch {\n    return u;\n  }\n}\n\nconst RU_MONTHS = {\n  \"января\": 0,\n  \"февраля\": 1,\n  \"марта\": 2,\n  \"апреля\": 3,\n  \"мая\": 4,\n  \"июня\": 5,\n  \"июля\": 6,\n  \"августа\": 7,\n  \"сентября\": 8,\n  \"октября\": 9,\n  \"ноября\": 10,\n  \"декабря\": 11\n};\n\nfunction parseRuDate(s) {\n  const t = clean(s).toLowerCase();\n  if (!t) return null;\n  const m = t.match(/(\\d{1,2})\\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\\s+(\\d{4})/);\n  if (!m) return null;\n  const d = new Date(Date.UTC(+m[3], RU_MONTHS[m[2]], +m[1]));\n  return Number.isNaN(d.getTime()) ? null : d.toISOString();\n}\n\nconst n = Math.min(titles.length, hrefs.length);\n\nreturn Array.from({ length: n }, (_, i) => {\n  const title = clean(titles[i]);\n  const url = normalizeUrl(hrefs[i]);\n  const summary = clean(summaries[i]);\n  const publishedText = clean(publishedTexts[i]);\n  const img = clean(imageUrls[i]);\n\n  if (!url) return null;\n  if (url.includes(\"/search/\")) return null;\n\n  return {\n    json: {\n      title: title || null,\n      canonical_url: url,\n      source_name: \"ohotniki.ru\",\n      rss_summary: summary || null,\n      published_at: parseRuDate(publishedText),\n      image_url: absUrl(img)\n    }\n  };\n}).filter(Boolean);\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        1008
+      ],
+      "id": "193ad74f-c291-447e-9271-2ae1c249557f",
+      "name": "Format Data: ohotniki поиск"
+    },
+    {
+      "parameters": {
+        "url": "https://www.ohotniki.ru/search/?q=%D0%B7%D0%B0%D0%BA%D0%BE%D0%BD%D1%8B%20%D0%BE%D0%B1%20%D0%BE%D1%85%D0%BE%D1%82%D0%B5",
+        "options": {}
+      },
+      "name": "https://www.ohotniki.ru/search/?q=%D0%B7%D0%B0%D0%BA%D0%BE%D0%BD%D1%8B%20%D0%BE%D0%B1%20%D0%BE%D1%85",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -288,
+        1008
+      ],
+      "id": "2c4828fe-be85-4f23-8573-466d45214ec2",
+      "typeVersion": 4.3
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -832,
+        496
+      ],
+      "id": "81409182-f0f9-4209-b583-3b3b4b57c43c",
+      "name": "Schedule Trigger"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Normalize + Prep SQL": {
+      "main": [
+        [
+          {
+            "node": "DB Insert (Dedupe by URL)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download hunting.ru/news": {
+      "main": [
+        [
+          {
+            "node": "HTML1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Data": {
+      "main": [
+        [
+          {
+            "node": "DB Insert (Dedupe by URL)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML1": {
+      "main": [
+        [
+          {
+            "node": "HTML2 (вытащить поля из item_html)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML2 (вытащить поля из item_html)": {
+      "main": [
+        [
+          {
+            "node": "Format Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "https://mooir.ru/official/world-news/": {
+      "main": [
+        [
+          {
+            "node": "HTML1: Список ссылок (item_html)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "https://mooir.ru/official/prikras/": {
+      "main": [
+        [
+          {
+            "node": "HTML: Приказы/распоряжения — ссылки (arrays)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML1: Список ссылок (item_html)": {
+      "main": [
+        [
+          {
+            "node": "Format Data1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Data1": {
+      "main": [
+        [
+          {
+            "node": "DB Insert (Dedupe by URL)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "https://huntportal.ru/rss.xml": {
+      "main": [
+        [
+          {
+            "node": "Normalize + Prep SQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "https://rhm-magazine.ru/magazine/rss.php": {
+      "main": [
+        [
+          {
+            "node": "Normalize + Prep SQL1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML: Приказы/распоряжения — ссылки (arrays)": {
+      "main": [
+        [
+          {
+            "node": "Format Data: Приказы/распоряжения",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Data: Приказы/распоряжения": {
+      "main": [
+        [
+          {
+            "node": "DB Insert (Dedupe by URL)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize + Prep SQL1": {
+      "main": [
+        [
+          {
+            "node": "DB Insert (Dedupe by URL)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML: ohotniki поиск — массивы": {
+      "main": [
+        [
+          {
+            "node": "Format Data: ohotniki поиск",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Data: ohotniki поиск": {
+      "main": [
+        [
+          {
+            "node": "DB Insert (Dedupe by URL)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "https://www.ohotniki.ru/search/?q=%D0%B7%D0%B0%D0%BA%D0%BE%D0%BD%D1%8B%20%D0%BE%D0%B1%20%D0%BE%D1%85": {
+      "main": [
+        [
+          {
+            "node": "HTML: ohotniki поиск — массивы",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "https://rhm-magazine.ru/magazine/rss.php",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "https://huntportal.ru/rss.xml",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Download hunting.ru/news",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "https://mooir.ru/official/world-news/",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "https://mooir.ru/official/prikras/",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "https://www.ohotniki.ru/search/?q=%D0%B7%D0%B0%D0%BA%D0%BE%D0%BD%D1%8B%20%D0%BE%D0%B1%20%D0%BE%D1%85",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "ee530c20-d506-43f7-855c-07dae95cac67",
+  "meta": {
+    "instanceId": "a3be3517ac16055c74c794d80ee41ecf8379a31765686f5b788ba2bac8e2a816"
+  },
+  "id": "IjOJEi7sDt1XdY0X",
+  "tags": []
+}

@@ -1,0 +1,543 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { cn } from '@/lib/utils'
+import { Loader2, Sparkles, Copy, Check } from 'lucide-react'
+import { PLATFORM_CONFIG } from '@/lib/platform-config'
+import { toast } from 'sonner'
+import { createClient } from '@/lib/supabase/client'
+
+type PlatformAnnouncesTabProps = {
+    contentId: string
+    contentType?: 'news' | 'review'
+    baseAnnounce: string
+    longread?: string
+    announces: Record<string, string>
+    onChange: (platform: string, value: string) => void
+    onAnnouncesGenerated?: (newAnnounces: Record<string, string>) => void
+}
+
+const PLATFORMS = ['site', 'tg', 'vk', 'ok', 'fb', 'x', 'threads']
+
+const LOADING_MESSAGES = [
+    "Готовлю для тебя контент, подожди пожалуйста... 🍳",
+    "Прогреваю нейросети... 🔥",
+    "Потерпи пожалуйста, скоро будет готово... ⏳",
+    "Разгоняю цифровые нейроны... 🧠",
+    "Договариваюсь с музой... 🧚‍♀️",
+    "Фух, я почти закончил, наношу последние штрихи... 🎨",
+    "Еще чуть-чуть, магия требует времени... ✨"
+]
+
+import { getSystemPrompt, updateSystemPrompt } from '@/app/actions/prompts'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
+import { AnimatePresence, motion } from 'framer-motion'
+import { AlertCircle, Send } from 'lucide-react'
+import { publishSinglePlatform } from '@/app/actions/publish-actions'
+
+export function PlatformAnnouncesTab({ contentId, contentType = 'review', baseAnnounce, longread, announces, onChange, onAnnouncesGenerated }: PlatformAnnouncesTabProps) {
+    const [generating, setGenerating] = useState(false)
+    const [publishing, setPublishing] = useState<string | null>(null)
+    const [publishResult, setPublishResult] = useState<any>(null)
+    const [copied, setCopied] = useState<string | null>(null)
+    const [loadingMsgIndex, setLoadingMsgIndex] = useState(0)
+
+    // Cycle update messages
+    useEffect(() => {
+        if (!generating) {
+            setLoadingMsgIndex(0)
+            return
+        }
+
+        const interval = setInterval(() => {
+            setLoadingMsgIndex(prev => (prev + 1) % LOADING_MESSAGES.length)
+        }, 3000)
+
+        return () => clearInterval(interval)
+    }, [generating])
+
+    // Prompt Editor State
+    const [editingPrompt, setEditingPrompt] = useState<string | null>(null)
+    const [promptContent, setPromptContent] = useState('')
+    const [loadingPrompt, setLoadingPrompt] = useState(false)
+    const [savingPrompt, setSavingPrompt] = useState(false)
+
+    const handleTestPublish = async (platform: string) => {
+        const content = announces[platform]
+        if (!content) {
+            toast.error('Сначала сгенерируйте контент')
+            return
+        }
+
+        setPublishing(platform)
+        try {
+            const result = await publishSinglePlatform({
+                itemId: contentId,
+                itemType: contentType,
+                platform,
+                content,
+                bypassSafeMode: true
+            })
+            setPublishResult({ ...result, platform })
+        } catch (error: any) {
+            setPublishResult({
+                platform,
+                success: false,
+                error: error.message
+            })
+        } finally {
+            setPublishing(null)
+        }
+    }
+
+    const openPromptEditor = async (platform: string) => {
+        setEditingPrompt(platform)
+        setLoadingPrompt(true)
+        setPromptContent('')
+
+        try {
+            const key = `rewrite_social_${platform}`
+            const data = await getSystemPrompt(key)
+
+            if (data?.content) {
+                setPromptContent(data.content)
+            } else {
+                toast.error('Промпт не найден')
+                setEditingPrompt(null)
+            }
+        } catch (e: any) {
+            toast.error('Ошибка загрузки промпта')
+            console.error(e)
+            setEditingPrompt(null)
+        } finally {
+            setLoadingPrompt(false)
+        }
+    }
+
+    const handleCopy = async (platform: string) => {
+        await navigator.clipboard.writeText(announces[platform] || '')
+        setCopied(platform)
+        toast.success('Скопировано в буфер обмена')
+        setTimeout(() => setCopied(null), 2000)
+    }
+
+    const savePrompt = async () => {
+        if (!editingPrompt) return
+        setSavingPrompt(true)
+        try {
+            const key = `rewrite_social_${editingPrompt}`
+            await updateSystemPrompt(key, promptContent)
+            toast.success('Промпт обновлен')
+            setEditingPrompt(null)
+        } catch (e: any) {
+            toast.error('Ошибка сохранения: ' + e.message)
+        } finally {
+            setSavingPrompt(false)
+        }
+    }
+
+    const handleGenerate = async (selectedPlatforms?: string[]) => {
+        // Allow generation if we have either baseAnnounce OR longread (for site)
+        const hasSource = baseAnnounce || (longread && longread.length > 0)
+
+        if (!hasSource) {
+            toast.error('Сначала заполните основной анонс или полный текст статьи')
+            return
+        }
+
+        let platformsToGenerate = selectedPlatforms
+
+        // Smart generation logic: if no specific platforms selected (clicked "Generate All")
+        if (!platformsToGenerate) {
+            const missing = PLATFORMS.filter(p => !announces[p] || announces[p].trim() === '')
+
+            if (missing.length > 0) {
+                // If we have empty fields, only generate for them
+                platformsToGenerate = missing
+                toast.info(`Генерируем недостающие: ${missing.map(p => PLATFORM_CONFIG[p]?.label || p).join(', ')}`)
+            } else {
+                // If all filled, regenerate everything
+                platformsToGenerate = PLATFORMS
+                toast.info('Перегенерируем все анонсы...')
+            }
+        }
+
+        setGenerating(true)
+
+        try {
+            const response = await fetch('/api/ai/generate-platform-announces', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    review_id: contentType === 'review' ? contentId : undefined,
+                    news_id: contentType === 'news' ? contentId : undefined,
+                    platforms: platformsToGenerate
+                })
+            })
+
+            const result = await response.json()
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Ошибка генерации')
+            }
+
+            if (onAnnouncesGenerated) {
+                onAnnouncesGenerated(result.results)
+            } else {
+                // Fallback if no batch update prop provided (though it should be)
+                Object.entries(result.results).forEach(([platform, content]) => {
+                    onChange(platform, content as string)
+                })
+            }
+
+            toast.success(`Сгенерировано анонсов: ${Object.keys(result.results).length}`)
+        } catch (error: any) {
+            toast.error('Ошибка: ' + error.message)
+        } finally {
+            setGenerating(false)
+        }
+    }
+
+
+
+    return (
+        <>
+            <div className="space-y-4 h-full flex flex-col">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h3 className="text-base font-semibold">Текст для площадок</h3>
+                        <p className="text-sm text-muted-foreground">
+                            AI адаптирует текст под формат и аудиторию каждой платформы
+                        </p>
+                    </div>
+                    <Button
+                        onClick={() => handleGenerate()}
+                        disabled={generating || (!baseAnnounce && !longread)}
+                        className="gap-2"
+                    >
+                        {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                        {generating ? 'Генерация...' : 'Сгенерировать все'}
+                    </Button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto space-y-4 pr-2">
+                    {PLATFORMS.map(platform => {
+                        const config = PLATFORM_CONFIG[platform]
+                        const Icon = config?.icon
+                        const isEmpty = !announces[platform]
+
+                        // Platform specific styling
+                        let cardStyle = "border-border bg-card"
+                        let headerStyle = "text-muted-foreground"
+                        if (platform === 'tg') {
+                            cardStyle = "border-blue-100 dark:border-blue-900/30 bg-blue-50/30 dark:bg-blue-900/10"
+                            headerStyle = "text-blue-600 dark:text-blue-400"
+                        } else if (platform === 'vk') {
+                            cardStyle = "border-indigo-100 dark:border-indigo-900/30 bg-indigo-50/30 dark:bg-indigo-900/10"
+                            headerStyle = "text-indigo-600 dark:text-indigo-400"
+                        } else if (platform === 'ok') {
+                            cardStyle = "border-orange-100 dark:border-orange-900/30 bg-orange-50/30 dark:bg-orange-900/10"
+                            headerStyle = "text-orange-600 dark:text-orange-400"
+                        } else if (platform === 'site') {
+                            cardStyle = "border-emerald-100 dark:border-emerald-900/30 bg-emerald-50/30 dark:bg-emerald-900/10"
+                            headerStyle = "text-emerald-600 dark:text-emerald-400"
+                        }
+
+                        return (
+                            <div
+                                key={platform}
+                                className={cn(
+                                    "border rounded-xl p-4 transition-all duration-300 hover:shadow-md",
+                                    cardStyle
+                                )}
+                            >
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-3">
+                                        <div className={cn("p-2 rounded-lg bg-background shadow-sm border border-border/50", headerStyle)}>
+                                            {Icon && <Icon className="w-5 h-5" />}
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <div className="flex items-center gap-2">
+                                                <Label className="font-bold text-base cursor-pointer">{config?.label || platform}</Label>
+                                                {platform === 'tg' && (
+                                                    <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-blue-600 text-white shadow-sm">
+                                                        2 step
+                                                    </span>
+                                                )}
+                                                {platform === 'site' && (
+                                                    <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-emerald-600 text-white shadow-sm">
+                                                        SEO
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        {!isEmpty && (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => handleCopy(platform)}
+                                                className="h-8 w-8 p-0 rounded-full hover:bg-background/80"
+                                                title="Копировать"
+                                            >
+                                                {copied === platform ? (
+                                                    <Check className="w-4 h-4 text-green-600" />
+                                                ) : (
+                                                    <Copy className="w-4 h-4 text-muted-foreground" />
+                                                )}
+                                            </Button>
+                                        )}
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => openPromptEditor(platform)}
+                                            className="h-8 w-8 p-0 rounded-full hover:bg-background/80"
+                                            title="Редактировать промпт"
+                                        >
+                                            <div className="flex items-center justify-center w-full h-full text-muted-foreground hover:text-foreground">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                                            </div>
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleTestPublish(platform)}
+                                            disabled={publishing === platform || !announces[platform]}
+                                            className={cn(
+                                                "h-8 gap-1.5 bg-background shadow-sm hover:bg-accent border-border/60 text-xs font-medium",
+                                                publishing === platform ? "animate-pulse" : ""
+                                            )}
+                                            title="Тестовая публикация"
+                                        >
+                                            {publishing === platform ? (
+                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                            ) : (
+                                                <Send className="w-3.5 h-3.5" />
+                                            )}
+                                            <span className="hidden sm:inline">Тест</span>
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleGenerate([platform])}
+                                            disabled={generating || (!baseAnnounce && !longread)}
+                                            className="h-8 gap-1.5 bg-background shadow-sm hover:bg-accent border-border/60 text-xs font-medium"
+                                        >
+                                            <Sparkles className="w-3.5 h-3.5" />
+                                            <span className="hidden sm:inline">AI</span>
+                                        </Button>
+                                    </div>
+                                </div>
+                                <Textarea
+                                    value={announces[platform] || ''}
+                                    onChange={(e) => onChange(platform, e.target.value)}
+                                    placeholder={`Напишите текст для ${config?.label || platform}...`}
+                                    className={cn(
+                                        "min-h-[120px] text-sm resize-y bg-background/50 focus:bg-background transition-colors border-0 ring-1 ring-border/50 focus:ring-2 focus:ring-primary/20",
+                                        "placeholder:text-muted-foreground/40 font-normal leading-relaxed custom-scrollbar"
+                                    )}
+                                />
+
+                                <div className="mt-2 flex justify-between items-center px-1">
+                                    <div className="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-wider">
+                                        {platform === 'tg' ? 'Markdown Supported' : 'Plain Text'}
+                                    </div>
+                                    {announces[platform] && (
+                                        <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                                            <span className={cn(
+                                                announces[platform].length > (config?.maxLength || 4000) ? "text-red-500" : ""
+                                            )}>
+                                                {announces[platform].length}
+                                            </span>
+                                            <span className="opacity-50">/ {config?.maxLength || '∞'}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+
+                <AnimatePresence mode="wait">
+                    {generating && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 20 }}
+                            className="p-4 rounded-xl border border-primary/20 bg-primary/5 shadow-sm"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="relative">
+                                    <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                                    <motion.div
+                                        className="absolute inset-0 bg-primary/20 rounded-full blur-md"
+                                        animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0.2, 0.5] }}
+                                        transition={{ duration: 2, repeat: Infinity }}
+                                    />
+                                </div>
+                                <div className="flex-1">
+                                    <motion.p
+                                        key={loadingMsgIndex}
+                                        initial={{ opacity: 0, x: -10 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, x: 10 }}
+                                        className="text-sm font-medium text-foreground/80"
+                                    >
+                                        {LOADING_MESSAGES[loadingMsgIndex]}
+                                    </motion.p>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
+
+            {/* Prompt Editor Dialog - placed outside the scrollable area */}
+            <Dialog open={!!editingPrompt} onOpenChange={(open) => !open && setEditingPrompt(null)}>
+                <DialogContent className="max-w-3xl h-[80vh] flex flex-col">
+                    <DialogHeader>
+                        <DialogTitle>Редактирование промпта: {editingPrompt}</DialogTitle>
+                    </DialogHeader>
+
+                    <div className="flex-1 min-h-0 py-4">
+                        {loadingPrompt ? (
+                            <div className="h-full flex items-center justify-center">
+                                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                            </div>
+                        ) : (
+                            <Textarea
+                                value={promptContent}
+                                onChange={(e) => setPromptContent(e.target.value)}
+                                className="h-full font-mono text-sm resize-none"
+                                placeholder="Введите системный промпт..."
+                            />
+                        )}
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setEditingPrompt(null)}>Отмена</Button>
+                        <Button onClick={savePrompt} disabled={savingPrompt || loadingPrompt}>
+                            {savingPrompt && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                            Сохранить
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+            {/* Test Result Dialog */}
+            <Dialog open={!!publishResult} onOpenChange={(open) => !open && setPublishResult(null)}>
+                <DialogContent className="max-w-xl">
+                    <DialogHeader>
+                        <div className="flex items-center gap-2">
+                            {publishResult?.success ? (
+                                <div className="p-2 rounded-full bg-green-100 dark:bg-green-900/30">
+                                    <Check className="w-5 h-5 text-green-600 dark:text-green-400" />
+                                </div>
+                            ) : (
+                                <div className="p-2 rounded-full bg-red-100 dark:bg-red-900/30">
+                                    <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                                </div>
+                            )}
+                            <DialogTitle>
+                                {publishResult?.success ? 'Результат теста' : 'Ошибка публикации'}
+                            </DialogTitle>
+                        </div>
+                        <DialogDescription>
+                            Платформа: <b className="uppercase">{publishResult?.platform}</b>
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-2">
+                        {publishResult?.simulated && (
+                            <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-sm text-blue-700 dark:text-blue-300 flex gap-2">
+                                <Sparkles className="w-4 h-4 shrink-0 mt-0.5" />
+                                <div>
+                                    <b>Режим симуляции (Safe Mode) активен.</b> Реальной публикации не произошло.
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Quick Info Grid */}
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="p-3 rounded-xl border bg-muted/30">
+                                <Label className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Статус</Label>
+                                <div className="flex items-center gap-1.5 font-medium text-sm">
+                                    {publishResult?.success ? (
+                                        <><div className="w-2 h-2 rounded-full bg-green-500" /> Успешно</>
+                                    ) : (
+                                        <><div className="w-2 h-2 rounded-full bg-red-500" /> Ошибка</>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="p-3 rounded-xl border bg-muted/30">
+                                <Label className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">ID Публикации</Label>
+                                <div className="font-mono text-sm truncate" title={publishResult?.external_id || 'N/A'}>
+                                    {publishResult?.external_id || '—'}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Main Content Area */}
+                        <div className="space-y-3">
+                            {publishResult?.published_url && (
+                                <div className="p-4 rounded-xl bg-green-50/50 dark:bg-green-900/10 border border-green-100 dark:border-green-900/30">
+                                    <Label className="text-[10px] uppercase font-bold text-green-700 dark:text-green-400 block mb-2 leading-none">Прямая ссылка на пост:</Label>
+                                    <div className="flex items-center gap-2 group">
+                                        <a
+                                            href={publishResult.published_url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-primary hover:underline break-all font-mono text-xs flex-1"
+                                        >
+                                            {publishResult.published_url}
+                                        </a>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(publishResult.published_url)
+                                                toast.success('Ссылка скопирована')
+                                            }}
+                                        >
+                                            <Copy className="w-3.5 h-3.5" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="relative group">
+                                <div className="flex items-center justify-between mb-2">
+                                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Технические данные (JSON):</Label>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 px-2 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(JSON.stringify(publishResult, null, 2))
+                                            toast.success('JSON скопирован')
+                                        }}
+                                    >
+                                        <Copy className="w-3 h-3 mr-1" /> Копировать
+                                    </Button>
+                                </div>
+                                <div className="rounded-xl border bg-black/5 dark:bg-white/5 overflow-hidden">
+                                    <pre className="p-4 font-mono text-[11px] leading-relaxed overflow-x-auto max-h-[250px] custom-scrollbar text-foreground/80 whitespace-pre-wrap break-all">
+                                        {JSON.stringify(publishResult, null, 2)}
+                                    </pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button onClick={() => setPublishResult(null)}>Закрыть</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </>
+    )
+}
