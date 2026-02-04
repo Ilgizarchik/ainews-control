@@ -11,9 +11,19 @@ export function ensureAbsoluteUrl(url: string | null | undefined, source?: strin
 
   // If it's a relative path starting with /
   if (url.startsWith('/')) {
-    const domain = source && source !== 'unknown' ? source : ''
-    if (domain) {
-      return `https://${domain.replace(/^https?:\/\//, '')}${url}`
+    let domainStr = (source && source !== 'unknown' ? source : '').replace(/^https?:\/\//, '').toLowerCase()
+
+    // Normalize known short source names to full domains
+    if (!domainStr.includes('.')) {
+      if (domainStr === 'ohotniki') domainStr = 'ohotniki.ru'
+      if (domainStr.includes('huntportal')) domainStr = 'huntportal.ru'
+      if (domainStr === 'mooir') domainStr = 'mooir.ru'
+      if (domainStr === 'hunting') domainStr = 'hunting.ru'
+    }
+
+    if (domainStr) {
+      // Ensure we don't have double slashes if url also starts with /
+      return `https://${domainStr.replace(/\/$/, '')}/${url.replace(/^\//, '')}`
     }
   }
 

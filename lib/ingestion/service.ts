@@ -96,14 +96,25 @@ async function parseRss(source: IngestionSource): Promise<ParsedItem[]> {
             imageUrl = $('img').attr('src') || null
         }
 
+        const link = item.link || ''
+        let fullLink = link
+        if (link && !link.startsWith('http')) {
+            try {
+                const origin = new URL(source.url).origin
+                fullLink = new URL(link, origin).toString()
+            } catch (e) {
+                console.warn(`[Ingestion] Failed to resolve link: ${link}`, e)
+            }
+        }
+
         return {
             title: item.title || null,
-            link: item.link || '',
+            link: fullLink,
             summary: (item.contentSnippet || item.content || '').substring(0, 500),
             publishedAt: item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString(),
             imageUrl,
             sourceName: new URL(source.url).hostname.replace('www.', ''),
-            externalId: item.guid || item.link
+            externalId: item.guid || fullLink
         }
     })
 }
@@ -113,13 +124,15 @@ async function parseHuntingRu(source: IngestionSource): Promise<ParsedItem[]> {
     const $ = cheerio.load(html)
     const items: ParsedItem[] = []
 
+    const baseUrl = new URL(source.url).origin
+
     $('.content__central .record.btn-hidden-wrap').each((_, el) => {
         const $el = $(el)
         const $link = $el.find('a.record__title')
         const link = $link.attr('href')
         if (!link) return
 
-        const fullLink = link.startsWith('http') ? link : `https://www.hunting.ru${link}`
+        const fullLink = link.startsWith('http') ? link : new URL(link, baseUrl).toString()
 
         // Date parsing is tricky for RU text ("20 мая 2024"), skipping complex logic for MVP, using Now or attempting standard
         // In n8n we had specific parser. Let's try to extract standard attributes if possible.
@@ -142,6 +155,8 @@ async function parseMooirRu(source: IngestionSource): Promise<ParsedItem[]> {
     const $ = cheerio.load(html)
     const items: ParsedItem[] = []
 
+    const baseUrl = new URL(source.url).origin
+
     // Selector based on n8n template: a[href^="/official/world-news/"]
     // It seems they list links.
     $('a[href^="/official/world-news/"]').each((_, el) => {
@@ -154,7 +169,7 @@ async function parseMooirRu(source: IngestionSource): Promise<ParsedItem[]> {
 
         items.push({
             title: $link.text().trim(),
-            link: `https://mooir.ru${href}`,
+            link: new URL(href, baseUrl).toString(),
             summary: null,
             publishedAt: null,
             imageUrl: null,
@@ -170,6 +185,8 @@ async function parseMooirPrikras(source: IngestionSource): Promise<ParsedItem[]>
     const $ = cheerio.load(html)
     const items: ParsedItem[] = []
 
+    const baseUrl = new URL(source.url).origin
+
     $('a[href^="/official/prikras/"]').each((_, el) => {
         const $link = $(el)
         const href = $link.attr('href')
@@ -177,7 +194,7 @@ async function parseMooirPrikras(source: IngestionSource): Promise<ParsedItem[]>
 
         items.push({
             title: $link.text().trim(),
-            link: `https://mooir.ru${href}`,
+            link: new URL(href, baseUrl).toString(),
             summary: null,
             publishedAt: null,
             imageUrl: null,
@@ -193,6 +210,8 @@ async function parseOhotnikiSearch(source: IngestionSource): Promise<ParsedItem[
     const $ = cheerio.load(html)
     const items: ParsedItem[] = []
 
+    const baseUrl = new URL(source.url).origin
+
     // ul.listing__body article.read-material
     $('ul.listing__body article.read-material').each((_, el) => {
         const $el = $(el)
@@ -203,7 +222,7 @@ async function parseOhotnikiSearch(source: IngestionSource): Promise<ParsedItem[
         let img = $el.find('a.read-material__img img').attr('data-src') || $el.find('a.read-material__img img').attr('src')
 
         // Ensure absolute link
-        const fullLink = href.startsWith('http') ? href : `https://www.ohotniki.ru${href.startsWith('/') ? '' : '/'}${href}`
+        const fullLink = href.startsWith('http') ? href : new URL(href, baseUrl).toString()
 
         items.push({
             title: $el.find('h3.read-material__title').text().trim(),
