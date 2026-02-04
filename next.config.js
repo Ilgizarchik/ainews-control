@@ -11,7 +11,9 @@ const requiredEnv = [
 for (const envVar of requiredEnv) {
   if (!process.env[envVar]) {
     console.error(`\x1b[31m[Error] Missing environment variable: ${envVar}\x1b[0m`);
-    if (process.env.NODE_ENV === 'production') {
+    // На этапе сборки (CI/Docker) секреты (не NEXT_PUBLIC) могут отсутствовать.
+    // Выбрасываем ошибку только для публичных переменных в проде, т.к. они вшиваются в бандл.
+    if (process.env.NODE_ENV === 'production' && envVar.startsWith('NEXT_PUBLIC_')) {
       throw new Error(`Critical environment variable ${envVar} is missing!`);
     }
   }
