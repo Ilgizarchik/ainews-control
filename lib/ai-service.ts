@@ -171,7 +171,7 @@ export async function generateImage(prompt: string): Promise<string> {
         };
 
         const body = {
-            model: "google/gemini-2.0-flash-exp",
+            model: "google/gemini-2.5-flash-image",
             messages: [{ role: "user", content: prompt }],
             modalities: ["image", "text"],
             image_config: {
