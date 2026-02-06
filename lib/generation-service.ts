@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { callAI } from './ai-service';
 import { scrapeArticleText } from './scraper-service';
+import { logErrorToTelegram } from './logger-service';
 
 export async function processApprovedNews(newsId: string) {
     const supabase = await createClient();
@@ -197,19 +198,22 @@ export async function processApprovedNews(newsId: string) {
 
         console.log(`[Generation] Successfully generated drafts for news: ${newsId}`);
         return { success: true };
-
     } catch (error) {
-        // ... (keep existing error handling)
         console.error(`[Generation] Error in generation process for news ${newsId}:`, error);
 
-        await ((supabase
-            .from('news_items') as any)
-            .update({
-                status: 'error',
-                gate1_reason: `Generation Error: ${error instanceof Error ? error.message : String(error)}`
-            })
-            .eq('id', newsId) as any);
+        try {
+            await ((supabase
+                .from('news_items') as any)
+                .update({
+                    status: 'error',
+                    gate1_reason: `Generation Error: ${error instanceof Error ? error.message : String(error)}`
+                })
+                .eq('id', newsId) as any);
+        } catch (dbError) {
+            console.error('Failed to update error status in DB:', dbError);
+        }
 
+        await logErrorToTelegram(error, `processApprovedNews (${newsId})`);
         throw error;
     }
 }

@@ -1,5 +1,6 @@
 import { fetch as undiciFetch, ProxyAgent } from 'undici';
 import { createClient } from '@/lib/supabase/server';
+import { logErrorToTelegram } from './logger-service';
 
 export interface AISettings {
     ai_provider: string;
@@ -112,15 +113,19 @@ export async function callAI(systemPrompt: string, userPrompt: string, config?: 
         // We will stick to OpenAI-compat for now as used by OpenRouter.
     }
 
-    const body = {
+    const body: any = {
         model: model,
         messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }
         ],
-        temperature: temperature,
         max_completion_tokens: maxTokens
     };
+
+    // Некоторые модели (например, Gemini 2.5 Flash Image) не поддерживают temperature
+    if (!model.includes('image') && !model.includes('flash')) {
+        body.temperature = temperature;
+    }
 
     const fetchOptions: any = {
         method: 'POST',
@@ -139,7 +144,9 @@ export async function callAI(systemPrompt: string, userPrompt: string, config?: 
     if (!response.ok) {
         const errText = await response.text();
         console.error(`[AI] Error body: ${errText}`);
-        throw new Error(`AI API Error (${provider}): ${response.status} - ${errText.substring(0, 200)}...`);
+        const errorMsg = `AI API Error (${provider}): ${response.status} - ${errText.substring(0, 200)}...`;
+        await logErrorToTelegram(errorMsg, `callAI (${model})`);
+        throw new Error(errorMsg);
     }
 
     const data: any = await response.json();
@@ -194,7 +201,9 @@ export async function generateImage(prompt: string): Promise<string> {
 
         if (!response.ok) {
             const errText = await response.text();
-            throw new Error(`OpenRouter Image API Error: ${response.status} - ${errText}`);
+            const errorMsg = `OpenRouter Image API Error: ${response.status} - ${errText}`;
+            await logErrorToTelegram(errorMsg, `generateImage (${body.model})`);
+            throw new Error(errorMsg);
         }
 
         const data: any = await response.json();

@@ -19,8 +19,6 @@ if not defined BASH (
   exit /b 1
 )
 
-set "MSG=auto deploy %date% %time%"
-
 echo [release.bat] Starting full release cycle...
 echo 1. Build (local)
 echo 2. Commit & Push
@@ -29,7 +27,7 @@ echo.
 echo Log: %LOG%
 echo.
 
-"%BASH%" -lc "./release.sh \"%MSG%\"" 1>>"%LOG%" 2>&1
+"%BASH%" -lc "set -o pipefail; ./release.sh 2>&1 | tee -a '%LOG:\=/%'"
 set "RC=%ERRORLEVEL%"
 
 echo.
