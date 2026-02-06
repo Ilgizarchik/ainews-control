@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 
-export async function regenerateNewsImage(newsId: string, customPrompt?: string) {
+export async function regenerateNewsImage(itemId: string, itemType: 'news' | 'review', customPrompt?: string) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -13,24 +13,24 @@ export async function regenerateNewsImage(newsId: string, customPrompt?: string)
     }
 
     try {
-        console.log(`[ImageAction] Regenerating image for ${newsId}`)
+        console.log(`[ImageAction] Regenerating image for ${itemType}: ${itemId}`)
+        const table = itemType === 'review' ? 'review_items' : 'news_items'
 
-        // 1. Fetch news data
-        const { data: rawNewsItem, error: fetchError } = await supabase
-            .from('news_items')
+        // 1. Fetch item data
+        const { data: rawItem, error: fetchError } = await supabase
+            .from(table)
             .select('*')
-            .eq('id', newsId)
+            .eq('id', itemId)
             .single()
 
-        if (fetchError || !rawNewsItem) throw new Error('News item not found')
-        const newsItem = rawNewsItem as any
+        if (fetchError || !rawItem) throw new Error(`${itemType} item not found`)
+        const item = rawItem as any
 
         // 2. Determine prompt
-        // We act as an Agent: combine context (Announce) + Admin Notes -> Final Image Prompt
         const { callAI } = await import('@/lib/ai-service')
 
         const context = `Article context (short):
-${(newsItem.draft_announce || newsItem.draft_longread || '').substring(0, 1000)}
+${(item.draft_announce || item.draft_longread || '').substring(0, 1000)}
 
 Admin visual notes (optional):
 ${customPrompt || 'No specific notes.'}`
@@ -52,7 +52,6 @@ ${customPrompt || 'No specific notes.'}`
 
         const prompt = await callAI(systemInstruction, context, config)
 
-
         if (!prompt) throw new Error('Failed to determine image prompt')
 
         // 3. Generate Image
@@ -62,9 +61,7 @@ ${customPrompt || 'No specific notes.'}`
         // 4. Upload to Telegram (to store persistent file_id)
         const { sendPhotoToTelegram } = await import('@/lib/telegram-service')
 
-        // Use approve chat ID if available, or fallback
-        // We use admin client to get settings if needed, but fetch from newsItem first
-        let chatId = newsItem.approve1_chat_id || newsItem.approve2_chat_id
+        let chatId = item.approve1_chat_id || item.approve2_chat_id
 
         if (!chatId) {
             const adminDb = createAdminClient()
@@ -79,15 +76,15 @@ ${customPrompt || 'No specific notes.'}`
         }
 
         // 5. Update Database
-        const { error: updateError } = await (supabase
-            .from('news_items') as any)
+        const { error: updateError } = await supabase
+            .from(table)
             .update({
                 draft_image_prompt: prompt,
                 draft_image_url: imageUrl,
                 draft_image_file_id: fileId,
                 drafts_updated_at: new Date().toISOString()
             })
-            .eq('id', newsId)
+            .eq('id', itemId)
 
         if (updateError) throw updateError
 
@@ -99,3 +96,28 @@ ${customPrompt || 'No specific notes.'}`
         return { success: false, error: error.message }
     }
 }
+
+export async function updateItemImage(itemId: string, itemType: 'news' | 'review', fileId: string) {
+    const supabase = await createClient()
+    const table = itemType === 'review' ? 'review_items' : 'news_items'
+
+    try {
+        const { error } = await supabase
+            .from(table)
+            .update({
+                draft_image_file_id: fileId,
+                draft_image_url: null, // Clear URL to prioritize file_id from TG
+                drafts_updated_at: new Date().toISOString()
+            })
+            .eq('id', itemId)
+
+        if (error) throw error
+
+        revalidatePath('/content')
+        return { success: true }
+    } catch (e: any) {
+        console.error('[updateItemImage] Error:', e)
+        return { success: false, error: e.message }
+    }
+}
+

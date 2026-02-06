@@ -379,7 +379,7 @@ export async function cleanupDisabledPlatforms() {
         const { error: deleteError, count } = await supabase
             .from('publish_jobs')
             .delete({ count: 'exact' })
-            .not('platform', 'in', activePlatforms)
+            .not('platform', 'in', `(${activePlatforms.join(',')})`)
             .neq('status', 'published')
 
         if (deleteError) {

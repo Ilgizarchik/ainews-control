@@ -7,19 +7,24 @@ import { Label } from '@/components/ui/label'
 import { Loader2, Wand2, Image as ImageIcon, Sparkles, Mic } from 'lucide-react'
 import { VoiceInput } from '@/components/ui/voice-input'
 import { toast } from 'sonner'
-import { regenerateNewsImage } from '@/app/actions/image-actions'
+import { regenerateNewsImage, updateItemImage } from '@/app/actions/image-actions'
 import { cn } from '@/lib/utils'
+import { Upload } from 'lucide-react'
+import { useRef } from 'react'
 
 interface MediaTabProps {
     contentId: string
+    contentType: 'news' | 'review'
     initialImageUrl?: string | null
     onUpdated: (newUrl: string, newPrompt: string) => void
 }
 
-export function MediaTab({ contentId, initialImageUrl, onUpdated }: MediaTabProps) {
+export function MediaTab({ contentId, contentType, initialImageUrl, onUpdated }: MediaTabProps) {
     const [adminNotes, setAdminNotes] = useState('')
     const [imageUrl, setImageUrl] = useState(initialImageUrl)
     const [loading, setLoading] = useState(false)
+    const [uploading, setUploading] = useState(false)
+    const fileInputRef = useRef<HTMLInputElement>(null)
 
     const handleRegenerate = async () => {
         setLoading(true)
@@ -29,7 +34,7 @@ export function MediaTab({ contentId, initialImageUrl, onUpdated }: MediaTabProp
             // We pass adminNotes as the "prompt" argument, but the server action will interpret it as context/instructions
             // if we update the server action logic. 
             // Actually, keep the interface consistent: we send the text.
-            const result = await regenerateNewsImage(contentId, adminNotes)
+            const result = await regenerateNewsImage(contentId, contentType, adminNotes)
 
             if (result.success && result.imageUrl) {
                 setImageUrl(result.imageUrl)
@@ -44,6 +49,50 @@ export function MediaTab({ contentId, initialImageUrl, onUpdated }: MediaTabProp
             toast.error('Ошибка при генерации', { id: toastId })
         } finally {
             setLoading(false)
+        }
+    }
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        setUploading(true)
+        const toastId = toast.loading('📤 Загрузка изображения...')
+
+        try {
+            const formData = new FormData()
+            formData.append('file', file)
+
+            // 1. Upload to TG via our API route
+            const uploadRes = await fetch('/api/upload-telegram', {
+                method: 'POST',
+                body: formData
+            })
+
+            const uploadData = await uploadRes.json()
+            if (!uploadRes.ok || !uploadData.file_id) {
+                throw new Error(uploadData.error || 'Failed to upload to Telegram')
+            }
+
+            const fileId = uploadData.file_id
+
+            // 2. Update DB with file_id
+            const dbResult = await updateItemImage(contentId, contentType, fileId)
+
+            if (dbResult.success) {
+                const proxyUrl = `/api/telegram/photo/${fileId}`
+                setImageUrl(proxyUrl)
+                onUpdated(proxyUrl, 'Загружено вручную')
+                toast.success('Изображение успешно загружено', { id: toastId })
+            } else {
+                toast.error(`Ошибка БД: ${dbResult.error}`, { id: toastId })
+            }
+        } catch (error: any) {
+            console.error('[handleFileUpload] Error:', error)
+            toast.error(`Ошибка загрузки: ${error.message}`, { id: toastId })
+        } finally {
+            setUploading(false)
+            if (fileInputRef.current) fileInputRef.current.value = ''
         }
     }
 
@@ -74,23 +123,46 @@ export function MediaTab({ contentId, initialImageUrl, onUpdated }: MediaTabProp
                     />
                 </div>
 
-                <Button
-                    onClick={handleRegenerate}
-                    disabled={loading}
-                    className="w-full h-14 text-base font-medium shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white"
-                >
-                    {loading ? (
-                        <>
-                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                            Генерируем шедевр...
-                        </>
-                    ) : (
-                        <>
-                            <Wand2 className="w-5 h-5 mr-2" />
-                            Сгенерировать новое изображение
-                        </>
-                    )}
-                </Button>
+                <div className="flex gap-2">
+                    <Button
+                        onClick={handleRegenerate}
+                        disabled={loading || uploading}
+                        className="flex-1 h-14 text-base font-medium shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white"
+                    >
+                        {loading ? (
+                            <>
+                                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                                Генерируем...
+                            </>
+                        ) : (
+                            <>
+                                <Wand2 className="w-5 h-5 mr-2" />
+                                Сгенерировать
+                            </>
+                        )}
+                    </Button>
+
+                    <Button
+                        variant="outline"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={loading || uploading}
+                        className="w-14 h-14 shrink-0 border-2 border-dashed border-purple-200 hover:border-purple-400 hover:bg-purple-50 transition-all group/upload"
+                    >
+                        {uploading ? (
+                            <Loader2 className="w-5 h-5 animate-spin text-purple-600" />
+                        ) : (
+                            <Upload className="w-5 h-5 text-purple-600 group-hover/upload:scale-110 transition-transform" />
+                        )}
+                    </Button>
+
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileUpload}
+                        accept="image/*"
+                        className="hidden"
+                    />
+                </div>
             </div>
 
             {/* Right Panel: Image Preview - 60% width */}

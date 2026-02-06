@@ -529,6 +529,7 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
                                 <TabsContent value="media" className="mt-0 h-full flex flex-col">
                                     <MediaTab
                                         contentId={contentId}
+                                        contentType={contentType}
                                         initialImageUrl={data.draft_image_url}
                                         onUpdated={(newUrl, newPrompt) => {
                                             setData(prev => ({
