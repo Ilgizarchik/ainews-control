@@ -50,4 +50,7 @@ logs/
 *.log
 
 # schema dumps
-schema-dump.sql
+
+# npm cache
+.npm-cache
+.npmrc
