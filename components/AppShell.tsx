@@ -9,7 +9,7 @@ import { ThemeToggle } from '@/components/ThemeToggle'
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet'
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 
-import { WittyBotLogger } from '@/components/witty-bot-logger'
+
 
 const SideNav = dynamic(() => import('./SideNav').then(mod => mod.SideNav), {
   ssr: false,
@@ -90,7 +90,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
-      {mounted && <WittyBotLogger />}
+
     </div>
   )
 }

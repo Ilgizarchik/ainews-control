@@ -36,14 +36,9 @@ export async function POST(req: Request) {
         const baseAnnounce = item.draft_announce || ''
         const title = item.draft_title || ''
         // Source selection logic:
-        // - SITE: Always generate from the full longread article (`draft_longread`)
-        // - SOCIALS: Always generate from the short announce (`draft_announce`) as requested
+        // - ALWAYS prefer longread for better context and quality
         const getSourceForPlatform = (platform: string) => {
-            if (platform === 'site') {
-                return item.draft_longread || item.draft_announce
-            }
-            // For TG, VK, OK, etc. - use the short announce
-            return item.draft_announce || item.draft_longread
+            return item.draft_longread || item.draft_announce
         }
 
         if (!baseAnnounce && !item.draft_longread) {
