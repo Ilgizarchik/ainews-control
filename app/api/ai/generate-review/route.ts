@@ -47,8 +47,8 @@ export async function POST(req: Request) {
         }, {});
 
 
-        // Проверяем наличие всех обязательных промтов
-        const requiredPrompts = ['review_title', 'review_announce', 'review_longread', 'review_image_prompt'];
+        // Проверяем наличие базовых обязательных промтов (image_prompt опционален)
+        const requiredPrompts = ['review_title', 'review_announce', 'review_longread'];
         const missingPrompts = requiredPrompts.filter(key => !promptMap[key]);
         if (missingPrompts.length > 0) {
             return NextResponse.json({
@@ -110,13 +110,11 @@ export async function POST(req: Request) {
             return data.choices?.[0]?.message?.content || "";
         };
 
-        // 3. Генерируем компоненты параллельно
+        // 3. Генерируем только тексты (картинка уже загружена пользователем)
         const factsContext = factpack ? JSON.stringify(factpack, null, 2) : 'Нет дополнительных данных';
-        const { generateImage } = await import('@/lib/ai-service');
-        const { sendPhotoToTelegram } = await import('@/lib/telegram-service');
 
-        // Шаг 1: Генерируем тексты и промпт картинки
-        const [longread, reviewTitle, imagePrompt] = await Promise.all([
+        // Шаг 1: Генерируем заголовок и лонгрид параллельно
+        const [longread, reviewTitle] = await Promise.all([
             makeAICall(
                 promptMap.review_longread,
                 `Title: ${title_seed}\nFacts: ${factsContext}`
@@ -124,47 +122,17 @@ export async function POST(req: Request) {
             makeAICall(
                 promptMap.review_title,
                 `CONTEXT:\nTitle: ${title_seed}\nFacts: ${factsContext}`
-            ),
-            makeAICall(
-                promptMap.review_image_prompt,
-                `Title: ${title_seed}\nFacts: ${factsContext}`
             )
         ]);
 
-        // Шаг 2: Генерируем анонс (используя лонгрид) и картинку (используя промпт) параллельно
-        // Если картинка уже передана (draft_image_file_id), пропускаем генерацию
-        let savedImageFileId = draft_image_file_id;
+        // Шаг 2: Генерируем анонс на основе лонгрида
+        const finalAnnounce = await makeAICall(
+            promptMap.review_announce,
+            `LONGREAD_HTML:\n${longread}`
+        );
 
-        const tasks: Promise<any>[] = [
-            makeAICall(
-                promptMap.review_announce,
-                `LONGREAD_HTML:\n${longread}`
-            )
-        ];
-
-        if (!savedImageFileId && imagePrompt) {
-            tasks.push((async () => {
-                try {
-                    const imageUrl = await generateImage(imagePrompt);
-
-                    // Отправляем в чат, чтобы получить file_id
-                    // Используем user_chat_id как recipient
-                    const sentMsg = await sendPhotoToTelegram(user_chat_id, imageUrl, 'Generated Draft Image');
-                    return sentMsg.file_id;
-                } catch (e) {
-                    console.error('Image generation/sending failed:', e);
-                    return null;
-                }
-            })());
-        } else {
-            tasks.push(Promise.resolve(null));
-        }
-
-        const [finalAnnounce, generatedFileId] = await Promise.all(tasks);
-
-        if (generatedFileId) {
-            savedImageFileId = generatedFileId;
-        }
+        // Используем переданный file_id (картинка уже загружена через /api/upload-telegram)
+        const savedImageFileId = draft_image_file_id || null;
 
         // 4. Сохраняем в review_items
         const insertPayload: any = {

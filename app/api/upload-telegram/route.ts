@@ -20,19 +20,20 @@ export async function POST(req: NextRequest) {
             .from('project_settings')
             .select('key, value')
             .eq('project_key', 'ainews')
-            .in('key', ['telegram_bot_token', 'tg_bot'])
+            .in('key', ['telegram_bot_token', 'tg_bot', 'telegram_draft_chat_id'])
 
         const token =
             (settings as any[])?.find((r) => r.key === 'telegram_bot_token')?.value ||
             (settings as any[])?.find((r) => r.key === 'tg_bot')?.value
 
-        if (settingsError || !token) {
-            console.error('Settings fetch error:', settingsError)
-            return NextResponse.json({ error: 'Server configuration error: Token missing in DB' }, { status: 500 })
-        }
+        const chatId = (settings as any[])?.find((r) => r.key === 'telegram_draft_chat_id')?.value
 
-        // Hardcoded chat_id from the technical requirement (id=4 in telegram_chats)
-        const chatId = '392453315'
+        if (settingsError || !token || !chatId) {
+            console.error('Settings fetch error:', settingsError)
+            return NextResponse.json({
+                error: `Server configuration error: ${!token ? 'Token' : 'Draft Chat ID'} missing in project settings`
+            }, { status: 500 })
+        }
 
         // Forward to Telegram
         const tgFormData = new FormData()
