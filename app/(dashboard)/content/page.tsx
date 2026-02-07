@@ -27,13 +27,14 @@ export default function ContentPage() {
     let query = (supabase.from('news_items' as any) as any).select('*', { count: 'exact' })
 
     if (filter === 'pending') {
-      query = query.eq('gate1_decision', 'send').is('approve1_decision', null)
+      // Pending = Processed by AI (decision blocked OR send) but not processed by human yet
+      query = query.neq('gate1_decision', null).is('approve1_decision', null)
     } else if (filter === 'approved') {
       query = query.eq('approve1_decision', 'approved')
     } else if (filter === 'rejected') {
       query = query.eq('approve1_decision', 'rejected')
     } else {
-      query = query.neq('gate1_decision', null)
+      // Show all items, including raw 'found' items that haven't passed Gate 1/AI yet
     }
 
     if (sources.length > 0) {

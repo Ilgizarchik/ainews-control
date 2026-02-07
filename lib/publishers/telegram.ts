@@ -12,15 +12,17 @@ export class TelegramPublisher implements IPublisher {
 
     async publish(context: PublishContext): Promise<PublishResult> {
         try {
-            const chatId = this.chatId || context.config?.chat_id;
             if (!this.botToken) throw new Error("Telegram Bot Token is missing");
-            if (!chatId) throw new Error("Telegram Chat ID is missing");
+            // If chatId is not provided in context, use the one from constructor
+            const targetChatId = context.config?.telegram_channel_id || this.chatId;
+            if (!targetChatId) throw new Error("Telegram Chat ID is missing");
 
-            // Smart Link Logic: Check if the text ends with a colon (ignoring trailing whitespace)
+            // Smart Link Logic: Check if the text ends with a colon (ignoring trailing whitespace and HTML tags)
             const plainContent = context.content_html.replace(/<[^>]+>/g, '').trim();
-            const shouldAttachLink = plainContent.endsWith(':');
-            const linkPart = (shouldAttachLink && context.source_url) ? `\n${context.source_url}` : '';
-            console.log(`[Telegram] Smart Link Check: endsWithColon=${shouldAttachLink}, sourceUrl=${context.source_url}`);
+            // Check if the *visible* text ends with a colon
+            const shouldAttachLink = plainContent.endsWith(':') || context.content_html.trim().match(/:\s*(<[^>]+>)*$/) !== null;
+
+            const linkPart = (shouldAttachLink && context.source_url) ? ` <a href="${context.source_url}">${context.source_url}</a>` : '';
 
             // 1. Send Photo
             if (context.image_url) {
@@ -33,7 +35,7 @@ export class TelegramPublisher implements IPublisher {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        chat_id: chatId,
+                        chat_id: targetChatId,
                         photo: context.image_url,
                         caption: caption.substring(0, 1024), // Hard limit
                         parse_mode: 'HTML'
@@ -62,7 +64,7 @@ export class TelegramPublisher implements IPublisher {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    chat_id: chatId,
+                    chat_id: targetChatId,
                     text: textBody.substring(0, 4096),
                     parse_mode: 'HTML'
                 })

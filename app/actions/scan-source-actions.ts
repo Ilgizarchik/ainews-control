@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import * as cheerio from 'cheerio'
-import { ProxyAgent } from 'undici'
+import { ProxyAgent, fetch as undiciFetch } from 'undici'
 import { JSDOM } from 'jsdom'
 import { Readability } from '@mozilla/readability'
 
@@ -67,11 +67,8 @@ async function callAiCompletion(systemPrompt: string, userContent: string) {
     }
 
     if (config['ai_proxy_url']) {
-        console.log(`[AI Scan] Using Proxy: ${config['ai_proxy_url']}`)
         fetchOptions.dispatcher = new ProxyAgent(config['ai_proxy_url'])
     }
-
-    console.log(`[AI Scan] Calling ${url} model=${model}`)
     const res = await fetch(url, fetchOptions)
 
     if (!res.ok) {
@@ -86,16 +83,35 @@ async function callAiCompletion(systemPrompt: string, userContent: string) {
     return content
 }
 
+async function getProxyDispatcher() {
+    try {
+        const supabase = await createClient()
+        const { data } = await supabase
+            .from('project_settings')
+            .select('value')
+            .eq('project_key', 'ainews')
+            .eq('key', 'ai_proxy_url')
+            .single()
+
+        if (data?.value) {
+            return new ProxyAgent(data.value)
+        }
+    } catch {
+        // console.warn('Proxy lookup failed', e)
+    }
+    return undefined
+}
+
 export async function scanUrlForSelectors(url: string) {
     try {
-        console.log(`[Scan] Fetching ${url}...`)
-
         // 1. Fetch HTML with better headers
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), 15000) // 15s timeout
+        const dispatcher = await getProxyDispatcher()
 
-        const res = await fetch(url, {
+        const res = await undiciFetch(url, {
             signal: controller.signal,
+            dispatcher: dispatcher as any,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
@@ -145,6 +161,57 @@ export async function scanUrlForSelectors(url: string) {
         const jsonStr = aiResponse.replace(/```json/g, '').replace(/```/g, '').trim()
         const selectors = JSON.parse(jsonStr)
 
+        // *** PHASE 2: AUTO-DETECT DATE IN ARTICLE ***
+        // Only try to find detail date if we couldn't find it on the main listing
+        const hasDate = selectors.date && selectors.date !== 'null'
+
+        if (!hasDate && selectors.link && selectors.container) {
+            try {
+                // Find first link
+                const $item = $(selectors.container).first()
+                const link = $item.find(selectors.link).attr('href')
+
+                if (link) {
+                    let fullLink = link
+                    if (!link.startsWith('http')) {
+                        fullLink = new URL(link, url).toString()
+                    }
+
+                    const dispatcher = await getProxyDispatcher()
+                    const artRes = await undiciFetch(fullLink, {
+                        dispatcher: dispatcher as any,
+                        // Full headers to avoid bot detection on deep pages
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                            'Accept-Language': 'en-US,en;q=0.9',
+                            'Referer': url // Vital for anti-bot
+                        }
+                    })
+
+                    if (artRes.ok) {
+                        const artHtml = await artRes.text()
+
+                        // Limit size
+                        let cleanArt = artHtml
+                        if (cleanArt.length > 40000) cleanArt = cleanArt.substring(0, 40000)
+
+                        // Ask AI to specificially find date in this article
+                        const datePrompt = `Here is an article page HTML. Find the CSS selector for the publication date/time. Return JSON: { "date_detail": "css_selector" }. If not found, return null.`
+
+                        const dateAiRes = await callAiCompletion(systemPrompt, `${datePrompt}\n\n${cleanArt}`)
+                        const dateJson = JSON.parse(dateAiRes.replace(/```json/g, '').replace(/```/g, '').trim())
+
+                        if (dateJson.date_detail) {
+                            selectors.date_detail = dateJson.date_detail
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('[Scan] Failed to auto-detect article date:', e)
+            }
+        }
+
         return { success: true, selectors }
 
     } catch (e: any) {
@@ -157,10 +224,13 @@ export async function testSelectors(url: string, selectors: any) {
     try {
         if (!selectors.container) throw new Error('Container selector missing')
 
+        const dispatcher = await getProxyDispatcher()
+
         // Fetch
-        const res = await fetch(url, {
+        const res = await undiciFetch(url, {
+            dispatcher: dispatcher as any,
             headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
-        })
+        } as any)
         const html = await res.text()
         const $ = cheerio.load(html)
 
@@ -192,15 +262,45 @@ export async function testSelectors(url: string, selectors: any) {
                     link = new URL(link, url).toString()
                 }
 
-                console.log(`[Test] Fetching article preview: ${link}`)
-                const artRes = await fetch(link, {
+                const artRes = await undiciFetch(link, {
+                    dispatcher: dispatcher as any,
+                    redirect: 'follow',
+                    // cache: 'no-store', // cache is not a valid prop for undici fetch in some versions, or named differently
                     headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8'
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                        'Accept-Language': 'en-US,en;q=0.9',
+                        'Accept-Encoding': 'gzip, deflate, br',
+                        'Referer': url,
+                        'Upgrade-Insecure-Requests': '1',
+                        'Sec-Ch-Ua': '"Not A(Brand";v="99", "Google Chrome";v="121", "Chromium";v="121"',
+                        'Sec-Ch-Ua-Mobile': '?0',
+                        'Sec-Ch-Ua-Platform': '"Windows"',
+                        'Sec-Fetch-Site': 'same-origin',
+                        'Sec-Fetch-Mode': 'navigate',
+                        'Sec-Fetch-User': '?1',
+                        'Sec-Fetch-Dest': 'document'
                     }
                 })
                 if (artRes.ok) {
                     const artHtml = await artRes.text()
+
+                    // Try to extract detail date if selector present
+                    if (selectors.date_detail) {
+                        try {
+                            const $art = cheerio.load(artHtml)
+                            const detailDate = $art(selectors.date_detail).text().trim()
+                            if (detailDate) {
+                                items[0].dateFromDetail = detailDate
+                                // If main date is missing, use this one for display
+                                if (!items[0].date || items[0].date === 'empty text' || items[0].date === 'not found' || items[0].date === 'null' || items[0].date === 'empty attr') {
+                                    items[0].date = detailDate + ' (from article)'
+                                }
+                            }
+                        } catch (e) {
+                            console.error('Detail date extraction failed:', e)
+                        }
+                    }
 
                     // Use Readability for smart extraction
                     try {
@@ -217,7 +317,7 @@ export async function testSelectors(url: string, selectors: any) {
                         } else {
                             throw new Error('Readability failed')
                         }
-                    } catch (e) {
+                    } catch {
                         // Fallback to raw text
                         const $art = cheerio.load(artHtml)
                         $art('script, style, nav, footer, header, aside, svg').remove()
@@ -242,7 +342,7 @@ export async function saveSource(source: any) {
     const supabase = await createClient()
     const { error } = await supabase
         .from('ingestion_sources')
-        .insert(source)
+        .upsert(source, { onConflict: 'id' } as any)
 
     if (error) return { success: false, error: error.message }
     return { success: true }

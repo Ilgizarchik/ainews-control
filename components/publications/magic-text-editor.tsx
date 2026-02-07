@@ -1,13 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { Wand2, Loader2, Check, RefreshCw } from 'lucide-react'
+import { Wand2, Loader2, Check, RefreshCw, History as HistoryIcon } from 'lucide-react'
 import { toast } from 'sonner'
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/client'
 import { VoiceInput } from '@/components/ui/voice-input'
 
 interface MagicTextEditorProps {
@@ -15,18 +15,39 @@ interface MagicTextEditorProps {
     onOpenChange: (open: boolean) => void
     originalText: string
     onSave: (newText: string) => void
+    itemId?: string
+    itemType?: 'news' | 'review'
 }
 
-export function MagicTextEditor({ isOpen, onOpenChange, originalText, onSave }: MagicTextEditorProps) {
+export function MagicTextEditor({ isOpen, onOpenChange, originalText, onSave, itemId, itemType }: MagicTextEditorProps) {
     const [instruction, setInstruction] = useState('')
     const [generatedText, setGeneratedText] = useState('')
     const [loading, setLoading] = useState(false)
+    const [history, setHistory] = useState<any[]>([])
+    const [showHistory, setShowHistory] = useState(false)
+    const [historyLoading, setHistoryLoading] = useState(false)
 
-    // Direct initialization with vanilla client
-    const supabaseClient = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    // Use the shared client
+    const supabaseClient = createClient()
+
+    // Display history effect
+    useEffect(() => {
+        if (!isOpen || !showHistory || !itemId || !itemType) return;
+
+        const fetchHistory = async () => {
+            setHistoryLoading(true)
+            try {
+                const table = itemType === 'news' ? 'news_items' : 'review_items'
+                const { data } = await supabaseClient.from(table).select('correction_history').eq('id', itemId).single()
+                if (data && data.correction_history) {
+                    setHistory(data.correction_history as any[])
+                }
+            } catch (e) { console.error(e) }
+            finally { setHistoryLoading(false) }
+        }
+        fetchHistory()
+    }, [isOpen, showHistory, itemId, itemType, supabaseClient])
+
 
     const handleGenerate = async () => {
         if (!instruction) {
@@ -35,7 +56,13 @@ export function MagicTextEditor({ isOpen, onOpenChange, originalText, onSave }: 
         }
 
         setLoading(true)
-        console.log('Init Supabase Client:', supabaseClient)
+        const toastId = toast.loading('🚀 Запускаю AI редактор...')
+
+        // Simulation timers
+        const timers: NodeJS.Timeout[] = []
+        timers.push(setTimeout(() => toast.loading('🧠 Анализирую контекст...', { id: toastId }), 1000))
+        timers.push(setTimeout(() => toast.loading('✍️ Переписываю текст...', { id: toastId }), 2500))
+        timers.push(setTimeout(() => toast.loading('✨ Навожу лоск...', { id: toastId }), 4500))
 
         try {
             if (typeof supabaseClient.from !== 'function') {
@@ -64,6 +91,8 @@ export function MagicTextEditor({ isOpen, onOpenChange, originalText, onSave }: 
                 body: JSON.stringify({
                     text: originalText,
                     instruction,
+                    itemId,
+                    itemType,
                     ...config
                 })
             })
@@ -74,10 +103,13 @@ export function MagicTextEditor({ isOpen, onOpenChange, originalText, onSave }: 
             }
 
             const data = await res.json()
+            timers.forEach(clearTimeout)
+            toast.success('Готово!', { id: toastId })
             setGeneratedText(data.result)
         } catch (e: any) {
+            timers.forEach(clearTimeout)
             console.error('Magic Edit Error:', e)
-            toast.error(`Error: ${e.message}`)
+            toast.error(`Error: ${e.message}`, { id: toastId })
         } finally {
             setLoading(false)
         }
@@ -129,31 +161,73 @@ export function MagicTextEditor({ isOpen, onOpenChange, originalText, onSave }: 
                             <Textarea
                                 value={generatedText}
                                 onChange={(e) => setGeneratedText(e.target.value)}
-                                className="border-purple-200 bg-purple-50/20 min-h-[300px] font-normal"
+                                className="border-purple-200 bg-purple-50/20 min-h-[300px] font-normal focus:ring-purple-500/20"
                             />
                         </div>
                     )}
                 </div>
 
-                <DialogFooter className="gap-2 sm:gap-0">
-                    {!generatedText ? (
-                        <Button onClick={handleGenerate} disabled={loading} className="w-full sm:w-auto">
-                            {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
-                            Генерировать
-                        </Button>
-                    ) : (
-                        <div className="flex gap-2 w-full justify-end">
-                            <Button variant="outline" onClick={handleGenerate} disabled={loading}>
-                                <RefreshCw className="w-4 h-4 mr-2" />
-                                Переделать
-                            </Button>
-                            <Button onClick={handleApply} className="bg-emerald-600 hover:bg-emerald-700">
-                                <Check className="w-4 h-4 mr-2" />
-                                Применить
+                <DialogFooter className="gap-2 sm:gap-0 flex flex-col sm:flex-row justify-between items-center w-full">
+                    {itemId && (
+                        <div className="flex-1 flex justify-start w-full sm:w-auto mb-2 sm:mb-0">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setShowHistory(!showHistory)}
+                                className="text-muted-foreground text-xs"
+                            >
+                                <HistoryIcon className="w-3 h-3 mr-1.5" />
+                                {showHistory ? 'Скрыть историю' : 'История правок'}
                             </Button>
                         </div>
                     )}
+
+                    <div className="flex gap-2 w-full sm:w-auto justify-end">
+                        {!generatedText ? (
+                            <Button onClick={handleGenerate} disabled={loading} className="w-full sm:w-auto">
+                                {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
+                                Генерировать
+                            </Button>
+                        ) : (
+                            <>
+                                <Button variant="outline" onClick={handleGenerate} disabled={loading}>
+                                    {loading ? (
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    ) : (
+                                        <RefreshCw className="w-4 h-4 mr-2" />
+                                    )}
+                                    Переделать
+                                </Button>
+                                <Button onClick={handleApply} className="bg-emerald-600 hover:bg-emerald-700">
+                                    <Check className="w-4 h-4 mr-2" />
+                                    Применить
+                                </Button>
+                            </>
+                        )}
+                    </div>
                 </DialogFooter>
+
+                {showHistory && (
+                    <div className="border-t bg-muted/30 p-3 max-h-[150px] overflow-y-auto text-xs space-y-2">
+                        <Label className="text-muted-foreground mb-2 block">История инструкций:</Label>
+                        {historyLoading ? (
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                                <Loader2 className="w-3 h-3 animate-spin" /> Загрузка...
+                            </div>
+                        ) : history.length === 0 ? (
+                            <span className="text-muted-foreground italic">Истории пока нет</span>
+                        ) : (
+                            history.slice().reverse().map((h, i) => (
+                                <div key={i} className="p-2 bg-background border rounded hover:bg-accent/50 cursor-pointer transition-colors" onClick={() => setInstruction(h.instruction)}>
+                                    <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
+                                        <span>{new Date(h.date).toLocaleString('ru-RU')}</span>
+                                    </div>
+                                    <div className="font-medium line-clamp-2">{h.instruction}</div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                )}
             </DialogContent>
         </Dialog>
     )

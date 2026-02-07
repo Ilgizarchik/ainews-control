@@ -8,8 +8,6 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Access token is required' }, { status: 400 });
         }
 
-        console.log('[API/Threads] Fetching metadata for token...');
-
         // Делаем запрос от имени сервера (Node.js)
         const res = await fetch(`https://graph.threads.net/v1.0/me?fields=id,username,threads_profile_picture_url&access_token=${accessToken}`, {
             next: { revalidate: 0 } // Не кэшируем

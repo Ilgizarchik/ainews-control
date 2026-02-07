@@ -1,19 +1,17 @@
 ﻿'use client'
 
 import { ContentItem } from '@/types/content'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { ExternalLink, Clock, Tag, Star, Flame } from 'lucide-react'
+import { ExternalLink, Clock, Star } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatDistanceToNow } from 'date-fns'
 import { ru } from 'date-fns/locale'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ContentDetailDialog } from './ContentDetailDialog'
 import { approveContentItem, rejectContentItem, markContentViewed } from '@/app/actions/content-actions'
-import { toast } from 'sonner'
+import { toast, showUndoToast } from '@/components/ui/premium-toasts'
 import { Loader2 } from 'lucide-react'
-import { ContentActionResultSchema } from '@/types/content-actions'
 import { ensureAbsoluteUrl } from '@/lib/utils'
 
 interface ContentCardProps {
@@ -27,19 +25,12 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
     const [isAnimatingOut, setIsAnimatingOut] = useState<'approve' | 'reject' | 'approved_hidden' | 'rejected_hidden' | null>(null)
     const [isViewed, setIsViewed] = useState(item.is_viewed ?? false)
     const [imageError, setImageError] = useState(false)
-    const actionInFlightRef = useRef(false)
-
     // Sync state with props if they change to true from parent
     useEffect(() => {
         if (item.is_viewed) {
             setIsViewed(true)
         }
     }, [item.is_viewed])
-
-    const parseActionResult = (result: unknown) => {
-        const parsed = ContentActionResultSchema.safeParse(result)
-        return parsed.success ? parsed.data : null
-    }
 
     const handleCardClick = () => {
         setDetailOpen(true)
@@ -58,62 +49,80 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
 
         // Simulation of progress steps
         const timers: NodeJS.Timeout[] = []
-        timers.push(setTimeout(() => toast.loading('✍️ Пишем лонгрид и заголовок...', { id: toastId }), 1500))
-        timers.push(setTimeout(() => toast.loading('📢 Формулируем анонс...', { id: toastId }), 5000))
-        timers.push(setTimeout(() => toast.loading('🎨 Придумываем идею для картинки...', { id: toastId }), 8000))
-        timers.push(setTimeout(() => toast.loading('🖼️ Генерируем изображение...', { id: toastId }), 11000))
-        timers.push(setTimeout(() => toast.loading('📤 Сохраняем результаты...', { id: toastId }), 18000))
+        timers.push(setTimeout(() => toast.loading('✍️ Пишем лонгрид и заголовок...', { id: toastId }), 2000))
+        timers.push(setTimeout(() => toast.loading('📢 Формулируем анонс...', { id: toastId }), 7000))
+        timers.push(setTimeout(() => toast.loading('🎨 Придумываем идею для картинки...', { id: toastId }), 14000))
+        timers.push(setTimeout(() => toast.loading('🖼️ Генерируем изображение...', { id: toastId }), 22000))
+        timers.push(setTimeout(() => toast.loading('📤 Сохраняем результаты...', { id: toastId }), 35000))
+        timers.push(setTimeout(() => toast.loading('🛠️ Финализируем метаданные...', { id: toastId }), 45000))
+        timers.push(setTimeout(() => toast.loading('📊 Почти готово, последние штрихи...', { id: toastId }), 55000))
 
         try {
             const result = await approveContentItem(item.id)
             timers.forEach(clearTimeout) // Clear simulation if finished
+            toast.dismiss(toastId) // Explicitly dismiss loading toast to prevent sticking
 
             if (result.success) {
-                toast.success('✨ Черновик успешно создан!', { id: toastId })
+                toast.success('✨ Черновик успешно создан!')
                 // Now animate out
                 setIsAnimatingOut('approve')
                 await new Promise(resolve => setTimeout(resolve, 500))
                 onActionComplete?.(item.id, 'updated')
             } else {
-                toast.error(`Ошибка: ${result.error}`, { id: toastId })
+                toast.error(`Ошибка: ${result.error}`)
                 setIsLoading(false)
                 if (String(result.error || '').toLowerCase().includes('already processed')) {
                     onActionComplete?.(item.id, 'stale')
                 }
             }
-        } catch (error) {
+        } catch {
             timers.forEach(clearTimeout)
-            toast.error('Произошла ошибка при одобрении', { id: toastId })
+            toast.dismiss(toastId)
+            toast.error('Произошла ошибка при одобрении')
             setIsLoading(false)
         }
     }
 
     const handleReject = async (e: React.MouseEvent) => {
         e.stopPropagation()
-        setIsLoading(true)
+        // Optimistic UI: Animate out immediately
         setIsAnimatingOut('reject')
 
         // Wait for animation
         await new Promise(resolve => setTimeout(resolve, 500))
+        setIsAnimatingOut('rejected_hidden') // Hide from view
 
-        try {
-            const result = await rejectContentItem(item.id)
-            if (result.success) {
-                toast.success('Новость отклонена')
-                onActionComplete?.(item.id, 'updated')
-            } else {
-                setIsAnimatingOut(null)
-                toast.error(`Ошибка: ${result.error}`)
-                if (String(result.error || '').toLowerCase().includes('already processed')) {
-                    onActionComplete?.(item.id, 'stale')
-                }
-            }
-        } catch (error) {
+        // Define cleanup to restore card if cancelled
+        const handleUndo = () => {
             setIsAnimatingOut(null)
-            toast.error('Произошла ошибка при отклонении')
-        } finally {
-            setIsLoading(false)
         }
+
+        // Define commit action
+        const handleCommit = async () => {
+            try {
+                const result = await rejectContentItem(item.id)
+                if (result.success) {
+                    onActionComplete?.(item.id, 'updated')
+                    toast.success('Готово!', { description: 'Новость отклонена' })
+                } else {
+                    handleUndo() // Restore on error
+                    toast.error(`Ошибка при отклонении: ${result.error}`)
+                }
+            } catch {
+                handleUndo()
+                toast.error('Произошла ошибка при отклонении')
+            }
+        }
+
+        // Show Standardized Undo Toast
+        showUndoToast({
+            message: "Отклонение...",
+            description: "Новость будет удалена",
+            duration: 7000,
+            onUndo: handleUndo,
+            onCommit: handleCommit,
+            type: 'danger'
+        })
     }
 
     const getScoreColor = (score: number | null) => {
@@ -123,16 +132,6 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
         return 'bg-red-500'
     }
 
-    const getStatusBadge = () => {
-        if (item.approve1_decision === 'approved') {
-            return <Badge className="bg-green-600">Одобрено</Badge>
-        }
-        if (item.approve1_decision === 'rejected') {
-            return <Badge variant="destructive">Отклонено</Badge>
-        }
-        return <Badge variant="secondary">Ожидание</Badge>
-    }
-
     if (isAnimatingOut === 'approved_hidden' || isAnimatingOut === 'rejected_hidden') {
         return null
     }
@@ -140,17 +139,18 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
     return (
         <>
             <Card
+                data-tutorial="moderation-card"
                 className={cn(
-                    "group relative flex flex-col overflow-hidden border border-border bg-card transition-all duration-300 hover:shadow-lg hover:-translate-y-1 h-full cursor-pointer",
+                    "group relative flex flex-col overflow-hidden border-2 bg-card transition-all duration-500 hover:shadow-2xl hover:shadow-emerald-500/10 hover:-translate-y-2 h-full cursor-pointer rounded-2xl",
                     isAnimatingOut === 'reject' && "opacity-0 translate-x-[100px] rotate-12 scale-90 bg-red-50",
                     isAnimatingOut === 'approve' && "opacity-0 -translate-y-[50px] scale-105 bg-green-50",
-                    !isViewed && "ring-1 ring-blue-500/20"
+                    !isViewed && "ring-2 ring-blue-500/30 shadow-lg shadow-blue-500/10"
                 )}
                 onClick={handleCardClick}
             >
                 {/* Status Indicator / NEW Dot */}
                 {!isViewed && (
-                    <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm animate-in fade-in zoom-in duration-300">
+                    <div className="absolute top-4 left-4 z-10 flex items-center gap-1.5 bg-gradient-to-r from-blue-600 to-blue-500 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg shadow-blue-500/50 animate-in fade-in zoom-in duration-300">
                         <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                         NEW
                     </div>
@@ -163,7 +163,7 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
                         <img
                             src={`/api/image-proxy?url=${encodeURIComponent(item.image_url)}`}
                             alt={item.title}
-                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                            className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
                             onError={() => setImageError(true)}
                             referrerPolicy="no-referrer"
                             loading="lazy"
@@ -178,51 +178,51 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
                     )}
 
                     {/* Overlay Gradient for Text Contrast (bottom) */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-70" />
 
                     {/* Score Badge (Top Right) */}
-                    <div className="absolute top-3 right-3 z-10">
+                    <div data-tutorial="moderation-card-score" className="absolute top-4 right-4 z-10">
                         <div className={cn(
-                            "flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold text-white shadow-sm backdrop-blur-md",
+                            "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black text-white shadow-xl backdrop-blur-md border border-white/20",
                             getScoreColor(item.gate1_score)
                         )}>
-                            <Star className="w-3 h-3 fill-white" />
+                            <Star className="w-3.5 h-3.5 fill-white" />
                             {item.gate1_score ?? '--'}
                         </div>
                     </div>
 
                     {/* Floating Source Badge (Bottom Left) */}
-                    <div className="absolute bottom-3 left-3 flex items-center gap-2 text-white/90 text-xs font-medium drop-shadow-md">
-                        <div className="flex items-center gap-1.5 bg-black/40 backdrop-blur-md px-2 py-1 rounded-md">
-                            {/* Favicon placeholder could go here */}
-                            <span>{item.source_name || 'unknown'}</span>
+                    <div className="absolute bottom-4 left-4 z-10">
+                        <div className="flex items-center gap-2 bg-black/80 backdrop-blur-xl px-3 py-2 rounded-xl border border-white/20 shadow-xl transition-all hover:bg-black/90 hover:scale-105">
+                            <span className="font-bold text-white text-[11px] tracking-wider uppercase">{item.source_name || 'source'}</span>
+                            <span className="w-px h-3 bg-white/30" />
+                            <span className="flex items-center gap-1.5 text-[11px] text-white/90 font-medium whitespace-nowrap">
+                                <Clock className="w-3 h-3 opacity-80" />
+                                {item.published_at
+                                    ? formatDistanceToNow(new Date(item.published_at), { addSuffix: true, locale: ru })
+                                    : ''}
+                            </span>
                         </div>
-                        <span className="flex items-center gap-1 opacity-80">
-                            · <Clock className="w-3 h-3" />
-                            {item.published_at
-                                ? formatDistanceToNow(new Date(item.published_at), { addSuffix: true, locale: ru })
-                                : ''}
-                        </span>
                     </div>
                 </div>
 
-                <div className="flex flex-1 flex-col p-4 gap-3">
+                <div className="flex flex-1 flex-col p-5 gap-3">
                     {/* Tags */}
                     {item.gate1_tags && item.gate1_tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
+                        <div className="flex flex-wrap gap-2">
                             {item.gate1_tags.slice(0, 3).map((tag) => (
-                                <span key={tag} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border/50 uppercase tracking-wide">
+                                <span key={tag} className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 uppercase tracking-wider shadow-sm">
                                     {tag}
                                 </span>
                             ))}
                             {item.gate1_tags.length > 3 && (
-                                <span className="text-[10px] text-muted-foreground pt-0.5">+{item.gate1_tags.length - 3}</span>
+                                <span className="text-[10px] text-muted-foreground pt-1 font-semibold">+{item.gate1_tags.length - 3}</span>
                             )}
                         </div>
                     )}
 
                     {/* Title */}
-                    <h3 className="font-bold text-lg leading-snug text-foreground group-hover:text-primary transition-colors line-clamp-2">
+                    <h3 className="font-black text-xl leading-tight text-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors line-clamp-2">
                         {item.title}
                     </h3>
 
@@ -235,9 +235,11 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
 
                     {/* AI Reason (if present) - collapsible or subtle */}
                     {item.gate1_reason && (
-                        <div className="mt-1 rounded-md bg-amber-50 dark:bg-amber-950/30 p-2 text-xs text-amber-800 dark:text-amber-200/80 border border-amber-100 dark:border-amber-900/50">
-                            <span className="font-semibold block mb-0.5">🤖 AI Filter:</span>
-                            <p className="line-clamp-2 italic">{item.gate1_reason}</p>
+                        <div data-tutorial="moderation-card-ai" className="mt-1 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 p-3 text-xs text-amber-900 dark:text-amber-200 border-2 border-amber-200 dark:border-amber-800 shadow-sm">
+                            <span className="font-black block mb-1 flex items-center gap-1.5">
+                                <span className="text-sm">🤖</span> AI Filter:
+                            </span>
+                            <p className="line-clamp-2 italic font-medium">{item.gate1_reason}</p>
                         </div>
                     )}
 
@@ -248,18 +250,20 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
                     {!item.approve1_decision && (
                         <div className="grid grid-cols-2 gap-3">
                             <Button
+                                data-tutorial="moderation-card-reject"
                                 size="sm"
                                 variant="outline"
-                                className="h-9 border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 dark:border-rose-900/50 dark:text-rose-400 dark:hover:bg-rose-950/50"
+                                className="h-10 rounded-xl border-2 border-rose-300 dark:border-rose-700 text-rose-600 dark:text-rose-400 hover:bg-rose-500 hover:text-white hover:border-rose-500 dark:hover:bg-rose-600 font-bold transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-rose-500/30"
                                 disabled={isLoading}
                                 onClick={handleReject}
                             >
                                 {isLoading && isAnimatingOut === 'reject' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Отклонить'}
                             </Button>
                             <Button
+                                data-tutorial="moderation-card-approve"
                                 size="sm"
-                                variant="outline" // Changed to outline for softer look, or ghost-like with heavy border
-                                className="h-9 border-emerald-200 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 dark:border-emerald-900/50 dark:text-emerald-400 dark:hover:bg-emerald-950/50 font-semibold"
+                                variant="outline"
+                                className="h-10 rounded-xl border-2 border-emerald-300 dark:border-emerald-700 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white hover:border-emerald-500 dark:hover:bg-emerald-600 font-bold transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-emerald-500/30"
                                 disabled={isLoading}
                                 onClick={handleApprove}
                             >
@@ -274,10 +278,10 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
                                 href={ensureAbsoluteUrl(item.canonical_url, item.source_name)}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1.5 py-1 px-2 rounded-md hover:bg-muted"
+                                className="text-xs text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400 transition-all flex items-center gap-2 py-2 px-3 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/30 font-semibold group/link"
                                 onClick={(e) => e.stopPropagation()}
                             >
-                                <ExternalLink className="w-3 h-3" />
+                                <ExternalLink className="w-3.5 h-3.5 group-hover/link:rotate-12 transition-transform" />
                                 Читать оригинал
                             </a>
                         </div>

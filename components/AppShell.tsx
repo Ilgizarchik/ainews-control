@@ -9,9 +9,11 @@ import { ThemeToggle } from '@/components/ThemeToggle'
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet'
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 
+import { WittyBotLogger } from '@/components/witty-bot-logger'
+
 const SideNav = dynamic(() => import('./SideNav').then(mod => mod.SideNav), {
   ssr: false,
-  loading: () => <div className="w-64 h-full border-r border-border bg-card" />
+  loading: () => <nav className="w-64 h-full border-r border-border bg-card flex flex-col" />
 })
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -37,32 +39,36 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   // Pre-hydration skeleton for SideNav
-  const SideNavSkeleton = () => <div className="w-64 h-full border-r border-border bg-card" />
+  const SideNavSkeleton = () => <nav className="w-64 h-full border-r border-border bg-card flex flex-col" />
+
+  const sideNavContent = mounted ? <SideNav /> : <SideNavSkeleton />
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden" suppressHydrationWarning>
       {/* Desktop Sidebar */}
-      <div className="hidden md:block h-full">
-        {mounted ? <SideNav /> : <SideNavSkeleton />}
+      <div className="hidden md:block h-full" suppressHydrationWarning>
+        {sideNavContent}
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden w-full">
         <header className="h-16 border-b border-border flex items-center justify-between px-4 sm:px-6 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shrink-0 z-30">
           <div className="flex items-center gap-4">
             {/* Mobile Menu Trigger */}
-            <Sheet open={open} onOpenChange={setOpen}>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="md:hidden">
-                  <Menu className="h-5 w-5" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="p-0 w-72">
-                <VisuallyHidden.Root>
-                  <SheetTitle>Navigation Menu</SheetTitle>
-                </VisuallyHidden.Root>
-                {mounted ? <SideNav /> : <SideNavSkeleton />}
-              </SheetContent>
-            </Sheet>
+            {mounted && (
+              <Sheet open={open} onOpenChange={setOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon" className="md:hidden">
+                    <Menu className="h-5 w-5" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="p-0 w-72">
+                  <VisuallyHidden.Root>
+                    <SheetTitle>Navigation Menu</SheetTitle>
+                  </VisuallyHidden.Root>
+                  {sideNavContent}
+                </SheetContent>
+              </Sheet>
+            )}
 
             <div className="text-sm text-zinc-500 hidden sm:block">Панель управления</div>
             {/* Mobile Title if needed */}
@@ -84,6 +90,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+      {mounted && <WittyBotLogger />}
     </div>
   )
 }

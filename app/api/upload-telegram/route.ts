@@ -18,16 +18,19 @@ export async function POST(req: NextRequest) {
         // Fetch token from database
         const { data: settings, error: settingsError } = await supabase
             .from('project_settings')
-            .select('value')
-            .eq('key', 'tg_bot')
-            .single()
+            .select('key, value')
+            .eq('project_key', 'ainews')
+            .in('key', ['telegram_bot_token', 'tg_bot'])
 
-        if (settingsError || !settings?.value) {
+        const token =
+            (settings as any[])?.find((r) => r.key === 'telegram_bot_token')?.value ||
+            (settings as any[])?.find((r) => r.key === 'tg_bot')?.value
+
+        if (settingsError || !token) {
             console.error('Settings fetch error:', settingsError)
             return NextResponse.json({ error: 'Server configuration error: Token missing in DB' }, { status: 500 })
         }
 
-        const token = settings.value
         // Hardcoded chat_id from the technical requirement (id=4 in telegram_chats)
         const chatId = '392453315'
 

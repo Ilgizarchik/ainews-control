@@ -66,7 +66,6 @@ export class TwitterPublisher implements IPublisher {
     }
 
     async publish(job: PublishContext, settings?: TwitterSettings): Promise<PublishResult> {
-        console.log('[Twitter] Initializing publication (Stable Hybrid Mode)...');
 
         // Используем либо настройки из БД, либо твой хардкод-ключ
         const apiKey = this.resolveApiKey(job, settings);
@@ -87,14 +86,12 @@ export class TwitterPublisher implements IPublisher {
             fullText = (url && !fullText.includes(url)) ? `${this.truncateText(fullText, 240)}\n${url}` : this.truncateText(fullText, 280);
 
             // 3. Пытаемся через библиотеку
-            console.log('[Twitter] Attempting library-based post...');
             const clientConfig: any = { apiKey: apiKey.trim(), timeout: 45000 };
             if (proxyUrl) clientConfig.proxyUrl = proxyUrl;
             this.client = new Rettiwt(clientConfig);
             try {
                 const tweetId = await this.client.tweet.post({ text: fullText });
                 if (tweetId) {
-                    console.log('[Twitter] SUCCESS via Library! Tweet ID:', tweetId);
                     return { success: true, external_id: tweetId, published_url: `https://x.com/i/web/status/${tweetId}` };
                 }
             } catch (libErr: any) {
@@ -108,7 +105,6 @@ export class TwitterPublisher implements IPublisher {
             // Собираем "чистые" куки для x.com
             const cleanCookie = decoded.trim().endsWith(';') ? decoded.trim() : `${decoded.trim()};`;
 
-            console.log('[Twitter] Manual GraphQL post starting...');
             const graphqlUrl = "https://x.com/i/api/graphql/z0m4Q8u_67R9VOSMXU_MWg/CreateTweet";
 
             const payload = {
@@ -168,7 +164,6 @@ export class TwitterPublisher implements IPublisher {
 
             if (result?.data?.create_tweet?.tweet_results?.result?.rest_id) {
                 const tweetId = result.data.create_tweet.tweet_results.result.rest_id;
-                console.log('[Twitter] SUCCESS via Manual Fallback! ID:', tweetId);
                 return { success: true, external_id: tweetId, published_url: `https://x.com/i/web/status/${tweetId}` };
             }
 

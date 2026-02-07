@@ -254,12 +254,13 @@ export async function publishItem(itemId: string, itemType: 'news' | 'review' = 
     return { success: true, results, publishedUrl, isScheduled };
 }
 
-export async function publishSinglePlatform({ itemId, itemType, platform, content, bypassSafeMode = false }: {
+export async function publishSinglePlatform({ itemId, itemType, platform, content, bypassSafeMode = false, isTest = false }: {
     itemId: string;
     itemType: 'news' | 'review';
     platform: string;
     content: string;
     bypassSafeMode?: boolean;
+    isTest?: boolean;
 }) {
     const supabase = await createClient()
     const config = await getPublisherConfig()
@@ -305,7 +306,7 @@ export async function publishSinglePlatform({ itemId, itemType, platform, conten
             config
         })
 
-        if (res.success) {
+        if (res.success && !isTest) {
             const itemUpdate: any = {}
             if (platform === 'site' || platform === 'tilda') {
                 itemUpdate.status = 'published'
@@ -356,6 +357,12 @@ export async function publishSinglePlatform({ itemId, itemType, platform, conten
     }
 }
 
+/**
+ * @deprecated This function is no longer called automatically.
+ * Jobs remain in the queue even if their platform recipes are disabled,
+ * allowing manual management of the publication queue.
+ * Can be used manually if cleanup is needed.
+ */
 export async function cleanupDisabledPlatforms() {
     try {
         const supabase = await createClient()
@@ -373,7 +380,6 @@ export async function cleanupDisabledPlatforms() {
         // Всегда оставляем 'site' как системную платформу
         if (!activePlatforms.includes('site')) activePlatforms.push('site')
 
-        console.log('[Cleanup] Active platforms:', activePlatforms)
 
         // 2. Удаляем запланированные задачи для отключенных платформ
         const { error: deleteError, count } = await supabase

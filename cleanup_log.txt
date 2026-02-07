@@ -1,0 +1,11 @@
+🚀 Starting database image cleanup...
+Found 2 items with Base64 images to process.
+Processing: ВЫПИСКА из протокола № 21-1 от 17 января 2024г
+[Telegram] Sending Base64 image (1637584 bytes) via form-data to chat 392453315...
+[Telegram] API Error Details: 
+❌ Failed processing 66e72e73-e8e9-4c1a-b99a-9f26a7b264fe: Telegram API Error: 400 - 
+Processing: В России оружие с 2022 года будет признано источником повышенной опасности.
+[Telegram] Sending Base64 image (1289081 bytes) via form-data to chat 392453315...
+[Telegram] API Error Details: 
+❌ Failed processing e91ebf93-49d3-43bd-b0a0-ccaa89fb00eb: Telegram API Error: 400 - 
+🏁 Cleanup finished.

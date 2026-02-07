@@ -22,8 +22,6 @@ export class FacebookPublisher implements IPublisher {
             const fallbackProxy = "http://gob2rk:tWL00X@45.147.100.186:8000";
             const effectiveProxy = configProxy || fallbackProxy;
 
-            console.log(`[Facebook] Targeting Meta via Proxy: ${effectiveProxy}`);
-
             const proxyAgent = new ProxyAgent(effectiveProxy);
 
             // Очистка текста
@@ -51,8 +49,6 @@ export class FacebookPublisher implements IPublisher {
                 params.caption = message;
                 delete params.message;
             }
-
-            console.log(`[Facebook] Sending request to endpoint: ${endpoint}`);
 
             const res = await fetch(endpoint, {
                 method: 'POST',

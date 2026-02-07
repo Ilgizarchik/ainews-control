@@ -8,7 +8,6 @@ interface GenerateNewsDraftRequest {
 }
 
 export async function POST(req: Request) {
-    console.log('🚀 API /api/ai/generate-news-draft called');
     const supabase = await createClient();
 
     try {
@@ -118,7 +117,6 @@ export async function POST(req: Request) {
         // If no image exists, generate one
         if (!finalFileId && !newsItem.image_url) {
             try {
-                console.log('🎨 Generating News Image for prompt:', imgPromptText);
                 const generatedUrl = await generateImage(imgPromptText);
                 draftImageUrl = generatedUrl;
 

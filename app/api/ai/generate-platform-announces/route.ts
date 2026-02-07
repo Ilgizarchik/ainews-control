@@ -60,7 +60,6 @@ export async function POST(req: Request) {
             throw promptsError
         }
 
-        console.log(`Loaded ${promptsData?.length || 0} prompts from DB`)
 
         // Map configs
         const promptMap = (promptsData as any[]).reduce((acc, p) => ({
@@ -72,7 +71,7 @@ export async function POST(req: Request) {
         const results: Record<string, string> = {}
 
         for (const platform of platforms) {
-            const promptKey = `rewrite_social_${platform}`
+            const promptKey = `rewrite_social_${platform.toLowerCase()}`
             const promptData = promptMap[promptKey]
 
             if (!promptData) {
@@ -122,33 +121,23 @@ export async function POST(req: Request) {
                 }
 
                 results[platform] = generatedText.trim()
+
+                // INCREMENTAL SAVE: Update DB immediately to handle client disconnects or timeouts
+                const platformKey = platform === 'site' ? 'draft_longread_site' : `draft_announce_${platform}`
+                await supabase
+                    .from(tableName)
+                    .update({ [platformKey]: generatedText.trim() })
+                    .eq('id', contentId)
+
             } catch (error: any) {
                 console.error(`Error generating announce for ${platform}:`, error)
                 results[platform] = `[Ошибка генерации: ${error.message}]`
             }
         }
 
-        // 4. Save to database
-        const updateData: any = {}
-        for (const platform of platforms) {
-            if (results[platform]) {
-                if (platform === 'site') {
-                    updateData['draft_longread_site'] = results[platform]
-                } else {
-                    updateData[`draft_announce_${platform}`] = results[platform]
-                }
-            }
-        }
+        // No need for bulk update at the end anymore
 
-        const { error: updateError } = await supabase
-            .from(tableName)
-            // @ts-ignore
-            .update(updateData)
-            .eq('id', contentId)
 
-        if (updateError) throw updateError
-
-        console.log('Sending generation results:', results)
 
         return NextResponse.json({
             success: true,

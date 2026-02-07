@@ -20,12 +20,15 @@ export async function GET(
                 // @ts-ignore
                 const { data } = await supabase
                     .from('project_settings')
-                    .select('value')
+                    .select('key, value')
                     .eq('project_key', 'ainews')
-                    .eq('key', 'tg_bot')
-                    .single()
+                    .in('key', ['telegram_bot_token', 'tg_bot'])
 
-                return (data as any)?.value as string
+                const token =
+                    (data as any[])?.find((r) => r.key === 'telegram_bot_token')?.value ||
+                    (data as any[])?.find((r) => r.key === 'tg_bot')?.value
+
+                return token as string
             },
             ['tg-bot-token'],
             { revalidate: 3600 } // 1 hour cache
@@ -61,7 +64,6 @@ export async function GET(
         // 3. Возвращаем изображение
         const imageBuffer = await fileResponse.arrayBuffer()
         const contentType = fileResponse.headers.get('content-type') || 'image/jpeg'
-        console.log(`[Telegram API] Returning image, type: ${contentType}, size: ${imageBuffer.byteLength}`)
 
         return new NextResponse(imageBuffer, {
             headers: {

@@ -5,13 +5,12 @@ import { ContentCard } from './ContentCard'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Search, Filter, Loader2, ArrowUpDown, Calendar, Newspaper } from 'lucide-react'
-import { useState, useMemo } from 'react'
+import { Search, Filter, Loader2, Calendar, Newspaper } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import {
     DropdownMenu,
     DropdownMenuContent,
-    DropdownMenuCheckboxItem,
     DropdownMenuTrigger,
     DropdownMenuLabel,
     DropdownMenuSeparator,
@@ -23,10 +22,11 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import { ChevronDown, ListFilter, X, Check, Square } from 'lucide-react'
+import { ChevronDown, ListFilter, X, Check } from 'lucide-react'
 import { getContentStatsBySource } from '@/app/actions/content-actions'
-import { useEffect } from 'react'
 import { LoadingDots } from '@/components/ui/loading-dots'
+import { TutorialButton } from '../tutorial/TutorialButton'
+import { getModerationTutorialSteps } from '@/lib/tutorial/tutorial-config'
 
 // ... imports
 
@@ -64,6 +64,8 @@ export function ContentBoard({
     const [searchQuery, setSearchQuery] = useState('')
     const [sortOption, setSortOption] = useState<SortOption>('date-desc')
     const [sourceStats, setSourceStats] = useState<{ source: string, count: number }[]>([])
+
+    const moderationSteps = useMemo(() => getModerationTutorialSteps(onFilterChange), [onFilterChange])
 
     // Load available sources with counts from server (independent of pagination)
     useEffect(() => {
@@ -139,32 +141,64 @@ export function ContentBoard({
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Контент на модерации</h1>
-                    <p className="text-muted-foreground mt-1">
-                        Одобряйте или отклоняйте новости, прошедшие AI-фильтр
-                    </p>
+            {/* Premium Header with Gradient */}
+            <div data-tutorial="moderation-hero" className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 p-8 shadow-2xl">
+                <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDE4YzAtOS45NC04LjA2LTE4LTE4LTE4UzAgOC4wNiAwIDE4czguMDYgMTggMTggMTggMTgtOC4wNiAxOC0xOHptLTM2IDBjMC05Ljk0IDguMDYtMTggMTgtMThzMTggOC4wNiAxOCAxOC04LjA2IDE4LTE4IDE4UzAgMjcuOTQgMCAxOHoiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-30" />
+                <div className="relative z-10">
+                    <div className="flex items-center gap-3 mb-3">
+                        <div className="p-3 bg-white/20 backdrop-blur-sm rounded-xl border border-white/30 shadow-lg">
+                            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h1 className="text-4xl font-black tracking-tight text-white drop-shadow-lg flex items-center gap-4">
+                                Контент на модерации
+                            </h1>
+                            <p className="text-white/90 mt-1 font-medium text-sm backdrop-blur-sm">
+                                Одобряйте или отклоняйте новости, прошедшие AI-фильтр
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="absolute top-6 right-8">
+                        <TutorialButton
+                            label="Помощь"
+                            steps={moderationSteps}
+                            variant="secondary"
+                            className="bg-white/20 hover:bg-white/30 text-white border-white/40 backdrop-blur-md"
+                        />
+                    </div>
+
+
                 </div>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-wrap gap-2">
+            {/* Premium Filter Pills */}
+            <div className="flex flex-col gap-4">
+                <div data-tutorial="moderation-filters" className="flex items-center overflow-x-auto pb-2 -mx-2 px-2 scrollbar-none gap-2 no-scrollbar">
                     {filterButtons.map((btn) => (
                         <Button
                             key={btn.value}
-                            variant={currentFilter === btn.value ? 'default' : 'outline'}
+                            variant="outline"
                             size="sm"
                             onClick={() => onFilterChange(btn.value)}
                             className={cn(
-                                'transition-all',
-                                currentFilter === btn.value && 'shadow-md'
+                                'transition-all duration-300 rounded-full px-5 py-2.5 font-semibold border-2 whitespace-nowrap flex-shrink-0',
+                                currentFilter === btn.value
+                                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white border-transparent shadow-lg shadow-emerald-500/30 scale-105'
+                                    : 'bg-background/60 backdrop-blur-sm hover:bg-accent hover:scale-105 hover:shadow-md'
                             )}
                         >
-                            {btn.label}
+                            <span>{btn.label}</span>
                             <Badge
                                 variant="secondary"
-                                className="ml-2 px-1.5 py-0 text-xs"
+                                className={cn(
+                                    "ml-2 px-2 py-0.5 text-xs font-black rounded-full",
+                                    currentFilter === btn.value
+                                        ? "bg-white/30 text-white border-white/50"
+                                        : "bg-muted"
+                                )}
                             >
                                 {btn.count}
                             </Badge>
@@ -176,7 +210,7 @@ export function ContentBoard({
                     {/* Source Filter */}
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="outline" className="w-full sm:w-auto justify-between gap-2">
+                            <Button data-tutorial="moderation-sources" variant="outline" className="w-full sm:w-auto justify-between gap-2">
                                 <span className="flex items-center gap-2">
                                     <ListFilter className="w-4 h-4" />
                                     {selectedSources.length === 0 ? 'Все источники' : `Источники (${selectedSources.length})`}
@@ -234,7 +268,7 @@ export function ContentBoard({
 
                     {/* Sorting */}
                     <Select value={sortOption} onValueChange={(v) => setSortOption(v as SortOption)}>
-                        <SelectTrigger className="w-full sm:w-[180px]">
+                        <SelectTrigger data-tutorial="moderation-sort" className="w-full sm:w-[180px]">
                             <SelectValue placeholder="Сортировка" />
                         </SelectTrigger>
                         <SelectContent>
@@ -265,7 +299,7 @@ export function ContentBoard({
                         </SelectContent>
                     </Select>
 
-                    <div className="relative w-full sm:w-64">
+                    <div data-tutorial="moderation-search" className="relative w-full sm:w-64">
                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
                             placeholder="Поиск по названию, источнику..."
@@ -318,7 +352,7 @@ export function ContentBoard({
                     </div>
                 ) : (
                     <div className={cn("transition-all duration-700 ease-in-out", isRefreshing && "opacity-50 blur-[2px] grayscale-[0.3] pointer-events-none")}>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+                        <div data-tutorial="moderation-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
                             {filteredItems.map((item) => (
                                 <ContentCard key={item.id} item={item} onActionComplete={onItemUpdated} />
                             ))}

@@ -1,14 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { JobWithNews } from '@/hooks/useBoardJobs'
 import { format } from 'date-fns'
 import { MagicTextEditor } from './magic-text-editor'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { Send, Trash2, Calendar as CalendarIcon, Save, Wand2, RefreshCw } from 'lucide-react'
+import { Trash2, Calendar as CalendarIcon, Save, Wand2, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { VoiceInput } from '@/components/ui/voice-input'
 
@@ -20,7 +20,6 @@ interface SocialPostEditorDialogProps {
 }
 
 export function SocialPostEditorDialog({ job, isOpen, onClose, onUpdate }: SocialPostEditorDialogProps) {
-    const supabase = createClient()
     const getDraftContent = () => {
         const item = job.news_items || job.review_items
         if (!item) return ''
@@ -52,6 +51,7 @@ export function SocialPostEditorDialog({ job, isOpen, onClose, onUpdate }: Socia
     const [hasSelection, setHasSelection] = useState(false)
     const [isMagicOpen, setIsMagicOpen] = useState(false)
     const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null)
+    const [isContentExpanded, setIsContentExpanded] = useState(false)
 
     const handleSelect = (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
         const target = e.currentTarget
@@ -133,7 +133,6 @@ export function SocialPostEditorDialog({ job, isOpen, onClose, onUpdate }: Socia
                     ? 'draft_longread_site'
                     : `draft_announce_${platformKey}`
 
-                console.log('[handleSave] Syncing draft content to source:', { table, field, contentLength: content.length })
 
                 const { error: draftUpdateError } = await supabase
                     .from(table)
@@ -218,7 +217,6 @@ export function SocialPostEditorDialog({ job, isOpen, onClose, onUpdate }: Socia
 
                 // If job was cancelled, reactivate it upon saving
                 if (job.status === 'cancelled') {
-                    console.log('[handleSave] Reactivating cancelled job...')
                     updatePayload.status = 'queued'
                 }
 
@@ -244,104 +242,86 @@ export function SocialPostEditorDialog({ job, isOpen, onClose, onUpdate }: Socia
     }
 
     const handleDelete = async () => {
-        // if (!confirm('Вы уверены? Это приведет к удалению текста для этой платформы.')) return
+        // Optimistic UI Flow
         setDeleting(true)
-        console.log('[handleDelete] Starting deletion...', job)
+        onClose() // Close immediately
 
-        try {
-            const isNewJob = !job.id || job.id === ''
+        let isCancelled = false
 
-            if (!isNewJob) {
-                // Если задание уже существует, отменяем его
-                console.log('[handleDelete] Cancelling existing job:', job.id)
-                const { error } = await supabase
-                    .from('publish_jobs')
-                    // @ts-ignore
-                    .update({ status: 'cancelled' })
-                    .eq('id', job.id)
+        // Delay timer
+        const timerId = setTimeout(async () => {
+            if (isCancelled) return
 
-                if (error) {
-                    console.error('[handleDelete] Job cancel error:', error)
-                    throw error
+
+            try {
+                const supabase = createClient()
+                const isNewJob = !job.id || job.id === ''
+
+                if (!isNewJob) {
+                    // Cancel existing job
+                    const { error } = await supabase
+                        .from('publish_jobs')
+                        // @ts-ignore
+                        .update({ status: 'cancelled' })
+                        .eq('id', job.id)
+
+                    if (error) {
+                        toast.error('Ошибка отмены: ' + error.message)
+                        return
+                    }
+                    onUpdate() // Refresh board
+                } else {
+                    // Clear draft field (same as before)
+                    const contentId = job.review_id || job.news_id
+                    const table = job.news_id ? 'news_items' : 'review_items'
+
+                    if (contentId) {
+                        let platformKey = (job.platform || '').toLowerCase()
+                        if (platformKey === 'twitter') platformKey = 'x'
+                        if (platformKey === 'telegram') platformKey = 'tg'
+                        if (platformKey === 'facebook') platformKey = 'fb'
+
+                        const field = platformKey === 'site' || platformKey === 'website'
+                            ? 'draft_longread_site'
+                            : `draft_announce_${platformKey}`
+
+                        await supabase
+                            .from(table)
+                            // @ts-ignore
+                            .update({ [field]: '' })
+                            .eq('id', contentId)
+
+                        onUpdate() // Refresh board
+                    }
                 }
-                toast.success('Публикация отменена')
-            } else {
-                // Если это черновик, просто очищаем поле в базе
-                const contentId = job.review_id || job.news_id
-                const table = job.news_id ? 'news_items' : 'review_items'
-
-                // Log detailed debug info
-                console.log('[handleDelete] Clearing draft field:', {
-                    contentId,
-                    table,
-                    platform: job.platform,
-                    news_id: job.news_id,
-                    review_id: job.review_id
-                })
-
-                if (!contentId) {
-                    toast.error('Ошибка: Не найден ID контента (news_id/review_id)')
-                    setDeleting(false)
-                    return
-                }
-
-                let platformKey = (job.platform || '').toLowerCase()
-
-                // Нормализация ключей платформ
-                if (platformKey === 'twitter') platformKey = 'x';
-                if (platformKey === 'telegram') platformKey = 'tg';
-                if (platformKey === 'facebook') platformKey = 'fb';
-
-                if (!platformKey) {
-                    toast.error('Ошибка: Не указана платформа')
-                    setDeleting(false)
-                    return
-                }
-
-                const field = platformKey === 'site' || platformKey === 'website'
-                    ? 'draft_longread_site'
-                    : `draft_announce_${platformKey}`
-
-                console.log('[handleDelete] Attempting update on:', { table, field, contentId })
-
-                // Explicitly check if we can update
-                const { error, count } = await supabase
-                    .from(table)
-                    // @ts-ignore
-                    .update({ [field]: '' }) // Очищаем поле
-                    .eq('id', contentId)
-                    .select()
-
-                if (error) {
-                    console.error('[handleDelete] Supabase update error:', error)
-                    throw new Error(error.message)
-                }
-
-                // If count is 0, it means row wasn't found - critical info
-                // Note: .select() is needed to get count with RLS policy sometimes? 
-                // Actually count needs { count: 'exact' } option usually, but select() returns data length
-
-                console.log('[handleDelete] Update success')
-                toast.success('Черновик очищен')
+            } catch (e: any) {
+                console.error('[handleDelete] Exception:', e)
+                toast.error('Ошибка удаления: ' + (e.message || 'Неизвестная ошибка'))
             }
+        }, 7000)
 
-            // Force strict order: Update parent -> status success -> Close
-            console.log('[handleDelete] Calling onUpdate...')
-            onUpdate()
-
-            console.log('[handleDelete] Closing dialog...')
-            onClose()
-
-        } catch (e: any) {
-            console.error('[handleDelete] Exception:', e)
-            toast.error('Ошибка удаления: ' + (e.message || 'Неизвестная ошибка'))
-        } finally {
-            setDeleting(false)
-        }
-    }
-
-    const handleDeleteCard = async () => {
-
+        // Show Toast
+        toast("Публикация удалена", {
+            description: "Действие будет применено через 7 секунд",
+            action: {
+                label: "Отменить",
+                onClick: () => {
+                    isCancelled = true
+                    clearTimeout(timerId)
+                    setDeleting(false)
+                    // We can't easily re-open the dialog without props, but since we just closed it, 
+                    // user is back on the board. 
+                    // Maybe just say "Restored"
+                    toast.success('Действие отменено')
+                    // NOTE: We rely on the fact that we haven't actually touched the DB yet. 
+                    // The UI didn't update (except dialog closed), so nothing to revert visually on the board 
+                    // unless the board refreshed? 
+                    // We didn't call onUpdate() yet in the optimistic path, so Board is stale (still shows job).
+                    // This is perfect!
+                }
+            },
+            duration: 7000,
+        })
     }
 
     // --- MOCKUP RENDERERS ---
@@ -1072,19 +1052,54 @@ export function SocialPostEditorDialog({ job, isOpen, onClose, onUpdate }: Socia
                                     </div>
                                 )}
                                 <div className="relative group">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-2">
+                                            {!isContentExpanded && (
+                                                <span className="text-xs text-muted-foreground">
+                                                    {content.length} символов
+                                                </span>
+                                            )}
+                                        </div>
+                                        {isContentExpanded && (
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => setIsContentExpanded(false)}
+                                                className="h-6 text-xs text-muted-foreground hover:text-foreground"
+                                            >
+                                                Свернуть ↑
+                                            </Button>
+                                        )}
+                                    </div>
                                     <textarea
                                         onSelect={handleSelect}
+                                        onClick={() => !isContentExpanded && setIsContentExpanded(true)}
                                         className={cn(
-                                            "w-full bg-background border-2 border-input rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all resize-none min-h-[400px] font-sans text-base leading-relaxed custom-scrollbar",
-                                            ['telegram', 'tg', 'site', 'website'].includes((job.platform || '').toLowerCase()) && "rounded-t-none border-t-0"
+                                            "w-full bg-background border-2 border-input rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 resize-none font-sans text-base leading-relaxed custom-scrollbar",
+                                            ['telegram', 'tg', 'site', 'website'].includes((job.platform || '').toLowerCase()) && "rounded-t-none border-t-0",
+                                            isContentExpanded ? "min-h-[400px]" : "min-h-[72px] max-h-[72px] cursor-pointer hover:border-emerald-400 overflow-hidden",
+                                            "transition-all duration-300 ease-in-out"
                                         )}
-                                        placeholder="Введите текст публикации... (поддерживается HTML)"
+                                        placeholder={isContentExpanded ? "Введите текст публикации... (поддерживается HTML)" : "Нажмите для редактирования текста..."}
                                         value={content}
                                         onChange={e => setContent(e.target.value)}
                                     />
 
+                                    {/* Expand Hint with Gradient Overlay */}
+                                    {!isContentExpanded && content && (
+                                        <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-background via-background/95 to-transparent pointer-events-none flex items-end justify-center pb-2">
+                                            <div className="bg-emerald-500/10 backdrop-blur-sm border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm">
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                                Нажмите для раскрытия
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Floating Magic Edit Button */}
-                                    {hasSelection && (
+                                    {hasSelection && isContentExpanded && (
                                         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 animate-in slide-in-from-bottom-2 fade-in zoom-in duration-200">
                                             <Button
                                                 type="button"
@@ -1241,6 +1256,8 @@ export function SocialPostEditorDialog({ job, isOpen, onClose, onUpdate }: Socia
                     onOpenChange={setIsMagicOpen}
                     originalText={selectionRange ? content.substring(selectionRange.start, selectionRange.end) : ''}
                     onSave={handleMagicSave}
+                    itemId={job.review_id || job.news_id || undefined}
+                    itemType={job.news_id ? 'news' : 'review'}
                 />
 
             </DialogContent>

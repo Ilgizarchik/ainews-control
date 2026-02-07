@@ -1,26 +1,35 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 
 export async function getSystemPrompt(key: string) {
     const supabaseAdmin = createAdminClient()
+    console.log(`[Prompts] Fetching prompt for key: ${key}`)
 
-    // Use .like to handle potential whitespace issues we saw earlier
-    const { data, error } = await supabaseAdmin
-        .from('system_prompts')
-        .select('content, key')
-        .like('key', `${key}%`)
-        .limit(1)
-        .single()
+    try {
+        // Use .like to handle potential whitespace issues we saw earlier
+        const { data, error } = await supabaseAdmin
+            .from('system_prompts')
+            .select('content, key')
+            .like('key', `${key}%`)
+            .limit(1)
 
-    if (error) {
-        console.error(`Error fetching prompt ${key}:`, error)
+        if (error) {
+            console.error(`[Prompts] Error fetching prompt ${key}:`, error)
+            return null
+        }
+
+        if (!data || data.length === 0) {
+            console.warn(`[Prompts] No prompt found for key matching prefix: ${key}`)
+            return null
+        }
+
+        return { content: (data[0] as any).content, fullKey: (data[0] as any).key }
+    } catch (e) {
+        console.error(`[Prompts] Unexpected error in getSystemPrompt:`, e)
         return null
     }
-
-    return { content: (data as any).content, fullKey: (data as any).key }
 }
 
 export async function updateSystemPrompt(key: string, content: string) {
@@ -32,7 +41,7 @@ export async function updateSystemPrompt(key: string, content: string) {
         .select('key')
         .like('key', `${key}%`)
         .limit(1)
-        .single()
+        .maybeSingle()
 
     const targetKey = (existing as any)?.key || key
 

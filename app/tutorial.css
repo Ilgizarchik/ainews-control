@@ -1,0 +1,168 @@
+/* Driver.js Premium Tutorial Styles 3.0 */
+
+/* 1. Основной контейнер попапа */
+div.driver-popover.premium-tutorial {
+  background: white !important;
+  color: oklch(0.141 0.005 285.823) !important;
+  border-radius: 20px !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+  padding: 24px !important;
+  max-width: 480px !important;
+  font-family: inherit !important;
+  z-index: 999999 !important; /* Чтобы было поверх модалок */
+}
+
+/* 2. Заголовок */
+.premium-tutorial .driver-popover-title {
+  font-size: 1.5rem !important;
+  font-weight: 800 !important;
+  line-height: 1.2 !important;
+  margin-bottom: 12px !important;
+  color: #10b981 !important; /* Солидный цвет вместо градиента для четкости */
+  letter-spacing: -0.01em !important;
+  -webkit-font-smoothing: antialiased !important;
+}
+
+/* 3. Описание и контент */
+.premium-tutorial .driver-popover-description {
+  font-size: 1rem !important;
+  line-height: 1.55 !important;
+  color: #1f2937 !important;
+  margin-bottom: 20px !important;
+  font-weight: 400 !important;
+}
+
+/* 5. КНОПКИ — ФИКС ЧИТАЕМОСТИ */
+.premium-tutorial .driver-popover-next-btn,
+.premium-tutorial .driver-popover-prev-btn {
+  height: 44px !important;
+  padding: 0 24px !important;
+  border-radius: 10px !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important; /* Уменьшил с 700 до 600, чтобы буквы не слипались */
+  letter-spacing: 0.02em !important; /* Добавил расстояние между буквами */
+  transition: all 0.2s ease !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  outline: none !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+}
+
+/* Кнопка "Далее" */
+.premium-tutorial .driver-popover-next-btn {
+  background: #059669 !important; /* Чуть темнее зеленый для контраста */
+  color: #ffffff !important;
+  border: none !important;
+  text-shadow: none !important; /* Убрал любые тени текста */
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3) !important;
+}
+
+.premium-tutorial .driver-popover-next-btn:hover {
+  background: #047857 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 15px rgba(5, 150, 105, 0.4) !important;
+}
+
+/* Кнопка "Назад" */
+.premium-tutorial .driver-popover-prev-btn {
+  background: #ffffff !important;
+  color: #4b5563 !important;
+  border: 1px solid #d1d5db !important;
+  text-shadow: none !important;
+}
+
+.premium-tutorial .driver-popover-prev-btn:hover {
+  background: #f9fafb !important;
+  border-color: #9ca3af !important;
+  color: #111827 !important;
+}
+
+/* ТЕМНАЯ ТЕМА */
+.dark div.driver-popover.premium-tutorial {
+  background: #18181b !important;
+  border-color: #27272a !important;
+}
+
+.dark .premium-tutorial .driver-popover-title {
+  color: #34d399 !important;
+}
+
+.dark .premium-tutorial .driver-popover-description {
+  color: #e5e7eb !important;
+}
+
+.dark .premium-tutorial .driver-popover-next-btn {
+  background: #10b981 !important;
+  color: #064e3b !important; /* Темный текст на светлом фоне в дарк-моде для MEGA-читаемости */
+  font-weight: 700 !important;
+}
+
+.dark .premium-tutorial .driver-popover-prev-btn {
+  background: #27272a !important;
+  color: #d1d5db !important;
+  border-color: #3f3f46 !important;
+}
+
+/* Подсветка активного элемента — ФИКС КОСЯКОВ */
+.driver-active-element {
+  /* Вместо резкого outline используем box-shadow для мягкого свечения */
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.4) !important;
+  border-radius: inherit !important; /* Наследуем скругление самого элемента */
+  transition: all 0.3s ease !important;
+  z-index: 999999 !important;
+}
+
+/* Скрываем стандартный фокус, если он мешает */
+.driver-active-element:focus {
+  outline: none !important;
+}
+
+/* 6. ФУТЕР И ПРОГРЕСС — ФИКС НАЛОЖЕНИЯ */
+.premium-tutorial .driver-popover-footer {
+  margin-top: 24px !important;
+  padding-top: 16px !important;
+  border-top: 1px solid rgba(0, 0, 0, 0.05) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 16px !important; /* Увеличил отступ между текстом и кнопками */
+}
+
+.premium-tutorial .driver-popover-progress-text {
+  font-size: 0.85rem !important;
+  font-weight: 600 !important;
+  color: #6b7280 !important;
+  flex-shrink: 0 !important; /* Не даем тексту сжиматься */
+  margin-right: auto !important;
+}
+
+/* Контейнер кнопок навигации */
+.premium-tutorial .driver-popover-navigation-btns {
+  display: flex !important;
+  gap: 8px !important; /* Расстояние между "Назад" и "Далее" */
+}
+
+.dark .premium-tutorial .driver-popover-footer {
+  border-top-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.dark .premium-tutorial .driver-popover-progress-text {
+  color: #9ca3af !important;
+}
+
+/* Фикс стрелочки поповера */
+.driver-popover-arrow {
+  border-width: 8px !important;
+}
+
+.premium-tutorial .driver-popover-arrow-side-bottom {
+  border-bottom-color: white !important;
+}
+
+.dark .premium-tutorial .driver-popover-arrow-side-bottom {
+  border-bottom-color: #18181b !important;
+}

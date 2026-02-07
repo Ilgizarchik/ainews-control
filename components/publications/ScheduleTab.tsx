@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Calendar } from '@/components/ui/calendar'
@@ -38,11 +38,7 @@ export function ScheduleTab({ contentId, contentType, onScheduled }: ScheduleTab
 
     const supabase = createClient()
 
-    useEffect(() => {
-        fetchRecipes()
-    }, [])
-
-    const fetchRecipes = async () => {
+    const fetchRecipes = useCallback(async () => {
         setLoading(true)
         try {
             const { data, error } = await supabase
@@ -59,7 +55,11 @@ export function ScheduleTab({ contentId, contentType, onScheduled }: ScheduleTab
         } finally {
             setLoading(false)
         }
-    }
+    }, [supabase])
+
+    useEffect(() => {
+        fetchRecipes()
+    }, [fetchRecipes])
 
     const handlePublish = async (immediate: boolean) => {
         if (!immediate && !scheduledDate) {
@@ -224,7 +224,7 @@ export function ScheduleTab({ contentId, contentType, onScheduled }: ScheduleTab
             {recipes.length === 0 && (
                 <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-lg p-4">
                     <p className="text-sm text-amber-800 dark:text-amber-200">
-                        ⚠️ Нет активных рецептов публикации. Настройте их в разделе "Рецепты".
+                        ⚠️ Нет активных рецептов публикации. Настройте их в разделе &quot;Рецепты&quot;.
                     </p>
                 </div>
             )}

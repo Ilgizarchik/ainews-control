@@ -36,7 +36,6 @@ import { TAG_COLORS, getTagColors } from "@/lib/tag-colors"
 import { PLATFORM_CONFIG, getPlatformConfig } from "@/lib/platform-config"
 import { SocialPostEditorDialog } from "./SocialPostEditorDialog"
 import { NewsEditorDialog } from "./NewsEditorDialog"
-import { cleanupDisabledPlatforms } from "@/app/actions/publish-actions"
 
 const AVAILABLE_TAGS = Object.keys(TAG_COLORS)
 
@@ -60,20 +59,7 @@ export function BoardView() {
     const [filterStatuses, setFilterStatuses] = useState<string[]>(['queued', 'processing'])
 
     useEffect(() => {
-        const init = async () => {
-            await fetchJobs()
-            // Запускаем очистку старых задач для выключенных соцсетей
-            try {
-                const res = await cleanupDisabledPlatforms()
-                if (res.success && typeof res.deletedCount === 'number' && res.deletedCount > 0) {
-                    toast.info(`Очистка: удалено ${res.deletedCount} задач для выключенных соцсетей`)
-                    fetchJobs()
-                }
-            } catch (e) {
-                console.error('Cleanup failed', e)
-            }
-        }
-        init()
+        fetchJobs()
     }, [fetchJobs])
 
     // Editor states
@@ -219,11 +205,11 @@ export function BoardView() {
                 <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
                     <h2 className="text-2xl font-bold tracking-tight shrink-0">Очередь публикаций</h2>
 
-                    <div className="flex items-center gap-2 overflow-x-auto pb-2 xl:pb-0 scrollbar-none -mx-4 px-4 xl:mx-0 xl:px-0">
+                    <div data-tutorial="board-filters" className="flex items-center gap-2 overflow-x-auto pb-2 xl:pb-0 scrollbar-none -mx-4 px-4 xl:mx-0 xl:px-0">
                         {/* Tags Filter */}
                         <Popover>
                             <PopoverTrigger asChild>
-                                <button className={cn(
+                                <button data-tutorial="board-filter-tags" className={cn(
                                     "flex-shrink-0 flex items-center gap-2 px-3 py-2 text-sm font-medium border rounded-md transition-all shadow-sm whitespace-nowrap",
                                     selectedTags.length > 0
                                         ? "bg-primary/5 border-primary/20 text-primary hover:bg-primary/10"
@@ -316,6 +302,7 @@ export function BoardView() {
                         <Popover>
                             <PopoverTrigger asChild>
                                 <button
+                                    data-tutorial="board-filter-status"
                                     className={cn(
                                         "flex-shrink-0 flex items-center gap-2 px-3 py-2 text-sm font-medium border rounded-md transition-all shadow-sm whitespace-nowrap",
                                         filterStatuses.length > 0 && filterStatuses.length < 5
@@ -369,7 +356,7 @@ export function BoardView() {
                         <div className="h-6 w-[1px] bg-border/60 mx-1 flex-shrink-0" />
 
                         {/* Sort Options */}
-                        <div className="flex items-center gap-2">
+                        <div data-tutorial="board-sort" className="flex items-center gap-2">
                             <button
                                 onClick={() => setSortBy('publish_at')}
                                 className={cn(
@@ -589,69 +576,94 @@ function NewsGroupCard({ group, activePlatforms, onEdit, onOpenEditor, onAddJob 
                 onOpenEditor();
             }}
             className={cn(
-                "bg-card border border-border/60 rounded-xl overflow-hidden flex flex-col transition-all duration-300 group h-full relative cursor-pointer",
-                "hover:shadow-xl hover:-translate-y-2 hover:border-border",
-                "border-l-[6px]",
+                "bg-card border border-border/60 rounded-xl flex flex-col transition-all duration-300 group h-full relative cursor-pointer overflow-hidden",
+                "hover:shadow-xl hover:-translate-y-1 hover:border-border",
+                "border-l-[4px]",
                 statusConfig.border
             )}
         >
             {/* Image Preview */}
             {group.draft_image_file_id && (
-                <div className="relative w-full h-40 overflow-hidden shrink-0 bg-card">
+                <div className="relative w-full h-40 overflow-hidden shrink-0 bg-muted/20">
                     <img
                         src={`/api/telegram/photo/${group.draft_image_file_id}`}
                         alt=""
-                        className="absolute inset-[-1px] w-[calc(100%+2px)] h-[calc(100%+2px)] object-cover transition-transform duration-500 group-hover:scale-110"
+                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                     />
-                    {/* Solid bottom gradient to perfectly blend with the card background */}
-                    <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-card via-card/90 to-transparent z-10" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-60" />
                 </div>
             )}
 
             {/* Content Container */}
-            <div className="p-5 flex flex-col gap-4 flex-1 relative z-20 bg-card -mt-1">
-                <div className="flex justify-between items-start gap-2">
-                    <h3 className="font-semibold text-base leading-snug text-foreground group-hover:text-primary transition-colors line-clamp-2 flex-1">
+            <div className="p-5 flex flex-col gap-4 flex-1">
+                <div className="space-y-2">
+                    <h3 className="font-bold text-base leading-tight text-foreground/90 group-hover:text-primary transition-colors line-clamp-2 min-h-[2.5em]">
                         {group.title}
                     </h3>
                 </div>
 
-                <div className="relative mt-auto pt-2 flex flex-wrap items-center gap-2.5">
+                {/* Vertical List of Jobs */}
+                <div className="space-y-1.5 mt-auto">
                     {sortedJobs.map(job => (
                         <PlatformTimeChip key={job.id} job={job} onClick={() => onEdit(job)} />
                     ))}
+                </div>
+
+                {/* Footer Actions */}
+                <div className="pt-3 mt-1 border-t border-border/40 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1">
+                        {/* Status Badge */}
+                        <div className={cn(
+                            "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
+                            group.status === 'published' ? "bg-emerald-500/10 text-emerald-600" :
+                                group.status === 'error' ? "bg-red-500/10 text-red-600" :
+                                    group.status === 'processing' ? "bg-amber-500/10 text-amber-600" :
+                                        "bg-blue-500/10 text-blue-600"
+                        )}>
+                            {group.status === 'published' ? 'Готово' :
+                                group.status === 'error' ? 'Ошибка' :
+                                    group.status === 'processing' ? 'В процессе' : 'В очереди'}
+                        </div>
+                    </div>
 
                     {/* Add Platform Button */}
                     {availablePlatforms.length > 0 && (
                         <Popover>
                             <PopoverTrigger asChild>
-                                <button className="group relative flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-md hover:shadow-lg hover:shadow-emerald-500/30 transition-all duration-300 hover:scale-110 active:scale-95">
-                                    <div className="absolute inset-0 rounded-full bg-emerald-400 opacity-0 group-hover:opacity-20 blur-md transition-opacity duration-300" />
-                                    <Plus className="relative w-4 h-4 text-white stroke-[2.5]" />
-                                    <div className="absolute inset-0 rounded-full border-2 border-emerald-400 opacity-0 group-hover:opacity-100 group-hover:scale-125 transition-all duration-500" />
-                                </button>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm transition-all hover:scale-110 active:scale-95"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                </Button>
                             </PopoverTrigger>
-                            <PopoverContent className="w-48 p-1" align="start">
-                                <div className="text-xs font-semibold text-muted-foreground px-2 py-1.5">
-                                    Добавить публикацию
+                            <PopoverContent className="w-52 p-1" align="end" side="top">
+                                <div className="text-[10px] uppercase font-bold text-muted-foreground/70 px-2 py-1.5 tracking-wider">
+                                    Добавить пост
                                 </div>
-                                {availablePlatforms.map(platform => {
-                                    const config = getPlatformConfig(platform)
-                                    const Icon = config.icon
-                                    return (
-                                        <button
-                                            key={platform}
-                                            onClick={(e) => {
-                                                e.stopPropagation()
-                                                onAddJob(group.id, group.type, platform)
-                                            }}
-                                            className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-sm hover:bg-accent text-left transition-colors"
-                                        >
-                                            <Icon className={cn("w-4 h-4", config.color)} />
-                                            <span>{config.label}</span>
-                                        </button>
-                                    )
-                                })}
+                                <div className="grid gap-0.5">
+                                    {availablePlatforms.map(platform => {
+                                        const config = getPlatformConfig(platform)
+                                        const Icon = config.icon
+                                        return (
+                                            <button
+                                                key={platform}
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    onAddJob(group.id, group.type, platform)
+                                                }}
+                                                className="w-full flex items-center gap-2.5 px-2 py-1.5 text-sm rounded-md hover:bg-accent/50 text-left transition-colors"
+                                            >
+                                                <div className={cn("p-1 rounded bg-muted/50", config.color.replace('text-', 'bg-').replace('600', '100').replace('500', '100'))}>
+                                                    <Icon className={cn("w-3.5 h-3.5", config.color)} />
+                                                </div>
+                                                <span className="flex-1">{config.label}</span>
+                                                <Plus className="w-3 h-3 text-muted-foreground/50" />
+                                            </button>
+                                        )
+                                    })}
+                                </div>
                             </PopoverContent>
                         </Popover>
                     )}
@@ -673,58 +685,42 @@ function PlatformTimeChip({ job, onClick }: { job: JobWithNews, onClick: () => v
     const isCurrentYear = date.getFullYear() === now.getFullYear()
     const timeStr = format(date, isCurrentYear ? 'd MMM, HH:mm' : 'd MMM yyyy, HH:mm', { locale: ru })
 
-    let containerStyle = cn(
-        "border-2 bg-gradient-to-br text-foreground shadow-sm hover:shadow-md",
-        borderColor,
-        bgColor
-    )
-    let iconStyle = color
-    let textStyle = "text-foreground font-medium"
-
-    if (isPublished) {
-        containerStyle = cn(
-            "bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/40 dark:to-emerald-900/20",
-            "border-2 border-emerald-300 dark:border-emerald-700",
-            "shadow-emerald-200/50 dark:shadow-emerald-900/30"
-        )
-        iconStyle = "text-emerald-600 dark:text-emerald-400"
-        textStyle = "text-emerald-700 dark:text-emerald-300 font-semibold"
-    } else if (isError) {
-        containerStyle = cn(
-            "bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-950/40 dark:to-red-900/20",
-            "border-2 border-red-300 dark:border-red-700",
-            "shadow-red-200/50 dark:shadow-red-900/30"
-        )
-        iconStyle = "text-red-600 dark:text-red-400"
-        textStyle = "text-red-700 dark:text-red-300 font-semibold"
-    }
-
     return (
         <TooltipProvider delayDuration={200}>
             <Tooltip>
                 <TooltipTrigger asChild>
                     <button
-                        onClick={onClick}
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            onClick()
+                        }}
                         className={cn(
-                            "flex items-center gap-2.5 pl-2.5 pr-3 py-2 rounded-lg text-xs transition-all active:scale-95 group/chip",
-                            "hover:scale-105 hover:-translate-y-0.5",
-                            containerStyle
+                            "flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[11px] transition-all active:scale-95 group/chip w-full border",
+                            isPublished ? "bg-emerald-500/5 border-emerald-500/20 text-emerald-700 dark:text-emerald-400" :
+                                isError ? "bg-red-500/5 border-red-500/20 text-red-700 dark:text-red-400" :
+                                    "bg-muted/40 border-border/40 text-muted-foreground hover:bg-muted hover:text-foreground"
                         )}
                     >
-                        <Icon className={cn("w-4 h-4", iconStyle)} />
-                        <span className={cn("font-mono tracking-tight whitespace-nowrap", textStyle)}>
+                        <div className={cn(
+                            "w-5 h-5 rounded flex items-center justify-center shrink-0",
+                            isPublished ? "bg-emerald-500/20" : isError ? "bg-red-500/20" : "bg-background shadow-sm"
+                        )}>
+                            <Icon className={cn("w-3 h-3", isPublished ? "text-emerald-600 dark:text-emerald-400" : isError ? "text-red-600 dark:text-red-400" : color)} />
+                        </div>
+
+                        <span className="font-medium truncate flex-1 text-left">
                             {timeStr}
                         </span>
-                        {isPublished && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 ml-0.5" />}
-                        {isError && <AlertCircle className="w-3.5 h-3.5 text-red-600 dark:text-red-400 ml-0.5" />}
-                        {!isPublished && !isError && (
-                            <div className="pl-1.5 border-l-2 border-border/50 ml-0.5">
-                                <MoreHorizontal className="w-3.5 h-3.5 text-muted-foreground/50 group-hover/chip:text-foreground transition-colors" />
-                            </div>
-                        )}
+
+                        <div className="flex items-center gap-1.5 shrink-0 opacity-60 group-hover/chip:opacity-100 transition-opacity">
+                            {isPublished && <CheckCircle2 className="w-3.5 h-3.5" />}
+                            {isError && <AlertCircle className="w-3.5 h-3.5" />}
+                            {!isPublished && !isError && <Clock className="w-3.5 h-3.5" />}
+                            <MoreHorizontal className="w-3.5 h-3.5 ml-0.5" />
+                        </div>
                     </button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom" className="text-xs">
+                <TooltipContent side="top" className="text-xs">
                     <p>Изменить время для <b>{label}</b></p>
                 </TooltipContent>
             </Tooltip>

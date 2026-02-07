@@ -68,7 +68,7 @@ export function PublicationEventCard({ event }: { event: any }) {
 
             setText(newText)
             setShowWand(false)
-        } catch (e) {
+        } catch {
             console.error('Failed to update text', e)
         }
     }
@@ -187,6 +187,8 @@ export function PublicationEventCard({ event }: { event: any }) {
                 onOpenChange={setEditorOpen}
                 originalText={text}
                 onSave={handleSave}
+                itemId={event.id || event.news_item_id || undefined}
+                itemType="news"
             />
         </>
     )

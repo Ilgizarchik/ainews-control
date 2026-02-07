@@ -8,6 +8,9 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Globe, Send, Clock, X, Star, GripVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { TutorialButton } from '@/components/tutorial/TutorialButton'
+import { getRecipesTutorialSteps } from '@/lib/tutorial/tutorial-config'
+
 import {
   DndContext,
   closestCenter,
@@ -150,6 +153,8 @@ export default function RecipesPage() {
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
 
+  const recipesTutorialSteps = useMemo(() => getRecipesTutorialSteps(), [])
+
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -260,9 +265,12 @@ export default function RecipesPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 py-10 px-4">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Настройка публикаций</h1>
-        <p className="text-muted-foreground mt-2">Управление правилами автоматизации и таймингами для ваших каналов.</p>
+      <div data-tutorial="recipes-header" className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Настройка публикаций</h1>
+          <p className="text-muted-foreground mt-2">Управление правилами автоматизации и таймингами для ваших каналов.</p>
+        </div>
+        <TutorialButton label="Помощь" steps={recipesTutorialSteps} variant="outline" className="h-10 px-4" />
       </div>
 
       <DndContext
@@ -278,13 +286,14 @@ export default function RecipesPage() {
             {loading ? (
               <div className="text-center py-10 text-muted-foreground">Загрузка конфигурации...</div>
             ) : (
-              recipes.map(r => (
+              recipes.map((r, index) => (
                 <SortableRecipeRow
                   key={r.id}
                   recipe={r}
                   onToggleActive={handleToggleActive}
                   onSetMain={handleSetMain}
                   onUpdateDelay={handleUpdateDelay}
+                  isFirst={index === 0}
                 />
               ))
             )}
@@ -310,7 +319,7 @@ function SortableRecipeRow(props: any) {
   }
 
   return (
-    <div ref={setNodeRef} style={style} className="relative group">
+    <div ref={setNodeRef} style={style} className="relative group" data-tutorial={props.isFirst ? "recipes-row" : undefined}>
       <RecipeRow {...props} dragHandle={{ ...attributes, ...listeners }} />
     </div>
   )
@@ -321,13 +330,15 @@ function RecipeRow({
   onToggleActive,
   onSetMain,
   onUpdateDelay,
-  dragHandle
+  dragHandle,
+  isFirst
 }: {
   recipe: any,
   onToggleActive: (id: string, val: boolean) => void,
   onSetMain: (id: string, isMain: boolean, isActive: boolean) => void,
   onUpdateDelay: (id: string, delay: number) => Promise<void>,
-  dragHandle?: any
+  dragHandle?: any,
+  isFirst?: boolean
 }) {
   const [delay, setDelay] = useState(String(recipe.delay_hours))
   const [isSaving, setIsSaving] = useState(false)
@@ -346,7 +357,7 @@ function RecipeRow({
     try {
       await onUpdateDelay(recipe.id, val)
       toast.success('Тайминг обновлен')
-    } catch (e) {
+    } catch {
       toast.error('Ошибка обновления')
     } finally {
       setIsSaving(false)
@@ -378,6 +389,7 @@ function RecipeRow({
           {/* Drag Handle */}
           <div
             {...dragHandle}
+            data-tutorial={isFirst ? "recipes-row-handle" : undefined}
             className="p-1.5 -ml-2 text-muted-foreground/40 hover:text-foreground cursor-grab active:cursor-grabbing hover:bg-muted/50 rounded-md transition-colors"
           >
             <GripVertical className="w-4 h-4" />
@@ -412,13 +424,14 @@ function RecipeRow({
               checked={recipe.is_active}
               onCheckedChange={(val) => onToggleActive(recipe.id, val)}
               className="data-[state=checked]:bg-emerald-500"
+              data-tutorial={isFirst ? "recipes-row-toggle" : undefined}
             />
           </div>
 
           <div className="h-8 w-[1px] bg-border hidden sm:block" />
 
           {/* Основной канал (Звезда) */}
-          <div className="flex items-center justify-center w-[60px]">
+          <div className="flex items-center justify-center w-[60px]" data-tutorial={isFirst ? "recipes-row-star" : undefined}>
             <Button
               variant="ghost"
               size="icon"
@@ -438,7 +451,7 @@ function RecipeRow({
 
           {/* Тайминг (Задержка) */}
           <div className="flex items-center justify-end gap-2 min-w-[280px]">
-            <div className="relative w-28">
+            <div className="relative w-28" data-tutorial={isFirst ? "recipes-row-delay" : undefined}>
               <Clock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
               <Input
                 type="number"
@@ -473,6 +486,7 @@ function RecipeRow({
                     className="h-8 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium"
                     onClick={handleSave}
                     disabled={isSaving}
+                    data-tutorial={isFirst ? "recipes-row-save" : undefined}
                   >
                     {isSaving ? '...' : 'Сохранить'}
                   </Button>

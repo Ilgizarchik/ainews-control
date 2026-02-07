@@ -2,8 +2,7 @@
 
 @plugin "tailwindcss-animate";
 
-/* React Day Picker Base Styles */
-@import "react-day-picker/style.css";
+
 
 @custom-variant dark (&:is(.dark *));
 
@@ -101,7 +100,7 @@
 
 @layer base {
   * {
-    @apply border-border;
+    @apply border-border outline-ring/50;
   }
 
   body {
@@ -324,14 +323,4 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.552 0.016 285.938);
-}
-
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-
-  body {
-    @apply bg-background text-foreground;
-  }
 }

@@ -8,7 +8,7 @@ class Logger {
     }
 
     info(message: string, data?: any) {
-        console.log(this.format('info', message, data));
+        console.info(this.format('info', message, data));
     }
 
     warn(message: string, data?: any) {
@@ -22,7 +22,7 @@ class Logger {
 
     debug(message: string, data?: any) {
         if (process.env.NODE_ENV !== 'production') {
-            console.log(this.format('debug', message, data));
+            console.debug(this.format('debug', message, data));
         }
     }
 }

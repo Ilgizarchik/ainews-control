@@ -4,22 +4,23 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { Loader2, Wand2, Image as ImageIcon, Sparkles, Mic } from 'lucide-react'
+import { Loader2, Wand2, Image as ImageIcon, Sparkles } from 'lucide-react'
 import { VoiceInput } from '@/components/ui/voice-input'
 import { toast } from 'sonner'
 import { regenerateNewsImage, updateItemImage } from '@/app/actions/image-actions'
-import { cn } from '@/lib/utils'
 import { Upload } from 'lucide-react'
 import { useRef } from 'react'
+import { type DriveStep } from 'driver.js'
 
 interface MediaTabProps {
     contentId: string
     contentType: 'news' | 'review'
     initialImageUrl?: string | null
     onUpdated: (newUrl: string, newPrompt: string) => void
+    tutorialSteps?: DriveStep[]
 }
 
-export function MediaTab({ contentId, contentType, initialImageUrl, onUpdated }: MediaTabProps) {
+export function MediaTab({ contentId, contentType, initialImageUrl, onUpdated, tutorialSteps: _tutorialSteps }: MediaTabProps) {
     const [adminNotes, setAdminNotes] = useState('')
     const [imageUrl, setImageUrl] = useState(initialImageUrl)
     const [loading, setLoading] = useState(false)
@@ -45,7 +46,7 @@ export function MediaTab({ contentId, contentType, initialImageUrl, onUpdated }:
             } else {
                 toast.error(`Ошибка: ${result.error}`, { id: toastId })
             }
-        } catch (error) {
+        } catch {
             toast.error('Ошибка при генерации', { id: toastId })
         } finally {
             setLoading(false)
@@ -105,7 +106,7 @@ export function MediaTab({ contentId, contentType, initialImageUrl, onUpdated }:
                         <Sparkles className="w-4 h-4 text-purple-500" />
                         Пожелания к иллюстрации
                     </Label>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
                         <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">AI учтет это</span>
                         <VoiceInput
                             className="h-8 w-8 hover:bg-purple-50 hover:text-purple-600 border border-transparent hover:border-purple-100"

@@ -16,19 +16,17 @@ export async function POST(req: NextRequest) {
             if (body && Array.isArray(body.job_ids)) {
                 job_ids = body.job_ids;
             }
-        } catch (e) {
+        } catch {
             // Тело пустое или не JSON - ок, работаем как планировщик
         }
 
         if (job_ids) {
-            console.log(`[Cron] Force triggering publication for ${job_ids.length} jobs:`, job_ids)
             const { processPublishJob } = await import('@/lib/publishers/service')
             const results = await Promise.all(
                 job_ids.map(id => processPublishJob(id))
             )
             return NextResponse.json({ success: true, processed: job_ids.length, results })
         } else {
-            console.log('[Cron] Checking publication schedule...')
             const { checkAndRunPublishSchedule } = await import('@/lib/scheduler')
             const results = await checkAndRunPublishSchedule()
             return NextResponse.json({ ...results })

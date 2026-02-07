@@ -1,6 +1,5 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { getAISettings } from '@/lib/ai-service'
 
 const PROVIDER_URLS: Record<string, string> = {
@@ -64,7 +63,6 @@ export async function getModelsForProvider(provider: string) {
             }
         }
 
-        console.log(`[ServerAction] Fetching models for ${provider} from ${endpoint}`)
         const response = await undiciFetch(endpoint, fetchOptions)
 
         if (!response.ok) {

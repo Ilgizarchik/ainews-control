@@ -1,10 +1,10 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { Calendar, momentLocalizer, Views, Event as RBCEvent } from 'react-big-calendar'
-import withDragAndDrop, { withDragAndDropProps } from 'react-big-calendar/lib/addons/dragAndDrop'
-import moment from 'moment'
-import 'moment/locale/ru'
+import { Calendar, dateFnsLocalizer, Event as RBCEvent } from 'react-big-calendar'
+import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop'
+import { addDays, addMonths, addWeeks, endOfMonth, format, getDay, parse, startOfMonth, startOfWeek, subDays, subMonths, subWeeks } from 'date-fns'
+import { ru } from 'date-fns/locale'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css'
 import { useCalendarJobs } from '@/hooks/useCalendarJobs'
@@ -18,8 +18,17 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { SocialPostEditorDialog } from './SocialPostEditorDialog'
 import { JobWithNews } from '@/hooks/useBoardJobs'
 
-moment.locale('ru')
-const localizer = momentLocalizer(moment)
+const locales = { ru }
+const localizer = dateFnsLocalizer({
+    format,
+    parse,
+    startOfWeek: (date, culture) => {
+        const locale = locales[(culture as keyof typeof locales) ?? 'ru'] || ru
+        return startOfWeek(date, { locale, weekStartsOn: 1 })
+    },
+    getDay,
+    locales
+})
 
 const DragAndDropCalendar = withDragAndDrop(Calendar)
 
@@ -61,8 +70,8 @@ export function CalendarViewBig() {
 
     const refreshCalendar = useCallback(() => {
         // Fetch jobs for current month view
-        const start = moment(currentDate).startOf('month').subtract(7, 'days').toDate()
-        const end = moment(currentDate).endOf('month').add(7, 'days').toDate()
+        const start = subDays(startOfMonth(currentDate), 7)
+        const end = addDays(endOfMonth(currentDate), 7)
         fetchJobs(start, end)
     }, [currentDate, fetchJobs])
 
@@ -199,7 +208,7 @@ export function CalendarViewBig() {
                             variant="ghost"
                             size="icon"
                             className="h-9 w-9 rounded-none hover:bg-muted"
-                            onClick={() => handleNavigate(moment(currentDate).subtract(1, viewType === 'month' ? 'month' : 'week').toDate())}
+                            onClick={() => handleNavigate(viewType === 'month' ? subMonths(currentDate, 1) : subWeeks(currentDate, 1))}
                         >
                             <ChevronLeft className="h-4 w-4" />
                         </Button>
@@ -215,7 +224,7 @@ export function CalendarViewBig() {
                             variant="ghost"
                             size="icon"
                             className="h-9 w-9 rounded-none hover:bg-muted"
-                            onClick={() => handleNavigate(moment(currentDate).add(1, viewType === 'month' ? 'month' : 'week').toDate())}
+                            onClick={() => handleNavigate(viewType === 'month' ? addMonths(currentDate, 1) : addWeeks(currentDate, 1))}
                         >
                             <ChevronRight className="h-4 w-4" />
                         </Button>
@@ -246,6 +255,7 @@ export function CalendarViewBig() {
             <div className="flex-1 min-h-0 p-4 bg-background">
                 <DragAndDropCalendar
                     localizer={localizer}
+                    culture="ru"
                     events={events}
                     startAccessor={(event: any) => event.start}
                     endAccessor={(event: any) => event.end}

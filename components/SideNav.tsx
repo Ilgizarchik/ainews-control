@@ -1,9 +1,10 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Calendar, FileText, Terminal, Settings, LayoutDashboard, ChevronDown, ChevronRight, BookOpen } from 'lucide-react'
+import { Calendar, FileText, Terminal, Settings, ChevronDown, ChevronRight, BookOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import { TutorialButton } from './tutorial/TutorialButton'
 
 type NavItem = {
   title: string
@@ -35,7 +36,7 @@ export function SideNav() {
 
 
   return (
-    <nav className="flex flex-col gap-2 p-4 w-64 border-r border-border h-full bg-card" suppressHydrationWarning>
+    <nav className="flex flex-col gap-2 p-4 w-64 border-r border-border h-full bg-card" data-tutorial="navigation" suppressHydrationWarning>
       <Link
         href="/publications"
         className="flex items-center gap-3 mb-8 px-2 transition-opacity hover:opacity-80"
@@ -110,6 +111,11 @@ export function SideNav() {
           </div>
         )
       })}
+
+      {/* Кнопка туториала */}
+      <div className="mt-auto pt-4 border-t border-border flex justify-center">
+        <TutorialButton />
+      </div>
     </nav>
   )
 }

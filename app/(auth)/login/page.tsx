@@ -28,7 +28,7 @@ export default function LoginPage() {
         router.push('/publications')
         router.refresh()
       }
-    } catch (err) {
+    } catch {
       toast.error('An unexpected error occurred')
     } finally {
       setLoading(false)

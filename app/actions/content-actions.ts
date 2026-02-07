@@ -2,11 +2,10 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { ContentItem, ContentStats, ContentFilter } from '@/types/content'
+import { ContentStats, ContentFilter } from '@/types/content'
 import type { Database } from '@/types/database.types'
 import type { ContentActionResult } from '@/types/content-actions'
 
-const APPROVE1_PENDING_STATUS: Database['public']['Enums']['news_status'] = 'found'
 const STALE_ERROR = { code: 'STALE_DATA', message: 'Already processed' } as const
 
 
@@ -66,17 +65,18 @@ export async function approveContentItem(
     const adminDb = createAdminClient()
 
     try {
-        // 1. Сначала помечаем как одобренное модератором (Gate 1)
+        // 1. Mark as 'processing' (hide from Pending list, keep out of Approved list)
         const { data, error, count } = await ((adminDb
             .from('news_items') as any)
             .update({
-                approve1_decision: 'approved',
+                approve1_decision: 'processing',
                 approve1_decided_at: new Date().toISOString(),
                 approve1_decided_by: userId,
                 status: 'approved_for_adaptation'
             }, { count: 'exact' })
             .eq('id', newsId)
-            .eq('status', APPROVE1_PENDING_STATUS)
+            // .is('approve1_decision', null) // Relax condition if we retry? No, stick to raw.
+            .is('approve1_decision', null)
             .select() as any)
 
         if (error) {
@@ -84,26 +84,39 @@ export async function approveContentItem(
             return { success: false, error: { code: 'SUPABASE_ERROR', message: error.message } }
         }
 
-        if (!count) {
+        if (!count || !data || data.length === 0) {
             return { success: false, error: STALE_ERROR }
         }
 
-        if (!data || data.length === 0) {
-            return { success: false, error: STALE_ERROR }
-        }
-
-        // 2. Запускаем логику генерации черновиков и ЖДЁМ завершения
+        // 2. Run Generation (Wait for completion)
         const { processApprovedNews } = await import('@/lib/generation-service')
 
         try {
-            console.log(`[ContentAction] Waiting for generation... ${newsId}`)
             await processApprovedNews(newsId)
-            console.log(`[ContentAction] Generation complete for ${newsId}`)
-        } catch (genError) {
+
+            // 3. SUCCESS: Mark as truly approved
+            await ((adminDb
+                .from('news_items') as any)
+                .update({ approve1_decision: 'approved' })
+                .eq('id', newsId) as any)
+
+        } catch (genError: any) {
             console.error(`[ContentAction] Error processing news ${newsId}:`, genError)
+
+            // 4. ERROR: Revert to Pending
+            await ((adminDb
+                .from('news_items') as any)
+                .update({
+                    approve1_decision: null,
+                    status: 'error',
+                    gate1_reason: `Generation Error: ${genError.message}`
+                })
+                .eq('id', newsId) as any)
+
+            const errorMsg = genError instanceof Error ? genError.message : String(genError)
             return {
                 success: false,
-                error: { code: 'GENERATION_ERROR', message: `Ошибка генерации: ${genError}` }
+                error: { code: 'GENERATION_ERROR', message: `Ошибка генерации: ${errorMsg}` }
             }
         }
 
@@ -140,7 +153,7 @@ export async function rejectContentItem(
                 status: 'rejected'
             }, { count: 'exact' })
             .eq('id', newsId)
-            .eq('status', APPROVE1_PENDING_STATUS)
+            .is('approve1_decision', null)
             .select() as any)
 
         if (error) {
@@ -166,10 +179,7 @@ export async function rejectContentItem(
     }
 }
 
-export async function markContentViewed(
-    newsId: string,
-    userIdArg: string = 'dashboard'
-): Promise<ContentActionResult> {
+export async function markContentViewed(newsId: string): Promise<ContentActionResult> {
     const adminDb = createAdminClient()
     try {
         const { error } = await ((adminDb
@@ -200,7 +210,7 @@ export async function getContentStatsBySource(filter: ContentFilter = 'pending')
     } else if (filter === 'rejected') {
         query = query.eq('approve1_decision', 'rejected')
     } else {
-        query = query.neq('gate1_decision', null)
+        // query = query.neq('gate1_decision', null) // Removed to include raw items
     }
 
     const { data, error } = await query

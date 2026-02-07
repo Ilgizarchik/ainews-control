@@ -37,7 +37,6 @@ export class ThreadsPublisher implements IPublisher {
             const proxyUrl = job.config?.meta_proxy_url || job.config?.twitter_proxy_url;
             const proxyAgent = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
             if (proxyAgent) {
-                console.log(`[Threads] Applying LOCAL proxy: ${proxyUrl}`);
             }
 
             // 1. Resolve User ID
@@ -64,7 +63,6 @@ export class ThreadsPublisher implements IPublisher {
 
             // ПОПЫТКА 1: С КАРТИНКОЙ (если есть)
             if (hasImage) {
-                console.log('[Threads] Attempting IMAGE post...');
                 try {
                     return await this.executePublish(uId!, token, 'IMAGE', text, proxyAgent, imageUrl);
                 } catch (imgErr: any) {
@@ -73,7 +71,6 @@ export class ThreadsPublisher implements IPublisher {
             }
 
             // ПОПЫТКА 2: ТОЛЬКО ТЕКСТ (Fallback или если картинки нет)
-            console.log('[Threads] Attempting TEXT post...');
             return await this.executePublish(uId!, token, 'TEXT', text, proxyAgent);
 
         } catch (error: any) {

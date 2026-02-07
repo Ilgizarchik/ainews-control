@@ -46,7 +46,6 @@ export class PublishService {
     private supabase = createClient()
 
     async processPublication(jobId: string): Promise<PublishResult> {
-        console.log(`[PublishService] Starting job ${jobId}...`)
 
         // 1. Fetch job with item data
         const { data: job, error: jobError } = await this.supabase
@@ -84,7 +83,6 @@ export class PublishService {
         // Check Safe Mode
         const isSafeMode = config.safe_publish_mode === true || String(config.safe_publish_mode) === 'true'
         if (isSafeMode) {
-            console.log(`[PublishService] !! SAFE MODE ACTIVE !! Skipping actual post for ${jobWithItems.platform}`)
             // Simulate success
             const simulatedResult: PublishResult = {
                 success: true,
@@ -176,7 +174,6 @@ export class PublishService {
                     if (result.published_url) updateData.published_url = result.published_url;
 
                     if (Object.keys(updateData).length > 0) {
-                        console.log(`[PublishService] Syncing stable Tilda data back to ${table}:${item.id}`, updateData);
                         await this.supabase
                             .from(table)
                             .update(updateData)

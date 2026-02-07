@@ -12,13 +12,11 @@ interface ReviewGenerationRequest {
 }
 
 export async function POST(req: Request) {
-    console.log('🚀 API /api/ai/generate-review called');
     const supabase = await createClient();
 
     try {
         const { title_seed, factpack, draft_image_file_id, user_chat_id }: ReviewGenerationRequest = await req.json();
 
-        console.log('📝 Request data:', { title_seed, has_factpack: !!factpack, has_image: !!draft_image_file_id });
 
         if (!title_seed) {
             return NextResponse.json({ error: 'title_seed is required' }, { status: 400 });
@@ -48,8 +46,6 @@ export async function POST(req: Request) {
             return acc;
         }, {});
 
-        console.log('📋 Retrieved prompt keys:', Object.keys(promptMap));
-        console.log('🔍 Prompts count:', prompts.data?.length);
 
         // Проверяем наличие всех обязательных промтов
         const requiredPrompts = ['review_title', 'review_announce', 'review_longread', 'review_image_prompt'];
@@ -149,9 +145,7 @@ export async function POST(req: Request) {
         if (!savedImageFileId && imagePrompt) {
             tasks.push((async () => {
                 try {
-                    console.log('🎨 Generating image with prompt:', imagePrompt);
                     const imageUrl = await generateImage(imagePrompt);
-                    console.log('📸 Sending photo to Telegram:', imageUrl);
 
                     // Отправляем в чат, чтобы получить file_id
                     // Используем user_chat_id как recipient

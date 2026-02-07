@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { Mic, MicOff, Loader2 } from 'lucide-react'
+import { Mic, MicOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -72,7 +72,7 @@ export function VoiceInput({ onTranscription, className }: VoiceInputProps) {
                             duration: 10000,
                             action: {
                                 label: 'Понятно',
-                                onClick: () => console.log('User dismissed help')
+                                onClick: () => { }
                             }
                         })
                     } else if (event.error === 'no-speech') {

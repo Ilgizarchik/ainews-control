@@ -13,7 +13,6 @@ export async function POST(req: Request) {
         const cleanBaseUrl = baseUrl.replace(/\/$/, "");
         const endpoint = `${cleanBaseUrl}/models`;
 
-        console.log(`[AI Proxy] Fetching models from: ${endpoint}`);
 
         const headers: Record<string, string> = {
             'Content-Type': 'application/json',
@@ -36,7 +35,6 @@ export async function POST(req: Request) {
         };
 
         if (proxyUrl) {
-            console.log(`[AI Proxy] Using Proxy: ${proxyUrl}`);
             try {
                 fetchOptions.dispatcher = new ProxyAgent(proxyUrl);
             } catch (e: any) {
@@ -58,7 +56,7 @@ export async function POST(req: Request) {
             let errorJson;
             try {
                 errorJson = JSON.parse(errorText);
-            } catch (e) {
+            } catch {
                 errorJson = { details: errorText };
             }
 
@@ -69,15 +67,6 @@ export async function POST(req: Request) {
         }
 
         const data: any = await response.json();
-
-        // Debug logging
-        if (data.data && Array.isArray(data.data)) {
-            console.log(`[AI Proxy] Provider returned ${data.data.length} models.`);
-        } else if (Array.isArray(data)) {
-            console.log(`[AI Proxy] Provider returned ${data.length} models (array).`);
-        } else {
-            console.log(`[AI Proxy] Provider returned non-array structure. Keys: ${Object.keys(data).join(', ')}`);
-        }
 
         return NextResponse.json(data);
 

@@ -11,9 +11,7 @@ import {
     Underline as UnderlineIcon,
     List,
     ListOrdered,
-    Link as LinkIcon,
     Quote,
-    Heading1,
     Heading2,
     Code,
     Undo,
@@ -48,6 +46,8 @@ type RichEditorProps = {
     value: string
     onChange: (value: string) => void
     className?: string
+    itemId?: string
+    itemType?: 'news' | 'review'
 }
 
 const HashtagHighlighter = Extension.create({
@@ -229,7 +229,7 @@ const Toolbar = ({ editor }: { editor: Editor | null }) => {
 
 import BubbleMenuExtension from '@tiptap/extension-bubble-menu'
 
-export function RichEditor({ value, onChange, className }: RichEditorProps) {
+export function RichEditor({ value, onChange, className, itemId, itemType }: RichEditorProps) {
     const [magicOpen, setMagicOpen] = useState(false)
     const [selectionText, setSelectionText] = useState('')
     const [bubblePos, setBubblePos] = useState<{ top: number, left: number } | null>(null)
@@ -359,6 +359,8 @@ export function RichEditor({ value, onChange, className }: RichEditorProps) {
                     onOpenChange={setMagicOpen}
                     originalText={selectionText}
                     onSave={handleMagicSave}
+                    itemId={itemId}
+                    itemType={itemType}
                 />
             </div>
         </div>

@@ -3,7 +3,6 @@ import { runIngestion } from '@/lib/ingestion/service'
 import { addMinutes, isAfter } from 'date-fns'
 
 export async function checkAndRunScheduleCore() {
-    // console.log('[Scheduler] Checking schedule...') // Uncomment for debug
     const supabase = createAdminClient()
 
     // 1. Get Schedule Config
@@ -72,7 +71,6 @@ export async function checkAndRunScheduleCore() {
     }
 
     if (shouldRun) {
-        console.log(`[Scheduler] [${reason}] Start ingestion check...`)
 
         // НЕМЕДЛЕННО обновляем глобальную метку, чтобы другие циклы (через минуту) 
         // увидели, что мы уже в процессе или только что запустились.
@@ -94,14 +92,19 @@ export async function checkAndRunScheduleCore() {
     return { triggered: false, reason: 'not-time-yet' }
 }
 
+// End of checkAndRunScheduleCore
 export async function checkAndRunPublishSchedule() {
     const supabase = createAdminClient()
     const now = new Date().toISOString()
 
-    // 1. Находим все задачи, которые должны быть опубликованы к этому моменту
-    const { data: jobs, error } = await supabase
+
+
+    // RE-WRITING THE WHOLE FUNCTION logic to be safe and clean
+
+    // 1. Find jobs due
+    const { data: jobsWithPlatform, error } = await supabase
         .from('publish_jobs')
-        .select('id')
+        .select('id, platform')
         .eq('status', 'queued')
         .lte('publish_at', now)
 
@@ -110,22 +113,39 @@ export async function checkAndRunPublishSchedule() {
         return { success: false, error: error.message }
     }
 
-    if (!jobs || jobs.length === 0) {
+    if (!jobsWithPlatform || jobsWithPlatform.length === 0) {
         return { success: true, processed: 0 }
     }
 
-    console.log(`[Scheduler] Found ${jobs.length} publish jobs to process.`)
-
     const { processPublishJob } = await import('@/lib/publishers/service')
 
-    // 2. Выполняем каждую задачу
-    const results = await Promise.all(
-        jobs.map(job => processPublishJob(job.id))
-    )
+    // 2. Prioritize 'site' publication
+    const siteJobIds = jobsWithPlatform.filter((j: any) => j.platform === 'site' || j.platform === 'tilda').map((j: any) => j.id)
+    const otherJobIds = jobsWithPlatform.filter((j: any) => j.platform !== 'site' && j.platform !== 'tilda').map((j: any) => j.id)
+
+    const results: any[] = []
+
+    // 2.1 Run Site jobs SEQUENTIALLY first to ensure links are generated
+    if (siteJobIds.length > 0) {
+        console.log(`[Scheduler] Processing ${siteJobIds.length} site jobs first...`)
+        for (const id of siteJobIds) {
+            const res = await processPublishJob(id)
+            results.push(res)
+        }
+    }
+
+    // 2.2 Run others in parallel
+    if (otherJobIds.length > 0) {
+        console.log(`[Scheduler] Processing ${otherJobIds.length} other jobs...`)
+        const otherResults = await Promise.all(
+            otherJobIds.map((id: string) => processPublishJob(id))
+        )
+        results.push(...otherResults)
+    }
 
     return {
         success: true,
-        processed: jobs.length,
+        processed: jobsWithPlatform.length,
         results
     }
 }

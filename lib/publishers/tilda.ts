@@ -38,7 +38,6 @@ export class TildaPublisher implements IPublisher {
             let imageUrl = '';
             if (context.image_url) {
                 try {
-                    console.log(`[Tilda] Starting image upload for: ${context.image_url}`);
                     imageUrl = await this.uploadImageToTilda(context.image_url, validKeys);
                     if (!imageUrl) {
                         throw new Error("Upload returned empty URL (check logs)");
@@ -107,7 +106,6 @@ export class TildaPublisher implements IPublisher {
         const fId = String(this.feedUid || '').trim();
 
         const url = `https://feeds.tilda.ru/posts/?feeduid=${fId}&projectid=${pId}`;
-        console.log(`[Tilda] Fetching keys from ${url} with cookies (len=${this.cookies.length})`);
 
         const res = await fetch(url, {
             headers: this.getCommonHeaders(),
@@ -165,7 +163,6 @@ export class TildaPublisher implements IPublisher {
             // 3. Send to Tilda Upload API
             const uploadUrl = `https://upload.tildacdn.com/api/upload/?publickey=${keys.publickey}&uploadkey=${keys.uploadkey}`;
 
-            console.log(`[Tilda] Uploading image (Blob size: ${blob.size}) to ${uploadUrl}`);
 
             const uploadRes = await fetch(uploadUrl, {
                 method: 'POST',
@@ -203,7 +200,6 @@ export class TildaPublisher implements IPublisher {
                 throw new Error(`Upload successful but no URL found in response: ${JSON.stringify(uploadJson)}`);
             }
 
-            console.log(`[Tilda] Image Upload Success: ${finalUrl}`);
             return finalUrl;
 
         } catch (e: any) {
@@ -223,7 +219,6 @@ export class TildaPublisher implements IPublisher {
         paramsAdd.append('title', context.title);
         paramsAdd.append('action', 'posts_Add');
 
-        console.log('[Tilda] Step 1: Creating Draft (posts_Add)...');
 
         const resAdd = await fetch('https://feeds.tilda.ru/submit/', {
             method: 'POST',
@@ -252,7 +247,6 @@ export class TildaPublisher implements IPublisher {
                 if (textAdd.includes('Недостаточно данных')) return { success: false, error: 'Tilda: Недостаточно данных (Step 1). Content-Type mismatched?', raw_response: textAdd };
                 return { success: false, error: 'Step 1 Failed: No UID returned', raw_response: textAdd };
             }
-            console.log(`[Tilda] Draft Created. UID: ${postuid}`);
 
         } catch (e: any) {
             return { success: false, error: `Step 1 Exception: ${e.message}` };
@@ -295,7 +289,6 @@ export class TildaPublisher implements IPublisher {
             paramsEdit.append('thumb', imageUrl);
         }
 
-        console.log('[Tilda] Step 2: Updating Content (posts_Edit)...');
 
         const resEdit = await fetch('https://feeds.tilda.ru/submit/', {
             method: 'POST',
@@ -321,7 +314,6 @@ export class TildaPublisher implements IPublisher {
         }
 
         // --- STEP 3: PUBLISH (posts_Active) ---
-        console.log('[Tilda] Step 3: Activating Post (posts_Active)...');
         const paramsActive = new URLSearchParams();
         paramsActive.append('postuid', postuid);
         paramsActive.append('action', 'posts_Active');
@@ -340,7 +332,6 @@ export class TildaPublisher implements IPublisher {
         // We assume success if no hard error, but can check response if needed
 
         // --- STEP 4: GET LINK (posts_Get) ---
-        console.log('[Tilda] Step 4: Getting Link (posts_Get)...');
         const paramsGet = new URLSearchParams();
         paramsGet.append('postuid', postuid);
         paramsGet.append('action', 'posts_Get');

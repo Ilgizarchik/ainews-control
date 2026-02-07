@@ -1,10 +1,11 @@
 import * as cheerio from 'cheerio'
 import Parser from 'rss-parser'
-import iconv from 'iconv-lite'
+import { fetch as undiciFetch } from 'undici'
 import { LEGACY_SOURCES, IngestionSource } from './sources'
 import { createClient } from '@/lib/supabase/server'
-import { createClient as createParamsClient, SupabaseClient } from '@supabase/supabase-js' // Fallback for pure utils if execution context differs, but here we use server action context
-
+import { createClient as createParamsClient, SupabaseClient } from '@supabase/supabase-js'
+import { Database } from '@/types/database.types'
+import { processGate1 } from '../generation-service'
 
 // Types for parsed items
 export type ParsedItem = {
@@ -17,12 +18,38 @@ export type ParsedItem = {
     externalId?: string
 }
 
-// Helper to fetch valid HTML (handling CP1251 if needed, though most are UTF8 now)
-// We use simple fetch, but if we need CP1251 we might need arrayBuffer
+// Helper for proxy
+async function getProxyDispatcher() {
+    try {
+        const supabase = await createClient()
+        const { data } = await supabase
+            .from('project_settings')
+            .select('value')
+            .eq('project_key', 'ainews')
+            .eq('key', 'ai_proxy_url')
+            .single()
+
+        if (data?.value) {
+            const { ProxyAgent } = await import('undici')
+            return new ProxyAgent(data.value)
+        }
+    } catch { }
+    return undefined
+}
+
+// Helper to fetch valid HTML
 async function fetchHtml(url: string): Promise<string> {
-    const res = await fetch(url, {
+    const dispatcher = await getProxyDispatcher()
+
+    // Modern headers to mimic the scanner's successful logic
+    const res = await undiciFetch(url, {
+        dispatcher: dispatcher as any,
         headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
         }
     })
     if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`)
@@ -59,15 +86,14 @@ async function parseUniversalHtml(source: IngestionSource): Promise<ParsedItem[]
 
         let fullLink = link
         if (!link.startsWith('http')) {
-            const baseUrl = new URL(source.url).origin
-            fullLink = new URL(link, baseUrl).toString()
+            fullLink = new URL(link, source.url).toString()
         }
 
         items.push({
             title: extract(s.title),
             link: fullLink,
             summary: extract(s.summary),
-            publishedAt: null, // Agent usually doesn't return reliable date parsers yet
+            publishedAt: extract(s.date),
             imageUrl: extract(s.image, 'src'),
             sourceName: source.name || new URL(source.url).hostname,
             externalId: fullLink
@@ -84,13 +110,11 @@ async function parseRss(source: IngestionSource): Promise<ParsedItem[]> {
         }
     })
 
-    // Some RSS feeds have issues with encoding or weird headers, better fetch text manually
     const text = await fetchHtml(source.url)
     const feed = await parser.parseString(text)
 
     return feed.items.map(item => {
         let imageUrl = item.enclosure?.url || item.image?.url || null
-        // fallback: try to find img in content
         if (!imageUrl && item.content) {
             const $ = cheerio.load(item.content)
             imageUrl = $('img').attr('src') || null
@@ -123,7 +147,6 @@ async function parseHuntingRu(source: IngestionSource): Promise<ParsedItem[]> {
     const html = await fetchHtml(source.url)
     const $ = cheerio.load(html)
     const items: ParsedItem[] = []
-
     const baseUrl = new URL(source.url).origin
 
     $('.content__central .record.btn-hidden-wrap').each((_, el) => {
@@ -131,18 +154,13 @@ async function parseHuntingRu(source: IngestionSource): Promise<ParsedItem[]> {
         const $link = $el.find('a.record__title')
         const link = $link.attr('href')
         if (!link) return
-
         const fullLink = link.startsWith('http') ? link : new URL(link, baseUrl).toString()
-
-        // Date parsing is tricky for RU text ("20 мая 2024"), skipping complex logic for MVP, using Now or attempting standard
-        // In n8n we had specific parser. Let's try to extract standard attributes if possible.
-        // For MVP, we will set publishedAt to null or current time if not parsable.
 
         items.push({
             title: $link.text().trim(),
             link: fullLink,
             summary: $el.find('.record__text').text().trim(),
-            publishedAt: new Date().toISOString(), // TODO: Implement Ru Date Parser
+            publishedAt: new Date().toISOString(),
             imageUrl: $el.find('.record__img-wrapper img').attr('src') || null,
             sourceName: 'hunting.ru'
         })
@@ -155,28 +173,29 @@ async function parseMooirRu(source: IngestionSource): Promise<ParsedItem[]> {
     const $ = cheerio.load(html)
     const items: ParsedItem[] = []
 
-    const baseUrl = new URL(source.url).origin
-
-    // Selector based on n8n template: a[href^="/official/world-news/"]
-    // It seems they list links.
-    $('a[href^="/official/world-news/"]').each((_, el) => {
+    // Mooir articles usually have a numeric ID at the end: /official/world-news/1521/
+    // We filter specifically for this pattern to avoid picking up category or pagination links.
+    $('a[href*="/official/world-news/"]').each((_, el) => {
         const $link = $(el)
         const href = $link.attr('href')
-        if (!href || href.includes('?page=') || href === 'archive/') return
+        if (!href) return
 
-        // Mooir lists are just links often, need to go inside? 
-        // n8n template logic was: get list of links and titles.
+        // Regex for numeric ID at the end (with or without trailing slash)
+        const isArticle = /\/official\/world-news\/\d+\/?$/.test(href.split('?')[0])
+        if (!isArticle || href.includes('?page=') || href.includes('archive/')) return
+
+        const title = $link.text().trim()
+        if (!title || title.length < 5) return // Skip small links/buttons
 
         items.push({
-            title: $link.text().trim(),
-            link: new URL(href, baseUrl).toString(),
+            title,
+            link: href.startsWith('http') ? href : new URL(href, source.url).toString(),
             summary: null,
             publishedAt: null,
             imageUrl: null,
             sourceName: 'mooir.ru'
         })
     })
-
     return items
 }
 
@@ -185,23 +204,27 @@ async function parseMooirPrikras(source: IngestionSource): Promise<ParsedItem[]>
     const $ = cheerio.load(html)
     const items: ParsedItem[] = []
 
-    const baseUrl = new URL(source.url).origin
-
-    $('a[href^="/official/prikras/"]').each((_, el) => {
+    $('a[href*="/official/prikras/"]').each((_, el) => {
         const $link = $(el)
         const href = $link.attr('href')
         if (!href) return
 
+        // Ensure it has a numeric ID at the end
+        const isArticle = /\/official\/prikras\/\d+\/?$/.test(href.split('?')[0])
+        if (!isArticle) return
+
+        const title = $link.text().trim()
+        if (!title || title.length < 5) return
+
         items.push({
-            title: $link.text().trim(),
-            link: new URL(href, baseUrl).toString(),
+            title,
+            link: href.startsWith('http') ? href : new URL(href, source.url).toString(),
             summary: null,
             publishedAt: null,
             imageUrl: null,
             sourceName: 'mooir.ru'
         })
     })
-
     return items
 }
 
@@ -209,10 +232,8 @@ async function parseOhotnikiSearch(source: IngestionSource): Promise<ParsedItem[
     const html = await fetchHtml(source.url)
     const $ = cheerio.load(html)
     const items: ParsedItem[] = []
-
     const baseUrl = new URL(source.url).origin
 
-    // ul.listing__body article.read-material
     $('ul.listing__body article.read-material').each((_, el) => {
         const $el = $(el)
         const $link = $el.find('a.cursor').not('.read-material__img')
@@ -220,32 +241,47 @@ async function parseOhotnikiSearch(source: IngestionSource): Promise<ParsedItem[
         if (!href) return
 
         let img = $el.find('a.read-material__img img').attr('data-src') || $el.find('a.read-material__img img').attr('src')
-
-        // Ensure absolute link
         const fullLink = href.startsWith('http') ? href : new URL(href, baseUrl).toString()
 
         items.push({
             title: $el.find('h3.read-material__title').text().trim(),
             link: fullLink,
             summary: $el.find('p.read-material__text').text().trim(),
-            publishedAt: null, // Need complex parsing
+            publishedAt: null,
             imageUrl: img || null,
             sourceName: 'ohotniki.ru'
         })
     })
-
     return items
 }
-
 
 // ------------------------------------------------------------------
 // Main Ingestion Logic
 // ------------------------------------------------------------------
 
-import { Database } from '@/types/database.types'
-
 export async function runIngestion(sourceIds?: string[], client?: SupabaseClient<Database>) {
-    const supabase = (client || await createClient()) as SupabaseClient<Database>
+    // Standard client for broadcasting (server-side realtime)
+    const supabase = (client || createParamsClient<Database>(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY! || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+            auth: {
+                persistSession: false
+            }
+        }
+    )) as SupabaseClient<Database>
+
+    // Broadcast Setup for UI Feedback
+    const broadcastChannel = supabase.channel('ingestion-updates')
+    broadcastChannel.subscribe(() => { })
+
+    const sendStatus = async (msg: string, type: 'info' | 'thinking' | 'success' | 'error' = 'info') => {
+        await broadcastChannel.send({
+            type: 'broadcast',
+            event: 'scan-status',
+            payload: { message: msg, type }
+        })
+    }
 
     // Fetch DB Sources
     const { data: dbSources } = await supabase
@@ -272,10 +308,8 @@ export async function runIngestion(sourceIds?: string[], client?: SupabaseClient
         }
     })
 
-    // Merge with legacy (override legacy if same ID exists? legacy ids are simple strings, db are uuids, so no overlap usually)
     const allSources = [...LEGACY_SOURCES, ...dbSourcesMapped]
 
-    // Determine which sources to run
     const targets = sourceIds
         ? allSources.filter(s => sourceIds.includes(s.id))
         : allSources.filter(s => s.isActive)
@@ -288,14 +322,12 @@ export async function runIngestion(sourceIds?: string[], client?: SupabaseClient
 
     for (const source of targets) {
         try {
-            console.log(`[Ingestion] Starting ${source.name} (${source.parser})...`)
+            await sendStatus(`🔍 Сканирую: ${source.name}...`, 'thinking')
             let items: ParsedItem[] = []
 
             switch (source.parser) {
                 case 'generic-rss': items = await parseRss(source); break;
                 case 'html-universal': items = await parseUniversalHtml(source); break;
-
-                // Legacy Hardcoded
                 case 'hunting-ru-news': items = await parseHuntingRu(source); break;
                 case 'mooir-ru-news': items = await parseMooirRu(source); break;
                 case 'mooir-ru-prikras': items = await parseMooirPrikras(source); break;
@@ -307,7 +339,6 @@ export async function runIngestion(sourceIds?: string[], client?: SupabaseClient
             for (const item of items) {
                 if (!item.link) continue
 
-                // Check existence
                 const { data: existing } = await supabase
                     .from('news_items')
                     .select('id')
@@ -315,20 +346,76 @@ export async function runIngestion(sourceIds?: string[], client?: SupabaseClient
                     .single()
 
                 if (!existing) {
-                    await supabase.from('news_items').insert({
+                    // FALLBACK DATE LOGIC
+                    if (!item.publishedAt || item.publishedAt === 'null') {
+                        const selDetail = (source.selectors as any)?.date_detail
+                        const selMain = (source.selectors as any)?.date
+
+                        // We only fetch if we have at least one selector to try
+                        if (selDetail || selMain) {
+                            try {
+                                // Use modern fetch with proxy handled in fetchHtml
+                                const artHtml = await fetchHtml(item.link)
+                                const $art = cheerio.load(artHtml)
+
+                                let detailDate: string | null = null
+
+                                // 1. Try explicit detail selector
+                                if (selDetail) {
+                                    if (selDetail.includes('meta')) {
+                                        detailDate = $art(selDetail).attr('content') || $art(selDetail).attr('value') || null
+                                    } else {
+                                        detailDate = $art(selDetail).text().trim() || null
+                                    }
+                                }
+
+                                // 2. Fallback to main selector
+                                if (!detailDate && selMain) {
+                                    if (selMain.includes('meta')) {
+                                        detailDate = $art(selMain).attr('content') || $art(selMain).attr('value') || null
+                                    } else {
+                                        detailDate = $art(selMain).text().trim() || null
+                                    }
+                                }
+
+                                if (detailDate && detailDate !== 'null') {
+                                    item.publishedAt = detailDate
+                                }
+                            } catch (e) {
+                                console.warn(`[Ingestion] Failed to fetch article date:`, e)
+                            }
+                        }
+                    }
+
+                    const { data: inserted } = await supabase.from('news_items').insert({
                         title: item.title || item.summary?.substring(0, 50) || item.link.substring(0, 50),
                         canonical_url: item.link,
                         source_name: item.sourceName,
                         rss_summary: item.summary,
-                        published_at: item.publishedAt, // can be null
+                        published_at: item.publishedAt,
                         image_url: item.imageUrl,
                         status: 'found'
-                    } as any)
+                    } as any).select('id').single()
+
+                    if (inserted) {
+                        try {
+                            await processGate1((inserted as any).id)
+                        } catch (g1Err) {
+                            console.error('Gate 1 trigger failed', g1Err)
+                        }
+                    }
+
                     results.newInserted++
+                } else {
+                    // TEMP: Force re-trigger AI for existing items (User Request)
+                    try {
+                        await processGate1(existing.id)
+                    } catch (g1Err) {
+                        console.error('Gate 1 trigger failed for existing item', g1Err)
+                    }
                 }
             }
 
-            // ОБНОВЛЯЕМ время последнего запуска для источника
             if (source.id && source.is_custom) {
                 await supabase
                     .from('ingestion_sources')
@@ -336,8 +423,9 @@ export async function runIngestion(sourceIds?: string[], client?: SupabaseClient
                     .eq('id', source.id)
             }
 
-            console.log(`[Ingestion] ${source.name}: Processed ${items.length} items.`)
             results.totalFound += items.length
+            await sendStatus(`${source.name}: Найдено ${items.length} (Новых: ${items.length // Approximation, true count is inside loop
+                })`, 'success')
 
         } catch (e: any) {
             console.error(`[Ingestion] Error processing ${source.name}:`, e)

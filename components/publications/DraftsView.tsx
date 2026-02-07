@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
-import { Loader2, CalendarDays, Plus, CheckCircle2, AlertCircle, MoreHorizontal, Sparkles } from 'lucide-react'
+import { CalendarDays, Plus, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getPlatformConfig, PLATFORM_CONFIG } from '@/lib/platform-config'
 import { NewsEditorDialog } from './NewsEditorDialog'
@@ -34,12 +34,45 @@ import { Button } from "@/components/ui/button"
 import { Send } from 'lucide-react' // Added Send icon
 import { publishItem } from '@/app/actions/publish-actions' // Added action import
 
-import { Tables } from '@/types/database.types'
 
 type DraftItem = any // Using any to avoid complex union intersections since it is a combined view
 
 // Определяем платформы, которые могут быть добавлены к черновику
 const ALL_PLATFORMS = ['tg', 'vk', 'ok', 'fb', 'x', 'threads', 'site']
+
+const LOADING_MESSAGES = [
+    "Готовлю для тебя контент, подожди пожалуйста... 🍳",
+    "Прогреваю нейросети... 🔥",
+    "Потерпи пожалуйста, скоро будет готово... ⏳",
+    "Разгоняю цифровые нейроны... 🧠",
+    "Договариваюсь с музой... 🧚‍♀️",
+    "Фух, я почти закончил, наношу последние штрихи... 🎨",
+    "Еще чуть-чуть, магия требует времени... ✨",
+    "Завариваю цифровой кофе... ☕",
+    "Учу искусственный интеллект хорошим манерам... 🎩",
+    "Ищу вдохновение в облаках данных... ☁️",
+    "Собираю слова в предложения... 🧩",
+    "Подбираю идеальные эпитеты... 💎",
+    "Вычесываю баги из текста... 🐞",
+    "Полирую запятые и точки... 🧹",
+    "Консультируюсь с духом интернета... 👻",
+    "Перевожу с бинарного на человеческий... 0️⃣1️⃣",
+    "Ловлю креативные мысли сачком... 🦋",
+    "Заряжаю слова смыслом... 🔋",
+    "Распутываю клубок смыслов... 🧶",
+    "Добавляю щепотку харизмы... 🧂",
+    "Сдуваю пыль с серверов... 🌬️",
+    "Уговариваю алгоритмы работать быстрее... 🏃",
+    "Рисую словами картину мира... 🖌️",
+    "Строю мосты между фактами... 🌉",
+    "Сортирую пиксели для красоты... 🖼️",
+    "Включаю режим гения... 💡",
+    "Заливаю топливо в генератор идей... ⛽",
+    "Настраиваю частоту вещания успеха... 📻",
+    "Открываю чакры продуктивности... 🧘",
+    "Пишу шедевр, не подсматривай... 🫣",
+    "Запускаю двигатели креативности... 🚀"
+]
 
 export function DraftsView() {
     const [drafts, setDrafts] = useState<DraftItem[]>([])
@@ -54,14 +87,12 @@ export function DraftsView() {
     const [publishConfirmDraft, setPublishConfirmDraft] = useState<DraftItem | null>(null)
     const [activePlatforms, setActivePlatforms] = useState<string[]>(['site']) // 'site' is always active by default
 
-    const supabase = createClient()
+    // Инициализируем клиент вне тела ререндера, если это возможно, или через useMemo
+    const supabase = useMemo(() => createClient(), [])
 
-    useEffect(() => {
-        fetchDrafts()
-        fetchActivePlatforms()
-    }, [])
+    // --- Callbacks ---
 
-    const fetchActivePlatforms = async () => {
+    const fetchActivePlatforms = useCallback(async (): Promise<void> => {
         try {
             const { data: recipes } = await supabase
                 .from('publish_recipes')
@@ -76,23 +107,29 @@ export function DraftsView() {
         } catch (e) {
             console.warn('[DraftsView] Failed to fetch active platforms:', e)
         }
-    }
+    }, [supabase])
 
-    const fetchDrafts = async () => {
+    const fetchDrafts = useCallback(async (): Promise<void> => {
         setLoading(true)
         let reviewData: any[] = []
         let newsData: any[] = []
 
-        // 1. Fetch review_items
+        // 1. Fetch review_items with specific columns to avoid potential issues with large blobs or missing fields
         try {
             const { data, error } = await supabase
                 .from('review_items')
-                .select('*')
+                .select('id, created_at, status, title_seed, draft_title, draft_announce, draft_longread, draft_longread_site, draft_announce_site, draft_image_url, draft_image_file_id, draft_announce_tg, draft_announce_vk, draft_announce_ok, draft_announce_fb, draft_announce_x, draft_announce_threads')
                 .in('status', ['needs_review', 'drafts_ready'])
                 .order('created_at', { ascending: false })
 
             if (error) {
-                console.error('[Drafts] Review items fetch error:', error)
+                console.error('[Drafts] Review items fetch error FULL:', error)
+                console.error('[Drafts] Review Error details:', {
+                    message: error.message,
+                    details: error.details,
+                    hint: error.hint,
+                    code: error.code
+                })
                 reviewData = []
             } else {
                 reviewData = (data as any) || []
@@ -101,48 +138,56 @@ export function DraftsView() {
             console.error('[Drafts] Review items exception:', e)
         }
 
-        // 2. Fetch news_items
+        // 2. Fetch news_items with specific columns
         try {
             const { data, error } = await supabase
                 .from('news_items')
-                .select('*')
+                .select('id, created_at, approve1_decided_at, status, title, draft_title, draft_announce, draft_longread, draft_longread_site, draft_announce_site, draft_image_url, draft_image_file_id, image_url, draft_announce_tg, draft_announce_vk, draft_announce_ok, draft_announce_fb, draft_announce_x, draft_announce_threads')
                 .eq('status', 'drafts_ready')
-                .order('created_at', { ascending: false })
+                .order('approve1_decided_at', { ascending: false })
 
             if (error) {
-                console.error('[Drafts] News items fetch error:', error)
-                toast.error(`Ошибка загрузки новостей: ${error.message || 'Error'}`)
+                // More robust logging for empty error objects
+                console.error('[Drafts] News items fetch error FULL:', error)
+                console.error('[Drafts] Error stringified:', JSON.stringify(error))
+                console.error('[Drafts] Error message:', error.message)
+                console.error('[Drafts] Error details:', error.details)
+
+                toast.error(`Ошибка загрузки новостей: ${error.message || 'Error ' + (error.code || '')}`)
                 newsData = []
             } else {
                 newsData = (data as any) || []
             }
         } catch (e: any) {
             console.error('[Drafts] News items exception:', e)
-            toast.error(`Критическая ошибка при загрузке новостей: ${e.message}`)
+            toast.error(`Критическая ошибка при загрузке новостей: ${e.message || 'Unknown'}`)
         }
 
         // 3. Combine and sort
         const combined = [
-            ...reviewData,
+            ...reviewData.map(item => ({
+                ...item,
+                display_date: item.created_at
+            })),
             ...newsData.map(item => ({
                 ...item,
                 title_seed: item.title,
-                is_news_item: true
+                is_news_item: true,
+                display_date: item.approve1_decided_at || item.created_at
             }))
         ]
 
         combined.sort((a, b) => {
-            const dateA = new Date(a.created_at || 0).getTime()
-            const dateB = new Date(b.created_at || 0).getTime()
+            const dateA = new Date(a.display_date || 0).getTime()
+            const dateB = new Date(b.display_date || 0).getTime()
             return dateB - dateA
         })
 
-        console.log(`[Drafts] Loaded ${reviewData.length} reviews and ${newsData.length} news items. Total: ${combined.length}`)
         setDrafts(combined as any[])
         setLoading(false)
-    }
+    }, [supabase])
 
-    const handlePlatformClick = (draft: DraftItem, platform: string) => {
+    const handlePlatformClick = useCallback((draft: DraftItem, platform: string) => {
         // Для website берем draft_longread_site или draft_longread
         let platformContent = ''
 
@@ -165,16 +210,23 @@ export function DraftsView() {
             content: platformContent,
             isNews
         })
-    }
+    }, [])
 
-    const handleAddPlatform = async (draftId: string, platform: string) => {
+    const handleAddPlatform = useCallback(async (draftId: string, platform: string): Promise<void> => {
         const draft = drafts.find(d => d.id === draftId)
         if (!draft) return
 
         const isNews = (draft as any).is_news_item
 
         // Генерируем контент для этой платформы
-        toast.info(`Генерация контента для ${PLATFORM_CONFIG[platform]?.label}...`)
+        let msgIndex = 0
+        const toastId = toast.loading(LOADING_MESSAGES[0])
+
+        // Interval to cycle messages
+        const intervalId = setInterval(() => {
+            msgIndex = (msgIndex + 1) % LOADING_MESSAGES.length
+            toast.loading(LOADING_MESSAGES[msgIndex], { id: toastId })
+        }, 3000)
 
         try {
             const response = await fetch('/api/ai/generate-platform-announces', {
@@ -189,11 +241,13 @@ export function DraftsView() {
 
             const result = await response.json()
 
+            clearInterval(intervalId)
+
             if (!response.ok) {
                 throw new Error(result.error || 'Ошибка генерации')
             }
 
-            toast.success(`Контент для ${PLATFORM_CONFIG[platform]?.label} сгенерирован`)
+            toast.success(`Контент для ${PLATFORM_CONFIG[platform]?.label} сгенерирован`, { id: toastId })
 
             // Обновляем drafts и открываем редактор
             await fetchDrafts()
@@ -209,11 +263,12 @@ export function DraftsView() {
                 handlePlatformClick(updatedDraft, platform)
             }
         } catch (error: any) {
-            toast.error('Ошибка: ' + error.message)
+            clearInterval(intervalId)
+            toast.error('Ошибка: ' + error.message, { id: toastId })
         }
-    }
+    }, [drafts, fetchDrafts, handlePlatformClick])
 
-    const handlePublish = async (draft: DraftItem, scheduleDate?: string) => {
+    const handlePublish = useCallback(async (draft: DraftItem, scheduleDate?: string): Promise<void> => {
         const isNews = (draft as any).is_news_item;
         const loadingMsg = scheduleDate ? 'Планирование...' : 'Публикация...'
         const toastId = toast.loading(loadingMsg)
@@ -227,7 +282,7 @@ export function DraftsView() {
                 } else {
                     toast.success('Опубликовано успешно!', { id: toastId })
                 }
-                fetchDrafts() // Refresh list
+                await fetchDrafts() // Refresh list
             } else {
                 // Partial success or error
                 if (result.publishedUrl) {
@@ -239,12 +294,58 @@ export function DraftsView() {
         } catch (e: any) {
             toast.error(`Ошибка: ${e.message}`, { id: toastId })
         }
-    }
+    }, [fetchDrafts])
 
-    if (loading) {
+    // --- Effects ---
+
+    useEffect(() => {
+        fetchActivePlatforms()
+        fetchDrafts()
+
+        // 1. Subscribe to news_items changes
+        const newsSubscription = supabase
+            .channel('news_changes')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'news_items', filter: 'status=eq.drafts_ready' },
+                () => {
+                    fetchDrafts()
+                }
+            )
+            .subscribe()
+
+        // 2. Subscribe to review_items changes
+        const reviewSubscription = supabase
+            .channel('review_changes')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'review_items' },
+                (payload: any) => {
+                    // Refetch only if status is relevant
+                    const status = payload.new?.status
+                    const oldStatus = payload.old?.status
+                    if (['needs_review', 'drafts_ready'].includes(status) || ['needs_review', 'drafts_ready'].includes(oldStatus)) {
+                        fetchDrafts()
+                    }
+                }
+            )
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(newsSubscription)
+            supabase.removeChannel(reviewSubscription)
+        }
+    }, [supabase, fetchActivePlatforms, fetchDrafts])
+
+
+    if (loading && drafts.length === 0) {
         return (
-            <div className="flex items-center justify-center h-full">
-                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+            <div className="p-6 space-y-6 h-full overflow-y-auto">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-8 pb-32">
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                        <DraftSkeleton key={i} />
+                    ))}
+                </div>
             </div>
         )
     }
@@ -266,7 +367,7 @@ export function DraftsView() {
     return (
         <>
             <div className="p-6 space-y-6 h-full overflow-y-auto">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 pb-20">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-8 pb-32">
                     {drafts.map(draft => (
                         <DraftCard
                             key={draft.id}
@@ -391,6 +492,26 @@ export function DraftsView() {
     )
 }
 
+function DraftSkeleton() {
+    return (
+        <div className="bg-card border border-border/40 rounded-xl overflow-hidden flex flex-col h-[400px] animate-pulse">
+            <div className="w-full h-56 bg-muted/50" />
+            <div className="p-7 space-y-4 flex-1">
+                <div className="flex justify-between items-start gap-4">
+                    <div className="h-5 bg-muted rounded w-3/4" />
+                    <div className="h-5 bg-muted rounded w-16" />
+                </div>
+                <div className="space-y-2 mt-auto">
+                    <div className="flex gap-2">
+                        <div className="h-8 bg-muted rounded-lg w-24" />
+                        <div className="h-8 bg-muted rounded-lg w-24" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
+
 function DraftCard({
     draft,
     activePlatforms,
@@ -434,117 +555,142 @@ function DraftCard({
                 onEdit()
             }}
             className={cn(
-                "bg-card border border-border/60 rounded-xl overflow-hidden flex flex-col gap-0 transition-all duration-300 group h-full relative cursor-pointer",
-                "hover:shadow-xl hover:-translate-y-2 hover:border-border",
-                // Show border color if scheduled?
-                "border-l-[6px] border-l-amber-500"
+                "bg-card border border-border/60 rounded-xl overflow-hidden flex flex-col transition-all duration-300 group h-full relative cursor-pointer",
+                "hover:shadow-xl hover:-translate-y-1 hover:border-border",
+                "border-l-[4px] border-l-amber-500/80"
             )}
         >
             {/* Image Preview */}
             {draft.draft_image_file_id && (
-                <div className="relative w-full h-40 overflow-hidden shrink-0 bg-card">
+                <div className="relative w-full h-48 overflow-hidden shrink-0 bg-muted/20">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                         src={`/api/telegram/photo/${draft.draft_image_file_id}`}
                         alt={draft.draft_title || draft.title_seed || 'Preview'}
-                        className="absolute inset-[-1px] w-[calc(100%+2px)] h-[calc(100%+2px)] object-cover transition-transform duration-500 group-hover:scale-110"
+                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                     />
-                    {/* Solid bottom gradient to perfectly blend with the card background */}
-                    <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-card via-card/90 to-transparent z-10" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-60" />
+
+                    {/* Floating Draft Badge */}
+                    <div className="absolute top-3 right-3 px-2 py-0.5 rounded-md bg-black/40 backdrop-blur-md border border-white/10 text-white/90 text-[10px] uppercase tracking-wider font-bold shadow-sm">
+                        Черновик
+                    </div>
                 </div>
             )}
 
             {/* Content */}
-            <div className="p-5 flex flex-col gap-4 flex-1 relative z-20 bg-card -mt-1">
-                <div className="relative z-10 flex justify-between items-start gap-2">
-                    <h3 className="font-semibold text-base leading-snug text-foreground group-hover:text-primary transition-colors line-clamp-2 flex-1">
+            <div className="p-5 flex flex-col flex-1 gap-4">
+                <div className="space-y-2">
+                    {/* Title */}
+                    <h3 className="font-bold text-base leading-tight text-foreground/90 group-hover:text-primary transition-colors line-clamp-2 min-h-[2.5em]">
                         {draft.draft_title || draft.title_seed || 'Без названия'}
                     </h3>
-                    <div className="px-2 py-1 rounded-md bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs font-medium shrink-0">
-                        Черновик
+
+                    {/* Date/Meta */}
+                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-medium">
+                        <CalendarDays className="w-3 h-3" />
+                        <span>Создан: {draft.display_date ? format(new Date(draft.display_date), 'd MMM, HH:mm', { locale: ru }) : 'Неизвестно'}</span>
                     </div>
                 </div>
 
-                {/* Platforms */}
-                <div className="relative z-10 mt-auto pt-2 flex flex-wrap items-center gap-2.5">
+                {/* Platforms Grid */}
+                <div className="mt-auto">
                     {platformsWithContent.length > 0 ? (
-                        platformsWithContent.map(platform => (
-                            <PlatformChip
-                                key={platform}
-                                platform={platform}
-                                isMain={platform === 'site'}
-                                onClick={() => onPlatformClick(platform)}
-                            />
-                        ))
+                        <div className="grid grid-cols-2 gap-2">
+                            {platformsWithContent.map(platform => (
+                                <PlatformChip
+                                    key={platform}
+                                    platform={platform}
+                                    isMain={platform === 'site'}
+                                    onClick={() => onPlatformClick(platform)}
+                                />
+                            ))}
+                        </div>
                     ) : (
-                        <div className="text-xs text-muted-foreground italic">
-                            Нет готовых платформ
+                        <div className="p-4 rounded-lg border border-dashed border-border/60 bg-muted/20 text-center">
+                            <span className="text-xs text-muted-foreground/70">Нет готовых платформ</span>
                         </div>
                     )}
+                </div>
 
-                    {/* Add Platform Button */}
-                    {availablePlatforms.length > 0 && (
+                {/* Footer Actions */}
+                <div className="pt-3 mt-1 border-t border-border/40 flex items-center justify-between gap-2">
+                    {/* Add Platform */}
+                    {availablePlatforms.length > 0 ? (
                         <Popover>
                             <PopoverTrigger asChild>
-                                <button className="group relative flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-md hover:shadow-lg hover:shadow-emerald-500/30 transition-all duration-300 hover:scale-110 active:scale-95">
-                                    {/* Glow effect */}
-                                    <div className="absolute inset-0 rounded-full bg-emerald-400 opacity-0 group-hover:opacity-20 blur-md transition-opacity duration-300" />
-                                    {/* Plus icon */}
-                                    <Plus className="relative w-4 h-4 text-white stroke-[2.5]" />
-                                </button>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 gap-1.5 rounded-full"
+                                >
+                                    <Plus className="w-3.5 h-3.5" />
+                                    <span>Добавить</span>
+                                </Button>
                             </PopoverTrigger>
-                            <PopoverContent className="w-48 p-1" align="start">
-                                <div className="text-xs font-semibold text-muted-foreground px-2 py-1.5">
+                            <PopoverContent className="w-52 p-1" align="start" side="top">
+                                <div className="text-[10px] uppercase font-bold text-muted-foreground/70 px-2 py-1.5 tracking-wider">
                                     Добавить платформу
                                 </div>
-                                {availablePlatforms.map(platform => {
-                                    const config = getPlatformConfig(platform)
-                                    const Icon = config.icon
-                                    return (
-                                        <button
-                                            key={platform}
-                                            onClick={(e) => {
-                                                e.stopPropagation()
-                                                onAddPlatform(platform)
-                                            }}
-                                            className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-sm hover:bg-accent text-left transition-colors"
-                                        >
-                                            <Icon className={cn("w-4 h-4", config.color)} />
-                                            <span>{config.label}</span>
-                                            <Sparkles className="w-3 h-3 ml-auto text-emerald-500" />
-                                        </button>
-                                    )
-                                })}
+                                <div className="grid gap-0.5">
+                                    {availablePlatforms.map(platform => {
+                                        const config = getPlatformConfig(platform)
+                                        const Icon = config.icon
+                                        return (
+                                            <button
+                                                key={platform}
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    onAddPlatform(platform)
+                                                }}
+                                                className="w-full flex items-center gap-2.5 px-2 py-2 text-sm rounded-md hover:bg-accent/50 text-left transition-colors"
+                                            >
+                                                <div className={cn("p-1.5 rounded-md flex items-center justify-center shrink-0", config.bgColor)}>
+                                                    <Icon className={cn("w-3.5 h-3.5", config.color)} />
+                                                </div>
+                                                <span className="flex-1">{config.label}</span>
+                                                <Sparkles className="w-3.5 h-3.5 text-emerald-500/70" />
+                                            </button>
+                                        )
+                                    })}
+                                </div>
                             </PopoverContent>
                         </Popover>
+                    ) : (
+                        <div className="text-[10px] text-muted-foreground/40 italic pl-1">Все платформы добавлены</div>
                     )}
 
-                    {/* Action Buttons: Publish/Schedule */}
-                    <div className="ml-auto flex items-center gap-1">
-                        {/*
-                           REMOVED Calendar Button as per request.
-                           Button "Send" now handles both.
-                     {/* Publish Button */}
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                if (!hasSite) {
-                                    toast.error('Для публикации необходим контент для Сайта (главная платформа)')
-                                    return
-                                }
-                                onPublish()
-                            }}
-                            className={cn(
-                                "flex items-center justify-center w-9 h-9 ml-auto rounded-full shadow-md transition-all group/pub",
-                                hasSite
-                                    ? "bg-blue-600 hover:bg-blue-700 hover:scale-110 active:scale-95 cursor-pointer"
-                                    : "bg-gray-300 dark:bg-gray-600 opacity-70 cursor-not-allowed text-muted-foreground"
+                    {/* Publish Button */}
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <div className="ml-auto">
+                                    <Button
+                                        size="sm"
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            onPublish()
+                                        }}
+                                        className={cn(
+                                            "h-8 rounded-full px-4 text-xs font-semibold shadow-sm transition-all",
+                                            hasSite
+                                                ? "bg-primary hover:bg-primary/90 hover:shadow-primary/20"
+                                                : "bg-muted text-muted-foreground hover:bg-muted"
+                                        )}
+                                        disabled={!hasSite}
+                                    >
+                                        <Send className="w-3.5 h-3.5 mr-1.5" />
+                                        Опубликовать
+                                    </Button>
+                                </div>
+                            </TooltipTrigger>
+                            {!hasSite && (
+                                <TooltipContent>
+                                    <p>Сначала добавьте все площадки</p>
+                                </TooltipContent>
                             )}
-                            title={hasSite ? "Опубликовать" : "Необходимо подготовить контент для Сайта"}
-                        >
-                            <Send className={cn("w-4 h-4", hasSite ? "text-white" : "text-gray-500 dark:text-gray-400")} />
-                        </button>
-                    </div>
+                        </Tooltip>
+                    </TooltipProvider>
                 </div>
             </div>
         </div>
@@ -552,19 +698,7 @@ function DraftCard({
 }
 
 function PlatformChip({ platform, isMain, onClick }: { platform: string, isMain?: boolean, onClick: () => void }) {
-    const { icon: Icon, color, label, bgColor, borderColor } = getPlatformConfig(platform)
-
-    const containerStyle = isMain
-        ? cn(
-            "border-2 bg-gradient-to-br shadow-md",
-            "from-emerald-50 to-emerald-100/50 dark:from-emerald-950/40 dark:to-emerald-900/20",
-            "border-emerald-400 dark:border-emerald-600"
-        )
-        : cn(
-            "border-2 bg-gradient-to-br text-foreground shadow-sm hover:shadow-md",
-            borderColor,
-            bgColor
-        )
+    const { icon: Icon, color, label, bgColor } = getPlatformConfig(platform)
 
     const iconStyle = isMain ? "text-emerald-600 dark:text-emerald-400" : color
     const textStyle = isMain ? "text-emerald-700 dark:text-emerald-300 font-semibold" : "font-medium text-foreground"
@@ -579,20 +713,23 @@ function PlatformChip({ platform, isMain, onClick }: { platform: string, isMain?
                             onClick()
                         }}
                         className={cn(
-                            "flex items-center gap-2.5 pl-2.5 pr-3 py-2 rounded-lg text-xs transition-all active:scale-95 group/chip",
-                            "hover:scale-105 hover:-translate-y-0.5",
-                            containerStyle
+                            "flex items-center gap-2 pl-2 pr-2 py-1.5 rounded-md text-xs transition-all active:scale-95 group/chip w-full",
+                            "hover:brightness-95 dark:hover:brightness-110",
+                            isMain
+                                ? "bg-emerald-100/50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/50"
+                                : cn("border border-transparent bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground", bgColor) // customized per platform if needed, or just keep simple
                         )}
                     >
-                        <Icon className={cn("w-4 h-4", iconStyle)} />
+                        <div className={cn(
+                            "w-6 h-6 rounded-md flex items-center justify-center shrink-0 transition-colors",
+                            isMain ? "bg-emerald-500/20" : cn("bg-muted/80 group-hover/chip:bg-background", bgColor)
+                        )}>
+                            <Icon className={cn("w-3.5 h-3.5", iconStyle)} />
+                        </div>
 
-                        <span className={cn("tracking-tight whitespace-nowrap", textStyle)}>
+                        <span className={cn("truncate font-medium flex-1 text-left", textStyle)}>
                             {label}
                         </span>
-
-                        <div className="pl-1.5 border-l-2 border-border/50 ml-0.5">
-                            <MoreHorizontal className="w-3.5 h-3.5 text-muted-foreground/50 group-hover/chip:text-foreground transition-colors" />
-                        </div>
                     </button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="text-xs">

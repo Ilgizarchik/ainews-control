@@ -95,7 +95,7 @@ export function CreatePostDialog({ open, onOpenChange, onSuccess }: CreatePostDi
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
+                <DialogHeader data-tutorial="create-post-header">
                     <DialogTitle>Создать новую публикацию</DialogTitle>
                     <DialogDescription>
                         AI создаст полный пост: заголовок, анонс и подробный лонгрид.
@@ -111,6 +111,7 @@ export function CreatePostDialog({ open, onOpenChange, onSuccess }: CreatePostDi
                             />
                         </div>
                         <Input
+                            data-tutorial="create-post-title"
                             id="title"
                             placeholder="Например: Нож Mora Companion Heavy Duty"
                             value={title}
@@ -128,6 +129,7 @@ export function CreatePostDialog({ open, onOpenChange, onSuccess }: CreatePostDi
                             />
                         </div>
                         <Textarea
+                            data-tutorial="create-post-description"
                             id="description"
                             placeholder="Краткое описание, особенности, характеристики, цена, впечатления..."
                             className="min-h-[150px]"
@@ -137,7 +139,7 @@ export function CreatePostDialog({ open, onOpenChange, onSuccess }: CreatePostDi
                         />
                     </div>
 
-                    <div className="space-y-2">
+                    <div data-tutorial="create-post-photo" className="space-y-2">
                         <Label>Фото</Label>
                         {imageFile ? (
                             <div className="flex items-center justify-between p-2 border rounded-md">
@@ -181,7 +183,7 @@ export function CreatePostDialog({ open, onOpenChange, onSuccess }: CreatePostDi
                     </div>
 
                     <div className="flex justify-end pt-2">
-                        <Button type="submit" disabled={loading || !title}>
+                        <Button data-tutorial="create-post-submit" type="submit" disabled={loading || !title}>
                             {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                             Создать пост
                         </Button>

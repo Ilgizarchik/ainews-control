@@ -10,6 +10,8 @@ export const metadata: Metadata = {
   }
 }
 import { ThemeProvider } from '@/components/ThemeProvider'
+import { ClientErrorReporter } from '@/components/ClientErrorReporter'
+import { TutorialProvider } from '@/components/tutorial/TutorialProvider'
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -21,8 +23,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           enableSystem
           disableTransitionOnChange
         >
-          {children}
-          <Toaster />
+          <TutorialProvider>
+            <ClientErrorReporter />
+            {children}
+            <Toaster />
+          </TutorialProvider>
         </ThemeProvider>
       </body>
     </html>

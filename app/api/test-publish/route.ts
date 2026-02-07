@@ -6,7 +6,7 @@ import { TildaPublisher } from '@/lib/publishers/tilda'
 // Force dynamic because we use DB
 export const dynamic = 'force-dynamic'
 
-export async function GET(req: Request) {
+export async function GET(_req: Request) {
     const supabase = await createClient()
 
     // 1. Get Config (Simulating getPublisherConfig logic)
@@ -88,7 +88,6 @@ export async function GET(req: Request) {
         } else {
             // Override Chat ID for test
             const tgPub = new TelegramPublisher(config.telegram_bot_token, testChatId)
-            console.log('[Test] Publishing to Telegram...')
 
             const res = await tgPub.publish({
                 news_id: 'test-news-id',
@@ -107,7 +106,6 @@ export async function GET(req: Request) {
     try {
         if (config.tilda_cookies && config.tilda_project_id && config.tilda_feed_uid) {
             const tildaPub = new TildaPublisher(config.tilda_cookies, config.tilda_project_id, config.tilda_feed_uid)
-            console.log('[Test] Publishing to Tilda...')
 
             // Verify what cookies we are actually using
             results.debug_config = {

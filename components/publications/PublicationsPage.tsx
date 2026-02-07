@@ -1,20 +1,21 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { CalendarViewBig } from './CalendarViewBig'
 import { BoardView } from './BoardView'
 import { DraftsView } from './DraftsView'
 import { cn } from '@/lib/utils'
-import { LayoutGrid, Calendar as CalendarIcon, Filter, Plus, FileEdit } from 'lucide-react'
+import { LayoutGrid, Calendar as CalendarIcon, Plus, FileEdit } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PLATFORM_CONFIG } from '@/lib/platform-config'
 
 import { CreatePostDialog } from './CreatePostDialog'
+import { TutorialButton } from '@/components/tutorial/TutorialButton'
+import { getPublicationsTutorialSteps } from '@/lib/tutorial/tutorial-config'
 
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useEffect } from 'react';
 
 type Tab = 'board' | 'calendar' | 'drafts'
 
@@ -79,6 +80,9 @@ export function PublicationsPage() {
     const [tabOrder, setTabOrder] = useState<Tab[]>(['drafts', 'board', 'calendar'])
     const [isCreateOpen, setIsCreateOpen] = useState(false)
     const [mounted, setMounted] = useState(false)
+
+    // Создаем шаги туториала с callback для переключения вкладок и открытия диалога
+    const publicationsSteps = useMemo(() => getPublicationsTutorialSteps(setActiveTab, () => setIsCreateOpen(true)), []);
 
     useEffect(() => {
         setMounted(true)
@@ -189,7 +193,7 @@ export function PublicationsPage() {
                                 collisionDetection={closestCenter}
                                 onDragEnd={handleDragEnd}
                             >
-                                <div className="flex bg-background/50 backdrop-blur-sm p-1 rounded-lg border border-border">
+                                <div data-tutorial="publications-tabs" className="flex bg-background/50 backdrop-blur-sm p-1 rounded-lg border border-border">
                                     <SortableContext
                                         items={tabOrder}
                                         strategy={horizontalListSortingStrategy}
@@ -207,7 +211,7 @@ export function PublicationsPage() {
                             </DndContext>
                         ) : (
                             // Fallback for SSR/Hydration
-                            <div className="flex bg-background/50 backdrop-blur-sm p-1 rounded-lg border border-border">
+                            <div data-tutorial="publications-tabs" className="flex bg-background/50 backdrop-blur-sm p-1 rounded-lg border border-border">
                                 {tabOrder.map((tab) => (
                                     <button
                                         key={tab}
@@ -233,19 +237,28 @@ export function PublicationsPage() {
                         )}
 
                         {/* Action Buttons */}
-                        <Button
-                            onClick={() => setIsCreateOpen(true)}
-                            size="icon"
-                            className="h-[38px] w-[38px] sm:w-auto sm:h-9 sm:px-4 shadow-lg shadow-emerald-500/20 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white border-0 shrink-0"
-                        >
-                            <Plus className="w-5 h-5 sm:w-4 sm:h-4" />
-                            <span className="hidden sm:inline font-semibold ml-2">Создать пост</span>
-                        </Button>
+                        <div className="flex items-center gap-2">
+                            <TutorialButton
+                                variant="outline"
+                                label="Помощь"
+                                className="h-[38px] sm:h-9 px-3 sm:px-4 gap-2 border-border/50 bg-background/50 text-sm font-semibold"
+                                steps={publicationsSteps}
+                            />
+                            <Button
+                                data-tutorial="create-draft-button"
+                                onClick={() => setIsCreateOpen(true)}
+                                size="icon"
+                                className="h-[38px] w-[38px] sm:w-auto sm:h-9 sm:px-4 shadow-lg shadow-emerald-500/20 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white border-0 shrink-0"
+                            >
+                                <Plus className="w-5 h-5 sm:w-4 sm:h-4" />
+                                <span className="hidden sm:inline font-semibold ml-2">Создать пост</span>
+                            </Button>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div className="main-content flex-1 min-h-0 bg-card rounded-xl border border-border overflow-hidden">
+            <div className="main-content flex-1 min-h-0 bg-card rounded-xl border border-border overflow-hidden" data-tutorial="publications-board">
                 {activeTab === 'drafts' && <DraftsView />}
                 {activeTab === 'board' && <BoardView />}
                 {activeTab === 'calendar' && <CalendarViewBig />}

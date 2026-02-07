@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { Save, FileText, GripVertical, Send, Globe } from 'lucide-react'
+import { TutorialButton } from '@/components/tutorial/TutorialButton'
+import { getPromptsTutorialSteps } from '@/lib/tutorial/tutorial-config'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useSearchParams, useRouter } from 'next/navigation'
 import {
@@ -157,9 +159,10 @@ interface PromptCardProps {
   onSave: (id: any, content: string) => void
   onChange: (id: any, content: string) => void
   mounted: boolean
+  isFirst?: boolean
 }
 
-function SortablePromptCard({ prompt, editedContent, isEdited, isSaving, onSave, onChange, mounted }: PromptCardProps) {
+function SortablePromptCard({ prompt, editedContent, isEdited, isSaving, onSave, onChange, mounted, isFirst }: PromptCardProps) {
   const {
     attributes,
     listeners,
@@ -190,6 +193,7 @@ function SortablePromptCard({ prompt, editedContent, isEdited, isSaving, onSave,
     <div
       ref={setNodeRef}
       style={style}
+      data-tutorial={isFirst ? "prompts-card" : undefined}
       className="bg-card backdrop-blur rounded-xl border-2 border-border/60 hover:border-primary/50 transition-all duration-300 overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 group"
     >
       <div className="flex items-center justify-between px-6 py-4 border-b-2 border-border/60 bg-gradient-to-r from-muted/50 to-muted/30">
@@ -198,6 +202,7 @@ function SortablePromptCard({ prompt, editedContent, isEdited, isSaving, onSave,
           <div
             {...attributes}
             {...listeners}
+            data-tutorial={isFirst ? "prompts-card-handle" : undefined}
             className="p-2.5 hover:bg-primary/10 rounded-lg cursor-grab active:cursor-grabbing text-muted-foreground hover:text-primary transition-all duration-200 hover:scale-110"
           >
             <GripVertical className="h-5 w-5" />
@@ -231,6 +236,7 @@ function SortablePromptCard({ prompt, editedContent, isEdited, isSaving, onSave,
         <Button
           onClick={() => onSave(prompt.id, editedContent)}
           disabled={!isEdited || isSaving}
+          data-tutorial={isFirst ? "prompts-card-save" : undefined}
           className={`
             transition-all duration-200 px-5 py-2 h-10 font-semibold shadow-sm
             ${isEdited
@@ -247,6 +253,7 @@ function SortablePromptCard({ prompt, editedContent, isEdited, isSaving, onSave,
       <div className="p-6 bg-gradient-to-br from-background to-muted/10">
         <textarea
           ref={textareaRef}
+          data-tutorial={isFirst ? "prompts-card-editor" : undefined}
           className="
             w-full
             min-h-[200px]
@@ -314,6 +321,8 @@ function PromptsContent() {
     })
   )
 
+
+
   // Categorize prompts
   const systemPrompts = useMemo(() => prompts.filter(p => p.category === 'system' || !p.category), [prompts])
   const newsPrompts = useMemo(() => prompts.filter(p => p.category === 'news'), [prompts])
@@ -374,10 +383,12 @@ function PromptsContent() {
     }
   }, [searchParams])
 
-  const handleTabChange = (value: string) => {
+  const handleTabChange = useCallback((value: string) => {
     setActiveTab(value)
     router.push(`/prompts?tab=${value}`, { scroll: false })
-  }
+  }, [router])
+
+  const promptsTutorialSteps = useMemo(() => getPromptsTutorialSteps(handleTabChange), [handleTabChange])
 
   const handleChange = (id: any, content: string) => {
     setEditedPrompts(prev => ({ ...prev, [String(id)]: content }))
@@ -455,7 +466,7 @@ function PromptsContent() {
         strategy={verticalListSortingStrategy}
       >
         <div className="grid gap-6">
-          {promptsList.map(p => {
+          {promptsList.map((p, index) => {
             const idStr = String(p.id)
             const currentValue = editedPrompts[idStr] ?? p.content ?? ''
             const isEdited = hasChanges(p.id)
@@ -471,6 +482,7 @@ function PromptsContent() {
                 onSave={save}
                 onChange={handleChange}
                 mounted={mounted}
+                isFirst={index === 0}
               />
             )
           })}
@@ -481,15 +493,18 @@ function PromptsContent() {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">System Prompts</h1>
-        <p className="text-muted-foreground text-sm">
-          Управление промптами для генерации и адаптации контента
-        </p>
+      <div data-tutorial="prompts-header" className="flex items-center justify-between">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">System Prompts</h1>
+          <p className="text-muted-foreground text-sm">
+            Управление промптами для генерации и адаптации контента
+          </p>
+        </div>
+        <TutorialButton label="Помощь" steps={promptsTutorialSteps} variant="outline" className="h-10 px-4" />
       </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList data-tutorial="prompts-tabs" className="grid w-full grid-cols-4">
           <TabsTrigger value="system">Системные</TabsTrigger>
           <TabsTrigger value="news">Новости</TabsTrigger>
           <TabsTrigger value="reviews">Обзоры</TabsTrigger>

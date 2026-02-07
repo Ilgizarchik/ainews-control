@@ -1,7 +1,5 @@
 
 import { NextRequest, NextResponse } from 'next/server'
-import { runIngestion } from '@/lib/ingestion/service'
-import { createClient } from '@/lib/supabase/server'
 
 export async function POST(req: NextRequest) {
     const authHeader = req.headers.get('Authorization')
@@ -10,7 +8,6 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-        console.log('[Cron] Checking ingestion schedule...')
         const { checkAndRunScheduleCore } = await import('@/lib/scheduler')
         const results = await checkAndRunScheduleCore()
 

@@ -1,7 +1,6 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 
 export async function regenerateNewsImage(itemId: string, itemType: 'news' | 'review', customPrompt?: string) {
@@ -13,7 +12,6 @@ export async function regenerateNewsImage(itemId: string, itemType: 'news' | 're
     }
 
     try {
-        console.log(`[ImageAction] Regenerating image for ${itemType}: ${itemId}`)
         const table = itemType === 'review' ? 'review_items' : 'news_items'
 
         // 1. Fetch item data
@@ -59,20 +57,23 @@ ${customPrompt || 'No specific notes.'}`
         const imageUrl = await generateImage(prompt)
 
         // 4. Upload to Telegram (to store persistent file_id)
-        const { sendPhotoToTelegram } = await import('@/lib/telegram-service')
+        const { sendPhotoToTelegram, getDraftChatId } = await import('@/lib/telegram-service')
 
-        let chatId = item.approve1_chat_id || item.approve2_chat_id
-
-        if (!chatId) {
-            const adminDb = createAdminClient()
-            const { data: chats } = await adminDb.from('telegram_chats').select('chat_id').eq('purpose', 'approve').single()
-            chatId = chats?.chat_id
-        }
+        // Priority: 1) Existing moderation chat, 2) Global draft chat from settings
+        const draftChatId = await getDraftChatId()
+        const finalChatId = item.approve1_chat_id || item.approve2_chat_id || draftChatId
 
         let fileId = null
-        if (chatId) {
-            const sent = await sendPhotoToTelegram(chatId, imageUrl, 'Regenerated Image')
-            fileId = sent.file_id
+        if (finalChatId) {
+            try {
+                const sent = await sendPhotoToTelegram(finalChatId, imageUrl, 'Regenerated Image')
+                fileId = sent.file_id
+            } catch (tgError) {
+                console.error('[ImageAction] Telegram upload failed, but DB will be updated with direct URL:', tgError)
+                // We proceed so at least the URL is saved in DB
+            }
+        } else {
+            console.warn('[ImageAction] No chat ID found for Telegram upload. Skipping.')
         }
 
         // 5. Update Database
