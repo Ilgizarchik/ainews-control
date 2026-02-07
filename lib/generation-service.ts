@@ -112,7 +112,8 @@ export async function processApprovedNews(newsId: string) {
 
                 // Get chat ID for uploading draft images
                 const { getDraftChatId } = await import('./telegram-service');
-                const draftChatId = item.approve1_chat_id || await getDraftChatId();
+                const globalDraftChatId = await getDraftChatId();
+                const draftChatId = globalDraftChatId || item.approve1_chat_id;
 
                 if (draftChatId && imageUrl) {
                     const sent = await sendPhotoToTelegram(draftChatId, imageUrl, 'Draft Image');

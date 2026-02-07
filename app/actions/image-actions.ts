@@ -61,7 +61,7 @@ ${customPrompt || 'No specific notes.'}`
 
         // Priority: 1) Existing moderation chat, 2) Global draft chat from settings
         const draftChatId = await getDraftChatId()
-        const finalChatId = item.approve1_chat_id || item.approve2_chat_id || draftChatId
+        const finalChatId = draftChatId || item.approve1_chat_id || item.approve2_chat_id
 
         let fileId = null
         if (finalChatId) {
