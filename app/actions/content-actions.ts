@@ -20,11 +20,11 @@ export async function getContentStats(): Promise<ContentStats> {
                 .from('news_items')
                 .select('*', { count: 'exact', head: true }),
 
-            // Pending (gate1 passed, no decision)
+            // Pending (gate1 passed, no decision) - Match UI logic precisely
             adminDb
                 .from('news_items')
                 .select('*', { count: 'exact', head: true })
-                .eq('gate1_decision', 'send')
+                .neq('gate1_decision', null)
                 .is('approve1_decision', null),
 
             // Approved
@@ -40,6 +40,12 @@ export async function getContentStats(): Promise<ContentStats> {
                 .eq('approve1_decision', 'rejected')
         ])
 
+        // Log errors if present
+        if (totalResult.error) console.error('[Stats] Total Error:', totalResult.error)
+        if (pendingResult.error) console.error('[Stats] Pending Error:', pendingResult.error)
+        if (approvedResult.error) console.error('[Stats] Approved Error:', approvedResult.error)
+        if (rejectedResult.error) console.error('[Stats] Rejected Error:', rejectedResult.error)
+
         return {
             total: totalResult.count || 0,
             pending: pendingResult.count || 0,
@@ -47,7 +53,7 @@ export async function getContentStats(): Promise<ContentStats> {
             rejected: rejectedResult.count || 0
         }
     } catch (error) {
-        console.error('[Action] getContentStats error:', error)
+        console.error('[Action] getContentStats exception:', error)
         return { total: 0, pending: 0, approved: 0, rejected: 0 }
     }
 }
