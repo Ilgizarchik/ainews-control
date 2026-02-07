@@ -24,7 +24,17 @@ export default function ContentPage() {
   const supabase = useMemo(() => createClient(), [])
 
   const buildQuery = (filter: ContentFilter, sources: string[]) => {
-    let query = (supabase.from('news_items' as any) as any).select('*', { count: 'exact' })
+    // Optimized selection to avoid fetching heavy text/html columns
+    const columns = [
+      'id', 'title', 'source_name', 'canonical_url', 'published_at',
+      'rss_summary', 'image_url',
+      'gate1_decision', 'gate1_score', 'gate1_tags', 'gate1_reason', 'gate1_processed_at',
+      'approve1_decision', 'approve1_decided_at', 'approve1_decided_by',
+      'sent_to_approve1_at', 'approve1_message_id', 'approve1_chat_id',
+      'status', 'is_viewed', 'created_at'
+    ].join(',')
+
+    let query = (supabase.from('news_items' as any) as any).select(columns, { count: 'exact' })
 
     if (filter === 'pending') {
       // Pending = Processed by AI (decision blocked OR send) but not processed by human yet
@@ -87,8 +97,13 @@ export default function ContentPage() {
         console.error('[ContentPage] Failed to fetch stats:', statsResults.reason)
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('[ContentPage] Critical error in loadData:', error)
+      // Check for Server Action ID mismatch (deployment update)
+      if (error?.message?.includes('Server Action') && error?.message?.includes('not found')) {
+        console.warn('Deployment mismatch dectected, reloading...')
+        window.location.reload()
+      }
     } finally {
       if (isInitial) setLoading(false)
       setRefreshing(false)

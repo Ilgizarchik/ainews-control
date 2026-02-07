@@ -70,9 +70,13 @@ export function ContentBoard({
     // Load available sources with counts from server (independent of pagination)
     useEffect(() => {
         let active = true
-        getContentStatsBySource(currentFilter).then(data => {
-            if (active) setSourceStats(data)
-        })
+        getContentStatsBySource(currentFilter)
+            .then(data => {
+                if (active) setSourceStats(data)
+            })
+            .catch(err => {
+                console.error('Failed to load source stats:', err)
+            })
         return () => { active = false }
     }, [currentFilter])
 
