@@ -22,7 +22,7 @@ const locales = { ru }
 const localizer = dateFnsLocalizer({
     format,
     parse,
-    startOfWeek: (date, culture) => {
+    startOfWeek: (date: Date, culture: any) => {
         const locale = locales[(culture as keyof typeof locales) ?? 'ru'] || ru
         return startOfWeek(date, { locale, weekStartsOn: 1 })
     },
