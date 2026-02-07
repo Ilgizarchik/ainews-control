@@ -68,7 +68,7 @@ export function PublicationEventCard({ event }: { event: any }) {
 
             setText(newText)
             setShowWand(false)
-        } catch {
+        } catch (e) {
             console.error('Failed to update text', e)
         }
     }
@@ -193,4 +193,3 @@ export function PublicationEventCard({ event }: { event: any }) {
         </>
     )
 }
-// Import at top (added implicitly via replacement context, but need to ensure imports exist)
