@@ -156,10 +156,15 @@ export async function callAI(systemPrompt: string, userPrompt: string, config?: 
         }
 
         const data: any = await response.json();
-        const content = data.choices?.[0]?.message?.content;
+        const choice = data.choices?.[0];
+        const content = choice?.message?.content;
 
         if (!content) {
             console.warn('[AI] Empty content received. Raw response:', JSON.stringify(data, null, 2));
+
+            if (choice?.finish_reason === 'length') {
+                throw new Error('AI generation hit max_tokens limit. The model spent too many tokens on reasoning. Please increase AI Max Tokens settings or use a simplified prompt.');
+            }
         }
 
         return content || "";
@@ -168,11 +173,16 @@ export async function callAI(systemPrompt: string, userPrompt: string, config?: 
         const proxyMsg = isProxyError ? " (Check Proxy Settings)" : "";
 
         if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+            // ...
+            // preserve existing error handling
             const timeoutMsg = `AI request timeout (${provider}/${model}) after 60 seconds${proxyMsg}`;
             console.error(`[AI] ${timeoutMsg}`);
             await logErrorToTelegram(timeoutMsg, `callAI (${model})`);
             throw new Error(timeoutMsg);
         }
+
+        // Re-throw our new specific error
+        if (error.message.includes('AI generation hit max_tokens')) throw error;
 
         // Enhance connection errors
         if (error.cause?.code === 'ECONNRESET' || error.message.includes('ECONNRESET')) {

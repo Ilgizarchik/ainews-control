@@ -19,6 +19,10 @@ import { MediaTab } from './MediaTab'
 import { isMarkdown, markdownToHtml } from '@/lib/markdown-utils'
 import { TutorialButton } from '../tutorial/TutorialButton'
 import { getEditorTutorialSteps } from '@/lib/tutorial/tutorial-config'
+import { getSystemPrompt, updateSystemPrompt } from '@/app/actions/prompts'
+import { AiActionButtons } from './AiActionButtons'
+import { Textarea } from '@/components/ui/textarea'
+import { MagicTextEditor } from './magic-text-editor'
 
 type NewsEditorDialogProps = {
     contentId: string
@@ -64,6 +68,16 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
 
     const [announces, setAnnounces] = useState<Record<string, string>>({})
     const [activeTab, setActiveTab] = useState('main')
+
+    // AI Generation & Prompt Editing State
+    const [generatingField, setGeneratingField] = useState<string | null>(null)
+    const [editingPromptKey, setEditingPromptKey] = useState<string | null>(null)
+    const [promptContent, setPromptContent] = useState('')
+    const [loadingPrompt, setLoadingPrompt] = useState(false)
+    const [savingPrompt, setSavingPrompt] = useState(false)
+
+    // Magic Edit State
+    const [magicEditState, setMagicEditState] = useState<{ field: 'draft_title' | 'draft_announce' | 'draft_longread', value: string } | null>(null)
 
     const editorSteps = useMemo(() => getEditorTutorialSteps(setActiveTab), [])
 
@@ -209,6 +223,81 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
         } catch (e: any) { toast.error('Ошибка отклонения: ' + e.message) } finally { setDeleting(false) }
     }
 
+    const handleGenerateField = async (field: 'draft_title' | 'draft_announce' | 'draft_longread') => {
+        setGeneratingField(field)
+        try {
+            const response = await fetch('/api/ai/generate-field', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    news_id: contentType === 'news' ? contentId : undefined,
+                    review_id: contentType === 'review' ? contentId : undefined,
+                    field
+                })
+            })
+            const result = await response.json()
+            if (!response.ok) throw new Error(result.error)
+
+            setData(prev => ({ ...prev, [field]: result.result }))
+            toast.success('Сгенерировано!')
+        } catch (e: any) {
+            toast.error('Ошибка генерации: ' + e.message)
+        } finally {
+            setGeneratingField(null)
+        }
+    }
+
+    const openPromptEditor = async (field: 'draft_title' | 'draft_announce' | 'draft_longread') => {
+        let key = ''
+        switch (field) {
+            case 'draft_title': key = 'rewrite_title'; break;
+            case 'draft_announce': key = 'rewrite_announce'; break;
+            case 'draft_longread': key = 'rewrite_longread'; break;
+        }
+
+        setEditingPromptKey(key)
+        setLoadingPrompt(true)
+        setPromptContent('')
+
+        try {
+            const data = await getSystemPrompt(key)
+            if (data?.content) {
+                setPromptContent(data.content)
+            } else {
+                toast.error('Промпт не найден')
+            }
+        } catch (e) {
+            toast.error('Ошибка загрузки промпта')
+        } finally {
+            setLoadingPrompt(false)
+        }
+    }
+
+    const handleSavePrompt = async () => {
+        if (!editingPromptKey) return
+        setSavingPrompt(true)
+        try {
+            await updateSystemPrompt(editingPromptKey, promptContent)
+            toast.success('Промпт сохранен')
+            setEditingPromptKey(null)
+        } catch (e: any) {
+            toast.error('Ошибка сохранения: ' + e.message)
+        } finally {
+            setSavingPrompt(false)
+        }
+    }
+
+    const openMagicEdit = (field: 'draft_title' | 'draft_announce' | 'draft_longread') => {
+        setMagicEditState({ field, value: data[field] || '' })
+    }
+
+    const handleMagicSave = (newText: string) => {
+        if (magicEditState) {
+            setData(prev => ({ ...prev, [magicEditState.field]: newText }))
+            setMagicEditState(null)
+        }
+    }
+
     return (
         <>
             <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -262,7 +351,15 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
                                 <TabsContent value="main" className="space-y-8 mt-0 h-full animate-in fade-in slide-in-from-bottom-2">
                                     <div className="space-y-4">
                                         <div className="flex items-center justify-between">
-                                            <Label className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">📌 Заголовок</Label>
+                                            <div className="flex items-center gap-3">
+                                                <Label className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">📌 Заголовок</Label>
+                                                <AiActionButtons
+                                                    onGenerate={() => handleGenerateField('draft_title')}
+                                                    onEditPrompt={() => openPromptEditor('draft_title')}
+                                                    onMagicEdit={() => openMagicEdit('draft_title')}
+                                                    isGenerating={generatingField === 'draft_title'}
+                                                />
+                                            </div>
                                             <div className="flex items-center gap-3">
                                                 <VoiceInput onTranscription={(t) => setData(p => ({ ...p, draft_title: p.draft_title ? `${p.draft_title} ${t}` : t }))} />
                                             </div>
@@ -272,7 +369,15 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
 
                                     <div className="space-y-4 flex-1 flex flex-col min-h-[300px]">
                                         <div className="flex justify-between items-center">
-                                            <Label className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">📢 Анонс</Label>
+                                            <div className="flex items-center gap-3">
+                                                <Label className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">📢 Анонс</Label>
+                                                <AiActionButtons
+                                                    onGenerate={() => handleGenerateField('draft_announce')}
+                                                    onEditPrompt={() => openPromptEditor('draft_announce')}
+                                                    onMagicEdit={() => openMagicEdit('draft_announce')}
+                                                    isGenerating={generatingField === 'draft_announce'}
+                                                />
+                                            </div>
                                             <div className="flex items-center gap-4">
                                                 <span className="text-[10px] font-black uppercase px-2 py-1 bg-muted rounded-full border">{data.draft_announce.length} символов</span>
                                                 <VoiceInput onTranscription={(t) => setData(p => ({ ...p, draft_announce: p.draft_announce ? `${p.draft_announce} ${t}` : t }))} />
@@ -304,7 +409,15 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
 
                                 <TabsContent value="longread" className="mt-0 h-full animate-in fade-in slide-in-from-bottom-2 flex flex-col space-y-6">
                                     <div className="shrink-0 flex items-center justify-between">
-                                        <Label className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">📜 Статья</Label>
+                                        <div className="flex items-center gap-3">
+                                            <Label className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">📜 Статья</Label>
+                                            <AiActionButtons
+                                                onGenerate={() => handleGenerateField('draft_longread')}
+                                                onEditPrompt={() => openPromptEditor('draft_longread')}
+                                                onMagicEdit={() => openMagicEdit('draft_longread')}
+                                                isGenerating={generatingField === 'draft_longread'}
+                                            />
+                                        </div>
                                         <div className="flex items-center gap-4">
                                             <span className="text-[10px] font-black uppercase px-2 py-1 bg-muted rounded-full border">{data.draft_longread?.length || 0} символов</span>
                                             <div className="flex items-center gap-3">
@@ -356,6 +469,47 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Prompt Editor Dialog */}
+            <Dialog open={!!editingPromptKey} onOpenChange={(open) => !open && setEditingPromptKey(null)}>
+                <DialogContent className="max-w-3xl h-[80vh] flex flex-col">
+                    <DialogHeader>
+                        <DialogTitle>Редактирование промпта: {editingPromptKey}</DialogTitle>
+                    </DialogHeader>
+                    <div className="flex-1 min-h-0 py-4">
+                        {loadingPrompt ? (
+                            <div className="h-full flex items-center justify-center">
+                                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                            </div>
+                        ) : (
+                            <Textarea
+                                value={promptContent}
+                                onChange={(e) => setPromptContent(e.target.value)}
+                                className="h-full font-mono text-sm resize-none"
+                                placeholder="Введите системный промпт..."
+                            />
+                        )}
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setEditingPromptKey(null)}>Отмена</Button>
+                        <Button onClick={handleSavePrompt} disabled={savingPrompt || loadingPrompt}>
+                            {savingPrompt && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                            Сохранить
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+            {/* Magic Text Editor Dialog */}
+            {magicEditState && (
+                <MagicTextEditor
+                    isOpen={!!magicEditState}
+                    onOpenChange={(open) => !open && setMagicEditState(null)}
+                    originalText={magicEditState.value}
+                    onSave={handleMagicSave}
+                    itemId={contentId}
+                    itemType={contentType}
+                />
+            )}
         </>
     )
 }
