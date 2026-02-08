@@ -58,33 +58,61 @@ export async function POST(req: Request) {
         let promptKey = ''
         let userContent = ''
 
-        const cleanText = item.cleaned_text || item.summary || item.title || ''
-        const longread = item.draft_longread || ''
-        const announce = item.draft_announce || ''
+        // For longread, we MUST have the original text
+        if (field === 'draft_longread') {
+            promptKey = 'rewrite_longread'
 
-        switch (field) {
-            case 'draft_title':
-                promptKey = 'rewrite_title'
-                // Context: Announce or Longread or Cleaned Text
-                userContent = announce || longread || cleanText
-                break
-            case 'draft_announce':
-                promptKey = 'rewrite_announce'
-                // Context: Longread or Cleaned Text
-                userContent = longread || cleanText
-                break
-            case 'draft_longread':
-                promptKey = 'rewrite_longread'
-                // Context: Cleaned Text (source)
-                userContent = cleanText
-                break
-        }
+            // Check if we have the original text saved
+            let originalText = item.original_text || item.cleaned_text
 
-        if (!userContent && !extraContext) {
-            return NextResponse.json({ error: 'No source content available for generation' }, { status: 400 })
+            // If no original text, try to scrape it NOW
+            if (!originalText && item.canonical_url) {
+                console.log(`[GenerateField] No original text for ${contentId}. Attempting on-the-fly scraping...`)
+                try {
+                    const { scrapeArticleText } = await import('@/lib/scraper-service')
+
+                    // Try to find a custom selector
+                    let contentSelector: string | undefined = undefined
+                    try {
+                        const { data: source } = await supabaseAdmin
+                            .from('ingestion_sources')
+                            .select('selectors')
+                            .eq('name', item.source_name)
+                            .single() as any
+                        if (source?.selectors?.content_selector) {
+                            contentSelector = source.selectors.content_selector
+                        }
+                    } catch { }
+
+                    originalText = await scrapeArticleText(item.canonical_url, contentSelector)
+
+                    // Save it for future use!
+                    if (originalText && originalText.length > 100) {
+                        await supabaseAdmin
+                            .from(tableName as any)
+                            .update({ original_text: originalText })
+                            .eq('id', contentId)
+                        console.log(`[GenerateField] Successfully scraped and saved original_text for ${contentId}`)
+                    }
+                } catch (scrapeErr) {
+                    console.error(`[GenerateField] Fallback scraping failed for ${contentId}:`, scrapeErr)
+                }
+            }
+
+            userContent = originalText || item.rss_summary || item.title || ''
+        } else if (field === 'draft_title') {
+            promptKey = 'rewrite_title'
+            userContent = item.draft_announce || item.draft_longread || item.original_text || item.rss_summary || ''
+        } else if (field === 'draft_announce') {
+            promptKey = 'rewrite_announce'
+            userContent = item.draft_longread || item.original_text || item.rss_summary || ''
         }
 
         if (extraContext) userContent = extraContext;
+
+        if (!userContent) {
+            return NextResponse.json({ error: 'No source content available for generation' }, { status: 400 })
+        }
 
         // 3. Fetch Prompt
         const { data: promptData, error: promptError } = await supabaseAdmin
@@ -94,12 +122,6 @@ export async function POST(req: Request) {
             .single()
 
         if (promptError || !promptData) {
-            // If prompt is missing for title, use default logic
-            if (field === 'draft_title') {
-                // Fallback or create prompt?
-                // For now, return error to encourage prompt creation
-                return NextResponse.json({ error: `Prompt not found: ${promptKey}` }, { status: 404 })
-            }
             return NextResponse.json({ error: `Prompt not found: ${promptKey}` }, { status: 404 })
         }
 
@@ -108,10 +130,8 @@ export async function POST(req: Request) {
             provider: promptData.provider,
             model: promptData.model,
             temperature: promptData.temperature,
-            maxTokens: 15000 // Significantly increased for reasoning models (o1/gpt-5) which use output tokens for thought
+            maxTokens: 15000
         }
-
-        console.log(`[GenerateField] Calling AI with maxTokens=${config.maxTokens} for field=${field}`)
 
         const generatedText = await callAI(
             promptData.content,
@@ -119,17 +139,11 @@ export async function POST(req: Request) {
             config
         )
 
-        // 5. Update DB (Optional, but good for saving progress)
-        const { error: updateError } = await supabase
+        // 5. Update DB
+        const { error: updateError } = await supabaseAdmin
             .from(tableName as any)
             .update({ [field]: generatedText.trim() })
             .eq('id', contentId)
-
-        if (updateError) {
-            console.error('[GenerateField] DB Update Error:', updateError)
-            // We don't throw here to return the result to the user, but we log it.
-            // The frontend will likely update the state and save it eventually anyway.
-        }
 
         return NextResponse.json({
             success: true,

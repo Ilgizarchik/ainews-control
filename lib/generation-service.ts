@@ -159,8 +159,7 @@ export async function processApprovedNews(newsId: string) {
 
         const shouldAutoGenerate = autoGenSetting?.value === 'true';
 
-        if (!shouldAutoGenerate) {
-        } else {
+        if (shouldAutoGenerate) {
             try {
                 const { data: recipes } = await (supabase
                     .from('publish_recipes')
@@ -222,13 +221,11 @@ export async function processApprovedNews(newsId: string) {
             draft_image_prompt: generatedImagePrompt,
             draft_image_file_id: imageFileId,
             draft_image_url: imageUrl,
+            original_text: articleText, // <--- Preserve the original scraped text for future regeneration
             status: 'drafts_ready', // Stage 1 completed
             updated_at: new Date().toISOString(),
             ...platformAnnounces
         };
-
-        // If not generated, make sure fields are null/empty if that's desired, or just don't update them (they are null by default)
-        // Since payload spreads ...platformAnnounces, empty object means no update to those fields. Correct.
 
         const { error: updateError } = await ((supabase
             .from('news_items') as any)
