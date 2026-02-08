@@ -40,6 +40,7 @@ type NewsData = {
     draft_image_prompt?: string
     draft_image_url?: string
     gate1_tags: string[]
+    source_url?: string
 }
 
 type CorrectionHistoryItem = {
@@ -63,7 +64,8 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
         draft_longread: '',
         draft_image_prompt: '',
         draft_image_url: '',
-        gate1_tags: []
+        gate1_tags: [],
+        source_url: ''
     })
     const [hasUrl, setHasUrl] = useState(false)
 
@@ -153,7 +155,8 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
                     draft_longread: longreadContent,
                     draft_image_prompt: typedData.draft_image_prompt || '',
                     draft_image_url: effectiveImageUrl,
-                    gate1_tags: typedData.gate1_tags || []
+                    gate1_tags: typedData.gate1_tags || [],
+                    source_url: typedData.canonical_url || ''
                 })
 
                 setHasUrl(!!typedData.canonical_url)
@@ -381,6 +384,7 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    url: data.source_url,
                     news_id: contentType === 'news' ? contentId : undefined,
                     review_id: contentType === 'review' ? contentId : undefined
                 })

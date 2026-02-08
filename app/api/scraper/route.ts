@@ -18,18 +18,19 @@ export async function POST(req: Request) {
             const id = news_id || review_id
             console.log(`[Scraper API] Looking up URL in table ${table} for ID: ${id}`)
 
-            const { data, error } = await supabase.from(table).select('canonical_url, url').eq('id', id).single()
+            // В news_items это точно canonical_url. 
+            const { data, error } = await supabase.from(table).select('canonical_url').eq('id', id).single()
 
             if (error) {
-                console.error(`[Scraper API] DB lookup error:`, error)
+                console.error(`[Scraper API] DB lookup error for ${table}/${id}:`, error)
             } else {
-                targetUrl = data?.canonical_url || data?.url
+                targetUrl = data?.canonical_url
                 console.log(`[Scraper API] Found URL in DB: ${targetUrl}`)
             }
         }
 
         if (!targetUrl) {
-            console.error('[Scraper API] No URL found for this request')
+            console.error('[Scraper API] No URL found. Request body:', JSON.stringify(body))
             return NextResponse.json({
                 error: 'URL is required but was not found in request or database',
                 debug: { news_id, review_id, hasUrlInRequest: !!url }
