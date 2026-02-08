@@ -59,8 +59,11 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
 
         try {
             const result = await approveContentItem(item.id)
-            timers.forEach(clearTimeout) // Clear simulation if finished
-            toast.dismiss(toastId) // Explicitly dismiss loading toast to prevent sticking
+
+            // Clear ALL timers immediately
+            timers.forEach(clearTimeout)
+            // Force dismiss the loading toast
+            toast.dismiss(toastId)
 
             if (result.success) {
                 toast.success('✨ Черновик успешно создан!')
