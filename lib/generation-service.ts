@@ -36,7 +36,20 @@ export async function processApprovedNews(newsId: string) {
     }
 
     // 2. Scrape content
-    const articleText = await scrapeArticleText(item.canonical_url, contentSelector);
+    let articleText = '';
+    try {
+        articleText = await scrapeArticleText(item.canonical_url, contentSelector);
+        console.log(`[Generation] Scraped text length for ${newsId}: ${articleText.length}`);
+    } catch (scrapeErr) {
+        console.warn(`[Generation] Scraping failed for ${newsId}:`, scrapeErr);
+    }
+
+    // Fallback if scraping returned nothing useful
+    if (articleText.length < 100) {
+        articleText = item.content || item.rss_summary || '';
+        console.log(`[Generation] Using fallback content for ${newsId}, length: ${articleText.length}`);
+    }
+
     const sourceContext = `Название: ${item.title}\n\nТекст статьи:\n${articleText}`;
 
     // 3. Get prompts with configurations

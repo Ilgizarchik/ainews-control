@@ -34,7 +34,11 @@ export async function scrapeArticleText(url: string, selector?: string): Promise
 
         const fetchOptions: any = {
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
             }
         };
 
@@ -46,7 +50,7 @@ export async function scrapeArticleText(url: string, selector?: string): Promise
         const response = await undiciFetch(url, fetchOptions);
 
         if (!response.ok) {
-            throw new Error(`Failed to fetch article: ${response.statusText}`);
+            throw new Error(`Failed to fetch article: ${response.status} ${response.statusText}`);
         }
 
         const html = await response.text();
@@ -65,20 +69,31 @@ export async function scrapeArticleText(url: string, selector?: string): Promise
         }
 
         // 2. Fallback to Readability
-        if (!text || text.trim().length === 0) {
-            const reader = new Readability(document);
-            const article = reader.parse();
-            text = article?.textContent || '';
+        if (!text || text.trim().length < 300) {
+            try {
+                const reader = new Readability(document);
+                const article = reader.parse();
+                if (article?.textContent && article.textContent.trim().length > (text?.length || 0)) {
+                    text = article.textContent;
+                }
+            } catch (readError) {
+                console.warn('[Scraper] Readability failed:', readError);
+            }
         }
 
-        // 3. Last resort: blind HTML stripping
-        if (!text || text.trim().length === 0) {
-            text = html
+        // 3. Last resort: blind HTML stripping if still too short or empty
+        if (!text || text.trim().length < 300) {
+            const rawBody = document.body?.textContent || html;
+            const stripped = rawBody
                 .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gmi, "")
                 .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gmi, "")
                 .replace(/<[^>]+>/g, " ")
                 .replace(/\s+/g, " ")
                 .trim();
+
+            if (stripped.length > (text?.length || 0)) {
+                text = stripped;
+            }
         }
 
         // Clean up whitespace (newlines to spaces, multiple spaces to one)
@@ -88,6 +103,6 @@ export async function scrapeArticleText(url: string, selector?: string): Promise
         return text.substring(0, 15000);
     } catch (error) {
         console.error('[Scraper] Error:', error);
-        throw error; // Re-throw to be handled by the caller
+        throw error;
     }
 }
