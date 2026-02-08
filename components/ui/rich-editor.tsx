@@ -24,24 +24,6 @@ import { createPortal } from 'react-dom'
 import { MagicTextEditor } from '@/components/publications/magic-text-editor'
 import { VoiceInput } from '@/components/ui/voice-input'
 
-// ... (existing imports)
-
-// ... (hashtags code remains same, skipping for brevity in replacement if not touched, but since I am replacing the function I need to be careful. I will use a targeted replacement for the component function if possible, but imports need to be added. I will replace the imports and the RichEditor component.)
-// Actually, I can use replace_content for imports and then another for the component.
-// But to be safe and clean, let's just replace the imports block and then the component block. 
-// Or better: Replace imports, then replace RichEditor.
-
-// Let's do imports first.
-// Wait, I can do it in one go if I replace the whole file? No, too big. 
-// I will just add BubbleMenu to imports and MagicTextEditor import.
-// Then replace RichEditor function.
-
-// STEP 1: Update imports
-// STEP 2: Update RichEditor
-
-// Let's try to match imports block.
-
-
 type RichEditorProps = {
     value: string
     onChange: (value: string) => void
@@ -290,12 +272,10 @@ export function RichEditor({ value, onChange, className, itemId, itemType }: Ric
         }
     })
 
-    // Sync external value changes to editor (e.g. initial load)
+    // Sync external value changes to editor (e.g. initial load or AI update)
     useEffect(() => {
         if (editor && value !== editor.getHTML()) {
-            if (editor.getText() === '' && value) {
-                editor.commands.setContent(value)
-            }
+            editor.commands.setContent(value)
         }
     }, [value, editor])
 

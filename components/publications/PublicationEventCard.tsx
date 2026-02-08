@@ -10,6 +10,7 @@ import { Clock, CheckCircle2, Wand2 } from 'lucide-react'
 import { getPlatformConfig } from '@/lib/platform-config'
 import { MagicTextEditor } from './magic-text-editor'
 import { createClient } from '@/lib/supabase/client'
+import { toast } from 'sonner'
 
 export function PublicationEventCard({ event }: { event: any }) {
     const config = getPlatformConfig(event.platform)
@@ -69,17 +70,24 @@ export function PublicationEventCard({ event }: { event: any }) {
     const handleSave = async (newText: string) => {
         try {
             const table = itemType === 'news' ? 'news_items' : 'review_items'
+
+            // For reviews, the displayed title is typically 'draft_title'. 'title_seed' is just the usage input.
+            // We should update 'draft_title' to reflect the change in the UI and final output.
+            const updatePayload = itemType === 'review' ? { draft_title: newText } : { title: newText }
+
             const { error } = await supabase
                 .from(table)
-                .update(itemType === 'review' ? { title_seed: newText } : { title: newText }) // Adjust field based on type
+                .update(updatePayload)
                 .eq('id', contentId)
 
             if (error) throw error
 
             setText(newText)
             setShowWand(false)
-        } catch (e) {
+            toast.success('Заголовок обновлен')
+        } catch (e: any) {
             console.error('Failed to update text', e)
+            toast.error('Не удалось сохранить изменения: ' + e.message)
         }
     }
 

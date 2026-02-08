@@ -291,10 +291,12 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
         setMagicEditState({ field, value: data[field] || '' })
     }
 
-    const handleMagicSave = (newText: string) => {
+    const handleMagicSave = async (newText: string) => {
         if (magicEditState) {
             setData(prev => ({ ...prev, [magicEditState.field]: newText }))
             setMagicEditState(null)
+            // Refresh history to show the new edit
+            await fetchContentData()
         }
     }
 
