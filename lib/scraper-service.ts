@@ -45,7 +45,14 @@ export async function scrapeArticleText(url: string, selector?: string): Promise
         }
 
         const { stdout } = await execPromise(cmd, { timeout: 45000 });
-        const result = JSON.parse(stdout);
+
+        // Поиск JSON в выводе (на случай если просочились варнинги)
+        const jsonMatch = stdout.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+            throw new Error(`Could not find JSON in Python output: ${stdout}`);
+        }
+
+        const result = JSON.parse(jsonMatch[0]);
 
         if (result.success && result.content && result.content.length > 500) {
             console.log(`[Scraper] Python Bridge success! Length: ${result.content.length}`);
