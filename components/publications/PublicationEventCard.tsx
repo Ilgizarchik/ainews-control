@@ -20,7 +20,8 @@ export function PublicationEventCard({ event }: { event: any }) {
     const strongBorder = color.replace('text-', 'border-')
     const strongBg = color.replace('text-', 'bg-')
 
-    const date = new Date(event.publish_date)
+    // Use realStart passed from parent if available, otherwise just use event start
+    const date = event.resource?.realStart ? event.resource.realStart : new Date(event.publish_date || event.start)
     const isPublished = event.status === 'published'
 
     const { resolvedTheme } = useTheme()
@@ -97,7 +98,7 @@ export function PublicationEventCard({ event }: { event: any }) {
                                     {format(date, 'HH:mm')}
                                 </span>
                             </div>
-                            <span className="text-[10px] font-medium text-zinc-700 truncate pr-1 leading-tight -mt-0.5">
+                            <span className="text-[10px] font-medium text-zinc-700 line-clamp-3 pr-1 leading-tight -mt-0.5 break-words whitespace-normal">
                                 {text}
                             </span>
                         </div>

@@ -108,8 +108,10 @@ export async function POST(req: Request) {
             provider: promptData.provider,
             model: promptData.model,
             temperature: promptData.temperature,
-            maxTokens: 4000 // Increased to support reasoning models
+            maxTokens: 15000 // Significantly increased for reasoning models (o1/gpt-5) which use output tokens for thought
         }
+
+        console.log(`[GenerateField] Calling AI with maxTokens=${config.maxTokens} for field=${field}`)
 
         const generatedText = await callAI(
             promptData.content,

@@ -82,19 +82,61 @@ export function CalendarViewBig() {
     }, [refreshCalendar])
 
     const events: CalendarEvent[] = useMemo(() => {
-        return jobs.map((j: any) => ({
-            id: j.id,
-            title: j.news_items?.draft_title || j.news_items?.title || j.review_items?.draft_title || j.review_items?.title_seed || 'Без названия',
-            start: new Date(j.publish_at),
-            end: new Date(j.publish_at),
-            resource: {
-                status: j.status,
-                platform: j.platform,
-                newsId: j.news_id,
-                reviewId: j.review_id,
-                job: j
+        // 1. Sort jobs by time first
+        const sortedJobs = [...jobs].sort((a: any, b: any) =>
+            new Date(a.publish_at).getTime() - new Date(b.publish_at).getTime()
+        )
+
+        // 2. Track end times per day to stack events
+        const dayEndTimes: Record<string, number> = {}
+        const DURATION_MS = 30 * 60000 // Reduced to 30 mins to fit more events at EOD
+
+        return sortedJobs.map((j: any) => {
+            const realStart = new Date(j.publish_at)
+            const dayKey = format(realStart, 'yyyy-MM-dd')
+
+            // Determine visual start time (Waterfall)
+            let visualStart = realStart.getTime()
+
+            // If previous event on this day ends after this one starts (visually),
+            // push this one down to start after previous one ends.
+            // We only care about visual collision, so check against last recorded end time.
+            if (dayEndTimes[dayKey] && visualStart < dayEndTimes[dayKey]) {
+                visualStart = dayEndTimes[dayKey]
             }
-        }))
+
+            // Calculate visual end
+            let visualEnd = visualStart + DURATION_MS
+
+            // Clamp locally to avoid cross-day issues (though stacking might push it far)
+            const visualStartDate = new Date(visualStart)
+            const endOfDay = new Date(visualStartDate)
+            endOfDay.setHours(23, 59, 59, 999)
+
+            if (visualEnd > endOfDay.getTime()) {
+                visualEnd = endOfDay.getTime()
+                // If start is also past end of day, we have a problem (too many stacked events).
+                // But let's assume < 24 events per day.
+            }
+
+            // Update tracker for next event
+            dayEndTimes[dayKey] = visualEnd
+
+            return {
+                id: j.id,
+                title: j.news_items?.draft_title || j.news_items?.title || j.review_items?.draft_title || j.review_items?.title_seed || 'Без названия',
+                start: new Date(visualStart),
+                end: new Date(visualEnd),
+                resource: {
+                    status: j.status,
+                    platform: j.platform,
+                    newsId: j.news_id,
+                    reviewId: j.review_id,
+                    job: j,
+                    realStart: realStart // Pass real time to component
+                }
+            }
+        })
     }, [jobs])
 
     const handleEventDrop = async ({ event, start }: { event: CalendarEvent; start: Date; end: Date }) => {
@@ -176,7 +218,8 @@ export function CalendarViewBig() {
                         publish_date: event.start,
                         status: event.resource.status,
                         title: event.title,
-                        id: event.id
+                        id: event.id,
+                        resource: event.resource // Pass resource to get realStart
                     }}
                 />
             </div>
@@ -192,7 +235,8 @@ export function CalendarViewBig() {
                     publish_date: event.start,
                     status: event.resource.status,
                     title: event.title,
-                    id: event.id
+                    id: event.id,
+                    resource: event.resource // Pass resource
                 }}
             />
         )
@@ -279,8 +323,8 @@ export function CalendarViewBig() {
                     drilldownView={null}
                     showAllEvents={true}
                     showMultiDayTimes={false}
-                    step={60}
-                    timeslots={1}
+                    step={30}
+                    timeslots={2}
                     max={new Date(2100, 0, 1, 23, 0, 0)}
                 />
             </div>
@@ -395,6 +439,7 @@ export function CalendarViewBig() {
                     border: none;
                     border-radius: 12px;
                     overflow: hidden;
+                    background: hsl(var(--card) / 0.5);
                 }
 
                 .rbc-time-header {
@@ -407,6 +452,7 @@ export function CalendarViewBig() {
 
                 .rbc-timeslot-group {
                     border-left: 1px solid hsl(var(--border) / 0.4);
+                    min-height: 100px; /* Increased height for better vertical spacing */
                 }
 
                 .rbc-time-slot {
@@ -425,10 +471,28 @@ export function CalendarViewBig() {
                 .rbc-label {
                     color: hsl(var(--muted-foreground));
                     font-size: 0.75rem;
+                    padding: 0 8px;
                 }
 
                 .rbc-allday-cell {
                     background: hsl(var(--muted) / 0.2);
+                }
+
+                /* Event Styling in Time View */
+                .rbc-time-view .rbc-event {
+                    min-height: 60px !important;
+                    background: transparent !important;
+                    border: none !important;
+                    box-shadow: none !important;
+                    overflow: visible !important; /* Allow hover scaling to work */
+                }
+
+                .rbc-time-view .rbc-event-label {
+                    display: none;
+                }
+
+                .rbc-time-view .rbc-event-content {
+                    overflow: visible;
                 }
 
                 /* Drag and Drop Styles */

@@ -158,13 +158,20 @@ export async function callAI(systemPrompt: string, userPrompt: string, config?: 
         const data: any = await response.json();
         const choice = data.choices?.[0];
         const content = choice?.message?.content;
+        const finishReason = choice?.finish_reason;
+        const usage = data.usage;
+
+        console.log(`[AI] Response: model=${data.model}, finish_reason=${finishReason}, usage=${JSON.stringify(usage)}`);
+
+        if (finishReason === 'length') {
+            const msg = `AI generation truncated (max tokens hit). Usage: ${JSON.stringify(usage)}. Please simplify prompt or increase limit.`;
+            console.warn(`[AI] ${msg}`);
+            // Throwing error so UI shows the problem instead of partial text
+            throw new Error(msg);
+        }
 
         if (!content) {
             console.warn('[AI] Empty content received. Raw response:', JSON.stringify(data, null, 2));
-
-            if (choice?.finish_reason === 'length') {
-                throw new Error('AI generation hit max_tokens limit. The model spent too many tokens on reasoning. Please increase AI Max Tokens settings or use a simplified prompt.');
-            }
         }
 
         return content || "";

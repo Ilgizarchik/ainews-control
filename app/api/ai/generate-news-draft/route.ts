@@ -80,7 +80,8 @@ export async function POST(req: Request) {
                     { role: 'system', content: systemPrompt },
                     { role: 'user', content: userPrompt }
                 ],
-                temperature: 0.7
+                temperature: 0.7,
+                max_completion_tokens: 30000 // Explicitly set for long reads/reasoning models (approx 30k output chars)
             };
 
             const fetchOptions: any = {
