@@ -393,7 +393,7 @@ export function PlatformAnnouncesTab({
                                                             <Button
                                                                 variant="outline"
                                                                 size="sm"
-                                                                onClick={() => openPromptEditor(platform)}
+                                                                onClick={() => openPromptEditor('tg')}
                                                                 className="h-8 w-8 p-0 rounded-full hover:bg-background/80"
                                                             >
                                                                 <div className="flex items-center justify-center w-full h-full text-muted-foreground hover:text-foreground">

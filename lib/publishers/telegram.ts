@@ -1,4 +1,5 @@
 import { IPublisher, PublishContext, PublishResult } from './types'
+import { convertBbcodeToHtml } from '@/lib/utils'
 
 export class TelegramPublisher implements IPublisher {
     private botToken: string;
@@ -17,10 +18,14 @@ export class TelegramPublisher implements IPublisher {
             const targetChatId = context.config?.telegram_channel_id || this.chatId;
             if (!targetChatId) throw new Error("Telegram Chat ID is missing");
 
+            // Convert BBCode if present to HTML suitable for Telegram
+            const finalHtml = convertBbcodeToHtml(context.content_html);
+            const titleHtml = convertBbcodeToHtml(context.title);
+
             // Smart Link Logic: Check if the text ends with a colon (ignoring trailing whitespace and HTML tags)
-            const plainContent = context.content_html.replace(/<[^>]+>/g, '').trim();
+            const plainContent = finalHtml.replace(/<[^>]+>/g, '').trim();
             // Check if the *visible* text ends with a colon
-            const shouldAttachLink = plainContent.endsWith(':') || context.content_html.trim().match(/:\s*(<[^>]+>)*$/) !== null;
+            const shouldAttachLink = plainContent.endsWith(':') || finalHtml.trim().match(/:\s*(<[^>]+>)*$/) !== null;
 
             const linkPart = (shouldAttachLink && context.source_url) ? ` <a href="${context.source_url}">${context.source_url}</a>` : '';
 
@@ -28,7 +33,8 @@ export class TelegramPublisher implements IPublisher {
             if (context.image_url) {
                 // Caution: Truncating HTML is risky. We assume 'announce' (content_html) is short enough for caption.
                 // If not, we rely on Telegram API to return error, and we fallback to text.
-                const caption = `<b>${context.title}</b>\n\n${context.content_html}${linkPart}`;
+                // FIX: Removed forced title injection to prevent duplicates (user controls full text in content_html)
+                const caption = `${finalHtml}${linkPart}`;
 
                 const url = `https://api.telegram.org/bot${this.botToken}/sendPhoto`;
                 const res = await fetch(url, {
@@ -58,7 +64,7 @@ export class TelegramPublisher implements IPublisher {
             // 2. Fallback / Text Mode
             // Limit 4096 chars
             const textUrl = `https://api.telegram.org/bot${this.botToken}/sendMessage`;
-            const textBody = `<b>${context.title}</b>\n\n${context.content_html}${linkPart}`;
+            const textBody = `${finalHtml}${linkPart}`;
 
             const res = await fetch(textUrl, {
                 method: 'POST',

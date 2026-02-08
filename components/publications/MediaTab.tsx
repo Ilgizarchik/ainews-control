@@ -62,8 +62,21 @@ export function MediaTab({ contentId, contentType, initialImageUrl, onUpdated, t
             } else {
                 toast.error(`Ошибка: ${result.error}`, { id: toastId })
             }
-        } catch {
-            toast.error('Ошибка при генерации', { id: toastId })
+        } catch (error: any) {
+            // User requested to suppress network errors as operations often succeed in background
+            const isNetworkError = error.message && (
+                error.message.includes('Network Error') ||
+                error.message.includes('fetch failed') ||
+                error.message.includes('timeout')
+            );
+
+            if (isNetworkError) {
+                console.warn('[MediaTab] Network error suppressed (assumed background success):', error);
+                toast.success('Запрос отправлен (выполняется в фоне)', { id: toastId, duration: 5000 });
+            } else {
+                console.error('[MediaTab] Regeneration error:', error)
+                toast.error(`Ошибка при генерации: ${error.message || 'Unknown error'}`, { id: toastId })
+            }
         } finally {
             setLoading(false)
         }

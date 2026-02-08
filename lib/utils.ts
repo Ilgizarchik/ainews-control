@@ -34,3 +34,27 @@ export function ensureAbsoluteUrl(url: string | null | undefined, source?: strin
 
   return url
 }
+
+export function convertBbcodeToHtml(text: string): string {
+  if (!text) return ''
+  return text
+    // 1. Basic BBCode
+    .replace(/\[b\]/gi, '<b>').replace(/\[\/b\]/gi, '</b>')
+    .replace(/\[i\]/gi, '<i>').replace(/\[\/i\]/gi, '</i>')
+    .replace(/\[u\]/gi, '<u>').replace(/\[\/u\]/gi, '</u>')
+    .replace(/\[s\]/gi, '<s>').replace(/\[\/s\]/gi, '</s>')
+    .replace(/\[code\]/gi, '<code>').replace(/\[\/code\]/gi, '</code>')
+    .replace(/\[url=(.*?)\](.*?)\[\/url\]/gi, '<a href="$1">$2</a>')
+    .replace(/\[url\](.*?)\[\/url\]/gi, '<a href="$1">$1</a>')
+    // 2. HTML Cleanup (Telegram doesn't support <p>, <br>, <div>)
+    // Replace <p> with nothing (just start) and </p> with double newline
+    .replace(/<p[^>]*>/gi, '').replace(/<\/p>/gi, '\n\n')
+    // Replace <br> with newline
+    .replace(/<br\s*\/?>/gi, '\n')
+    // Remove unsupported tags but keep content
+    .replace(/<\/?div[^>]*>/gi, '')
+    .replace(/<\/?span[^>]*>/gi, '')
+    // Cleanup multiple newlines
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
