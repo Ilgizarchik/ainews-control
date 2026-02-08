@@ -131,7 +131,8 @@ export async function POST(req: Request) {
             messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: fullPrompt }
-            ]
+            ],
+            max_tokens: 15000
         };
 
         const fetchOptions: any = {

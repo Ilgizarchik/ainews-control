@@ -101,7 +101,7 @@ export async function callAI(systemPrompt: string, userPrompt: string, config?: 
 
     const model = config?.model || settings.ai_model;
     const temperature = config?.temperature ?? 0.7;
-    const maxTokens = config?.maxTokens ?? 2000;
+    const maxTokens = config?.maxTokens ?? 4000;
 
     // 2. Determine Key
     let apiKey = settings.keys[provider] || settings.keys.default;

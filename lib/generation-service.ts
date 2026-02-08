@@ -79,7 +79,7 @@ export async function processApprovedNews(newsId: string) {
 
         // Generate Texts
         const [generatedLongread, generatedTitle] = await Promise.all([
-            callAI(getContent('rewrite_longread', 'Напиши лонгрид на основе статьи.'), sourceContext, getConfig('rewrite_longread')),
+            callAI(getContent('rewrite_longread', 'Напиши лонгрид на основе статьи.'), sourceContext, { ...getConfig('rewrite_longread'), maxTokens: 8000 }),
             callAI(getContent('rewrite_title', 'Придумай заголовок.'), sourceContext, getConfig('rewrite_title'))
         ]);
 
