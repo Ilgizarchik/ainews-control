@@ -348,7 +348,7 @@ export function ContentBoard({
                             <div className="text-sm text-muted-foreground text-center">
                                 Показано {filteredItems.length} из {totalCount} элементов
                             </div>
-                            {canLoadMore && !searchQuery.trim() && selectedSources.length === 0 && (
+                            {canLoadMore && !searchQuery.trim() && (
                                 <Button
                                     variant="outline"
                                     onClick={onLoadMore}

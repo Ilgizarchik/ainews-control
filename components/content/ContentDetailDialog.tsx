@@ -15,7 +15,7 @@ import { ExternalLink, Calendar, Star, Tag } from 'lucide-react'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { approveContentItem, rejectContentItem } from '@/app/actions/content-actions'
 import { ensureAbsoluteUrl } from '@/lib/utils'
 import { toast } from '@/components/ui/premium-toasts'
@@ -60,6 +60,18 @@ export function ContentDetailDialog({ item, open, onOpenChange, onActionComplete
         }
     }
 
+    // Keep track of toastId ref to clear it on unmount
+    const toastIdRef = useRef<string | number | null>(null);
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (toastIdRef.current) {
+                toast.dismiss(toastIdRef.current);
+            }
+        };
+    }, []);
+
     const handleApprove = async () => {
         if (onApprove) {
             setLoadingAction('approve')
@@ -74,9 +86,13 @@ export function ContentDetailDialog({ item, open, onOpenChange, onActionComplete
         // Fallback (should not be reached if used via ContentCard)
         setLoadingAction('approve')
         const toastId = toast.loading('🚀 Запуск AI агентов...')
+        toastIdRef.current = toastId;
+
         try {
             const result = await approveContentItem(item.id)
             toast.dismiss(toastId)
+            toastIdRef.current = null;
+
             if (result.success) {
                 toast.success('✨ Черновик успешно создан!')
                 onOpenChange(false)
@@ -86,6 +102,7 @@ export function ContentDetailDialog({ item, open, onOpenChange, onActionComplete
             }
         } catch (error: any) {
             toast.dismiss(toastId)
+            toastIdRef.current = null;
             toast.error(`Произошла ошибка: ${error.message || error}`)
         } finally {
             setLoadingAction(null)

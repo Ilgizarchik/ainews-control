@@ -7,7 +7,7 @@ import { ExternalLink, Clock, Star } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatDistanceToNow } from 'date-fns'
 import { ru } from 'date-fns/locale'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { ContentDetailDialog } from './ContentDetailDialog'
 import { approveContentItem, rejectContentItem, markContentViewed } from '@/app/actions/content-actions'
 import { toast, showUndoToast } from '@/components/ui/premium-toasts'
@@ -41,11 +41,24 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
         }
     }
 
+    // Keep track of toastId ref to clear it on unmount
+    const toastIdRef = useRef<string | number | null>(null);
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (toastIdRef.current) {
+                toast.dismiss(toastIdRef.current);
+            }
+        };
+    }, []);
+
     const handleApprove = async (e?: React.MouseEvent) => {
         if (e) e.stopPropagation()
         setIsLoading(true)
 
         const toastId = toast.loading('🚀 Запуск AI агентов...')
+        toastIdRef.current = toastId;
 
         // Simulation of progress steps
         const timers: NodeJS.Timeout[] = []
@@ -64,6 +77,7 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
             timers.forEach(clearTimeout)
             // Force dismiss the loading toast
             toast.dismiss(toastId)
+            toastIdRef.current = null;
 
             if (result.success) {
                 toast.success('✨ Черновик успешно создан!')
@@ -81,6 +95,7 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
         } catch {
             timers.forEach(clearTimeout)
             toast.dismiss(toastId)
+            toastIdRef.current = null;
             toast.error('Произошла ошибка при одобрении')
             setIsLoading(false)
         }

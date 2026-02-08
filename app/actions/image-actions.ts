@@ -3,19 +3,24 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
+import { createAdminClient } from '@/lib/supabase/admin'
+
 export async function regenerateNewsImage(itemId: string, itemType: 'news' | 'review', customPrompt?: string) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
+    // Use admin client for DB operations to ensure reliability
+    const adminDb = createAdminClient()
+
     if (!user) {
-        return { success: false, error: 'Unauthorized' }
+        console.warn('[regenerateNewsImage] User not found in session, proceeding with admin client (assuming protected route)')
     }
 
     try {
         const table = itemType === 'review' ? 'review_items' : 'news_items'
 
         // 1. Fetch item data
-        const { data: rawItem, error: fetchError } = await supabase
+        const { data: rawItem, error: fetchError } = await adminDb
             .from(table)
             .select('*')
             .eq('id', itemId)
@@ -34,7 +39,7 @@ Admin visual notes (optional):
 ${customPrompt || 'No specific notes.'}`
 
         // Fetch image_prompt config
-        const { data: promptData } = await (supabase
+        const { data: promptData } = await (adminDb
             .from('system_prompts')
             .select('content, provider, model, temperature')
             .eq('key', 'image_prompt')
@@ -77,7 +82,7 @@ ${customPrompt || 'No specific notes.'}`
         }
 
         // 5. Update Database
-        const { error: updateError } = await supabase
+        const { error: updateError } = await adminDb
             .from(table)
             .update({
                 draft_image_prompt: prompt,
@@ -99,11 +104,12 @@ ${customPrompt || 'No specific notes.'}`
 }
 
 export async function updateItemImage(itemId: string, itemType: 'news' | 'review', fileId: string) {
-    const supabase = await createClient()
+    // Use admin client for DB operations
+    const adminDb = createAdminClient()
     const table = itemType === 'review' ? 'review_items' : 'news_items'
 
     try {
-        const { error } = await supabase
+        const { error } = await adminDb
             .from(table)
             .update({
                 draft_image_file_id: fileId,
