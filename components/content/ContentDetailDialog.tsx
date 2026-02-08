@@ -6,6 +6,7 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DialogFooter
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -17,7 +18,7 @@ import { useState } from 'react'
 import { approveContentItem, rejectContentItem } from '@/app/actions/content-actions'
 import { ensureAbsoluteUrl } from '@/lib/utils'
 import { toast } from '@/components/ui/premium-toasts'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Search } from 'lucide-react'
 
 interface ContentDetailDialogProps {
     item: ContentItem
@@ -31,6 +32,32 @@ interface ContentDetailDialogProps {
 export function ContentDetailDialog({ item, open, onOpenChange, onActionComplete, onApprove, onReject }: ContentDetailDialogProps) {
     // Track which specific action is loading: 'approve' | 'reject' | null
     const [loadingAction, setLoadingAction] = useState<'approve' | 'reject' | null>(null)
+
+    // Scraper Preview State
+    const [scrapedText, setScrapedText] = useState<string | null>(null)
+    const [scraping, setScraping] = useState(false)
+    const [showScraperPreview, setShowScraperPreview] = useState(false)
+
+    const handleCheckScraper = async () => {
+        setScraping(true)
+        setShowScraperPreview(true)
+        setScrapedText(null)
+        try {
+            const response = await fetch('/api/scraper', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ news_id: item.id })
+            })
+            const result = await response.json()
+            if (!response.ok) throw new Error(result.error)
+            setScrapedText(result.text)
+        } catch (e: any) {
+            toast.error('Ошибка скрапинга: ' + e.message)
+            setScrapedText('Ошибка: ' + e.message)
+        } finally {
+            setScraping(false)
+        }
+    }
 
     const handleApprove = async () => {
         if (onApprove) {
@@ -155,8 +182,19 @@ export function ContentDetailDialog({ item, open, onOpenChange, onActionComplete
                             {/* Summary */}
                             {item.rss_summary && (
                                 <div className="prose prose-sm dark:prose-invert max-w-none text-foreground/90 leading-relaxed bg-gradient-to-br from-muted/40 to-muted/20 p-4 rounded-2xl border-2 border-border/50 shadow-lg">
-                                    <h3 className="text-sm font-black text-foreground uppercase tracking-widest mb-2 flex items-center gap-2">
-                                        <span className="text-xl">📝</span> SUMMARY
+                                    <h3 className="text-sm font-black text-foreground uppercase tracking-widest mb-2 flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xl">📝</span> SUMMARY
+                                        </div>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-7 text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100/50 rounded-lg px-2 flex items-center gap-1.5 border border-emerald-200/50"
+                                            onClick={handleCheckScraper}
+                                        >
+                                            <Search className="w-3 h-3" />
+                                            Проверить скрапер
+                                        </Button>
                                     </h3>
                                     <p className="whitespace-pre-wrap font-sans text-sm leading-relaxed">{item.rss_summary}</p>
                                 </div>
@@ -253,6 +291,40 @@ export function ContentDetailDialog({ item, open, onOpenChange, onActionComplete
                     )}
                 </div>
             </DialogContent>
+
+            {/* Scraper Preview Dialog */}
+            <Dialog open={showScraperPreview} onOpenChange={setShowScraperPreview}>
+                <DialogContent className="max-w-4xl h-[80vh] flex flex-col rounded-3xl overflow-hidden border-2 p-0 shadow-2xl">
+                    <DialogHeader className="p-6 bg-emerald-50 border-b-2 shrink-0">
+                        <div className="flex items-center justify-between">
+                            <DialogTitle className="text-xl font-black text-emerald-800">Результат скрапинга статьи</DialogTitle>
+                            <div className="text-[10px] font-black uppercase text-emerald-600 bg-white px-2 py-1 rounded-full border border-emerald-200">
+                                {scrapedText ? `${scrapedText.length} символов` : 'Загрузка...'}
+                            </div>
+                        </div>
+                    </DialogHeader>
+                    <div className="flex-1 overflow-y-auto p-8 bg-white">
+                        {scraping ? (
+                            <div className="h-full flex flex-col items-center justify-center gap-4 text-emerald-600">
+                                <Loader2 className="w-12 h-12 animate-spin" />
+                                <div className="font-black uppercase tracking-widest text-sm animate-pulse">Обходим защиту и извлекаем текст...</div>
+                            </div>
+                        ) : (
+                            <div className="prose prose-emerald max-w-none">
+                                <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700 bg-slate-50 p-6 rounded-2xl border-2 border-slate-100 font-medium">
+                                    {scrapedText || 'Текст не получен.'}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    <DialogFooter className="p-4 bg-muted/20 border-t-2 shrink-0">
+                        <Button variant="outline" onClick={() => setShowScraperPreview(false)} className="h-11 px-8 rounded-xl font-bold">Закрыть</Button>
+                        <Button onClick={handleCheckScraper} disabled={scraping} className="h-11 px-8 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black">
+                            {scraping ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : 'Повторить'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </Dialog>
     )
 }
