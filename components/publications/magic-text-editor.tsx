@@ -106,6 +106,16 @@ export function MagicTextEditor({ isOpen, onOpenChange, originalText, onSave, it
             timers.forEach(clearTimeout)
             toast.success('Готово!', { id: toastId })
             setGeneratedText(data.result)
+
+            // Optimistically update history
+            if (itemId) {
+                const newHistoryItem = {
+                    date: new Date().toISOString(),
+                    instruction,
+                    original_text_snippet: originalText.substring(0, 100) + (originalText.length > 100 ? '...' : '')
+                }
+                setHistory(prev => [...prev, newHistoryItem])
+            }
         } catch (e: any) {
             timers.forEach(clearTimeout)
             console.error('Magic Edit Error:', e)

@@ -58,12 +58,21 @@ export function PublicationEventCard({ event }: { event: any }) {
         }
     }
 
+    // Determine Content ID and Type
+    const newsId = event.resource?.newsId || event.news_item_id
+    const reviewId = event.resource?.reviewId || event.review_item_id
+
+    // If no specific ID found, fallback to event.id but only if it matches UUID format (rough check) or rely on parent context
+    const contentId = newsId || reviewId || event.id
+    const itemType = reviewId ? 'review' : 'news'
+
     const handleSave = async (newText: string) => {
         try {
+            const table = itemType === 'news' ? 'news_items' : 'review_items'
             const { error } = await supabase
-                .from('news_items')
-                .update({ title: newText })
-                .eq('id', event.id || event.news_item_id) // Support both standard and joined events
+                .from(table)
+                .update(itemType === 'review' ? { title_seed: newText } : { title: newText }) // Adjust field based on type
+                .eq('id', contentId)
 
             if (error) throw error
 
@@ -77,6 +86,7 @@ export function PublicationEventCard({ event }: { event: any }) {
     return (
         <>
             <HoverCard openDelay={200}>
+                {/* ... existing trigger code ... */}
                 <HoverCardTrigger asChild>
                     <button
                         className={`
@@ -188,8 +198,8 @@ export function PublicationEventCard({ event }: { event: any }) {
                 onOpenChange={setEditorOpen}
                 originalText={text}
                 onSave={handleSave}
-                itemId={event.id || event.news_item_id || undefined}
-                itemType="news"
+                itemId={contentId}
+                itemType={itemType}
             />
         </>
     )
