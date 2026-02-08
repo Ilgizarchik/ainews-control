@@ -305,13 +305,25 @@ Return ONLY valid JSON in this format:
         // 5. Parse JSON
         let result: any = {};
         try {
-            // Remove markdown code blocks if present
-            const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-            result = JSON.parse(cleanJson);
-        } catch {
-            console.error('Failed to parse Gate 1 AI response:', responseText);
+            // Robust JSON extraction: find the first { and last }
+            const startIdx = responseText.indexOf('{');
+            const endIdx = responseText.lastIndexOf('}');
+
+            if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+                const jsonContent = responseText.substring(startIdx, endIdx + 1);
+                result = JSON.parse(jsonContent);
+            } else {
+                throw new Error('No JSON object found in response');
+            }
+        } catch (parseError) {
+            console.error('Failed to parse Gate 1 AI response:', responseText, parseError);
             // Fallback - safe to approve for manual check if JSON fails
-            result = { decision: 'send', score: 50, reason: 'AI Parse Error: Invalid JSON', tags: ['error'] };
+            result = {
+                decision: 'send',
+                score: 50,
+                reason: 'AI Parse Error: Invalid JSON Format',
+                tags: ['error']
+            };
         }
 
         // Normalize decision

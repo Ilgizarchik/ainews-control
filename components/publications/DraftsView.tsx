@@ -143,8 +143,8 @@ export function DraftsView() {
             console.log('[Drafts] Starting news_items fetch...')
             const { data, error } = await supabase
                 .from('news_items')
-                .select('*') // Simplify to check if it works at all
-                .limit(10)
+                .select('*')
+                .eq('status', 'drafts_ready')
                 .order('created_at', { ascending: false })
 
             if (error) {

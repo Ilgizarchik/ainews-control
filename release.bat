@@ -21,7 +21,7 @@ if not defined BASH (
 
 echo [release.bat] Starting full release cycle...
 echo 1. Build (local)
-echo 2. Commit & Push
+echo 2. Commit ^& Push
 echo 3. Deploy (server)
 echo.
 echo Log: %LOG%
