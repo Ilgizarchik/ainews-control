@@ -2,6 +2,11 @@ import { fetch as undiciFetch, ProxyAgent } from 'undici';
 import { JSDOM } from 'jsdom';
 import { Readability } from '@mozilla/readability';
 import { createClient } from '@/lib/supabase/server';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import path from 'path';
+
+const execPromise = promisify(exec);
 
 // Helper to get proxy configuration
 async function getProxyConfig(): Promise<{ url: string; enabled: boolean } | null> {
@@ -28,10 +33,31 @@ async function getProxyConfig(): Promise<{ url: string; enabled: boolean } | nul
 }
 
 export async function scrapeArticleText(url: string, selector?: string): Promise<string> {
-    try {
-        // Get proxy configuration
-        const proxyConfig = await getProxyConfig();
+    const proxyConfig = await getProxyConfig();
 
+    // Пытаемся использовать Python Bridge для обхода защиты (Cloudflare и т.д.)
+    try {
+        console.log(`[Scraper] Attempting Python Bridge for: ${url}`);
+        const bridgePath = path.join(process.cwd(), 'scraper_bridge.py');
+        let cmd = `python "${bridgePath}" --url "${url}"`;
+        if (proxyConfig?.enabled && proxyConfig?.url) {
+            cmd += ` --proxy "${proxyConfig.url}"`;
+        }
+
+        const { stdout } = await execPromise(cmd, { timeout: 45000 });
+        const result = JSON.parse(stdout);
+
+        if (result.success && result.content && result.content.length > 500) {
+            console.log(`[Scraper] Python Bridge success! Length: ${result.content.length}`);
+            return result.content;
+        }
+        console.warn(`[Scraper] Python Bridge returned insufficient content, falling back to Node.js...`);
+    } catch (bridgeError) {
+        console.error(`[Scraper] Python Bridge failed:`, bridgeError);
+    }
+
+    // --- FALLBACK TO NODE.JS (Native fetch) ---
+    try {
         const fetchOptions: any = {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
@@ -42,67 +68,42 @@ export async function scrapeArticleText(url: string, selector?: string): Promise
             }
         };
 
-        // Add proxy if enabled
         if (proxyConfig?.enabled && proxyConfig?.url) {
             fetchOptions.dispatcher = new ProxyAgent(proxyConfig.url);
         }
 
         const response = await undiciFetch(url, fetchOptions);
-
-        if (!response.ok) {
-            throw new Error(`Failed to fetch article: ${response.status} ${response.statusText}`);
-        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
         const html = await response.text();
         const doc = new JSDOM(html, { url });
         const document = doc.window.document;
 
         let text = '';
-
-        // 1. If we have a specific selector, try it first
         if (selector) {
             const target = document.querySelector(selector);
-            if (target) {
-                // Focus only on the target element
-                text = target.textContent || '';
-            }
+            if (target) text = target.textContent || '';
         }
 
-        // 2. Fallback to Readability
         if (!text || text.trim().length < 300) {
             try {
                 const reader = new Readability(document);
                 const article = reader.parse();
-                if (article?.textContent && article.textContent.trim().length > (text?.length || 0)) {
-                    text = article.textContent;
-                }
+                if (article?.textContent) text = article.textContent;
             } catch (readError) {
                 console.warn('[Scraper] Readability failed:', readError);
             }
         }
 
-        // 3. Last resort: blind HTML stripping if still too short or empty
         if (!text || text.trim().length < 300) {
             const rawBody = document.body?.textContent || html;
-            const stripped = rawBody
-                .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gmi, "")
-                .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gmi, "")
-                .replace(/<[^>]+>/g, " ")
-                .replace(/\s+/g, " ")
-                .trim();
-
-            if (stripped.length > (text?.length || 0)) {
-                text = stripped;
-            }
+            text = rawBody.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gmi, "").replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gmi, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
         }
 
-        // Clean up whitespace (newlines to spaces, multiple spaces to one)
         text = text.replace(/\s+/g, ' ').trim();
-
-        // Truncate to avoid token limits
         return text.substring(0, 15000);
     } catch (error) {
-        console.error('[Scraper] Error:', error);
+        console.error('[Scraper] Node.js Fallback Error:', error);
         throw error;
     }
 }
