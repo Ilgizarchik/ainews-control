@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
@@ -25,7 +25,23 @@ export function MediaTab({ contentId, contentType, initialImageUrl, onUpdated, t
     const [imageUrl, setImageUrl] = useState(initialImageUrl)
     const [loading, setLoading] = useState(false)
     const [uploading, setUploading] = useState(false)
+    const [loadingMessage, setLoadingMessage] = useState("Создаем магию...")
     const fileInputRef = useRef<HTMLInputElement>(null)
+
+    useEffect(() => {
+        if (loading) {
+            const MESSAGES = [
+                "Создаем магию...", "Рисуем шедевр...", "Подбираем цвета...",
+                "Добавляем детали...", "Улучшаем освещение...", "Финальные штрихи..."
+            ]
+            let i = 0
+            const interval = setInterval(() => {
+                i = (i + 1) % MESSAGES.length
+                setLoadingMessage(MESSAGES[i])
+            }, 2000)
+            return () => clearInterval(interval)
+        }
+    }, [loading])
 
     const handleRegenerate = async () => {
         setLoading(true)
@@ -200,14 +216,15 @@ export function MediaTab({ contentId, contentType, initialImageUrl, onUpdated, t
                 )}
 
                 {/* Loading Overlay */}
+                {/* Loading Overlay */}
                 {loading && (
                     <div className="absolute inset-0 bg-background/60 backdrop-blur-sm flex flex-col items-center justify-center z-10 transition-all duration-500">
                         <div className="relative">
                             <div className="absolute inset-0 bg-purple-500/20 blur-xl rounded-full animate-pulse" />
                             <Loader2 className="w-12 h-12 animate-spin text-purple-600 relative z-10" />
                         </div>
-                        <span className="mt-4 font-semibold text-lg bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-purple-600 animate-pulse">
-                            Создаем магию...
+                        <span className="mt-4 font-semibold text-lg bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-purple-600 animate-pulse min-w-[200px] text-center">
+                            {loadingMessage}
                         </span>
                     </div>
                 )}

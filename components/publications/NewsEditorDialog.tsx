@@ -117,6 +117,22 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
                 if (longreadContent && isMarkdown(longreadContent)) {
                     longreadContent = markdownToHtml(longreadContent)
                 }
+                // FIX: То же самое для статьи — если нет HTML, конвертим переносы в абзацы
+                else if (longreadContent && !longreadContent.includes('<p>') && !longreadContent.includes('<br>')) {
+                    longreadContent = longreadContent
+                        .split('\n\n')
+                        .map((p: string) => `<p>${p.replace(/\n/g, '<br>')}</p>`)
+                        .join('')
+                }
+
+                // FIX: Если в анонсе обычный текст с переносами, конвертим в HTML для редактора
+                let announceContent = typedData.draft_announce || ''
+                if (announceContent && !announceContent.includes('<p>') && !announceContent.includes('<br>')) {
+                    announceContent = announceContent
+                        .split('\n\n')
+                        .map((p: string) => `<p>${p.replace(/\n/g, '<br>')}</p>`)
+                        .join('')
+                }
 
                 let effectiveImageUrl = typedData.draft_image_url || typedData.image_url || ''
                 if (typedData.draft_image_file_id) {
@@ -124,8 +140,10 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
                 }
 
                 setData({
-                    draft_title: typedData.draft_title || typedData.title || typedData.title_seed || '',
-                    draft_announce: typedData.draft_announce || '',
+                    draft_title: (typedData.draft_title !== null && typedData.draft_title !== undefined && typedData.draft_title !== '')
+                        ? typedData.draft_title
+                        : (typedData.title || typedData.title_seed || ''),
+                    draft_announce: announceContent,
                     draft_longread: longreadContent,
                     draft_image_prompt: typedData.draft_image_prompt || '',
                     draft_image_url: effectiveImageUrl,
@@ -163,6 +181,9 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
                 draft_announce: data.draft_announce,
                 draft_longread: data.draft_longread,
             }
+
+
+            console.log('[SAVE] updateData:', updateData)
 
             const PLATFORMS = ['site', 'tg', 'vk', 'ok', 'fb', 'x', 'threads']
             PLATFORMS.forEach(platform => {
@@ -238,7 +259,35 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
             const result = await response.json()
             if (!response.ok) throw new Error(result.error)
 
-            setData(prev => ({ ...prev, [field]: result.result }))
+            // For RichEditor fields (announce, longread), convert plain text to HTML
+            let processedResult = result.result
+            if (field === 'draft_announce' || field === 'draft_longread') {
+                // Check if AI already returned HTML
+                if (!result.result.includes('<p>') && !result.result.includes('<div>')) {
+                    let paragraphs: string[]
+
+                    // Detect format: semicolon-separated list ("; -"), double newlines, or single newlines
+                    if (result.result.includes('; -')) {
+                        paragraphs = result.result.split('; -').map((item: string, idx: number) =>
+                            idx === 0 ? item : '- ' + item
+                        )
+                    } else if (result.result.includes('\n\n')) {
+                        paragraphs = result.result.split('\n\n')
+                    } else {
+                        paragraphs = [result.result]
+                    }
+
+                    processedResult = paragraphs
+                        .filter((p: string) => p.trim())
+                        .map((p: string) => {
+                            const withBreaks = p.trim().replace(/\n/g, '<br>')
+                            return `<p>${withBreaks}</p>`
+                        })
+                        .join('')
+                }
+            }
+
+            setData(prev => ({ ...prev, [field]: processedResult }))
             toast.success('Сгенерировано!')
         } catch (e: any) {
             toast.error('Ошибка генерации: ' + e.message)
@@ -291,12 +340,28 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
         setMagicEditState({ field, value: data[field] || '' })
     }
 
-    const handleMagicSave = async (newText: string) => {
+    const handleHistoryUpdate = (historyItem: { date: string; instruction: string; original_text_snippet: string }) => {
+        setCorrectionHistory(prev => [...prev, historyItem])
+    }
+
+    const handleMagicSave = (newText: string) => {
         if (magicEditState) {
-            setData(prev => ({ ...prev, [magicEditState.field]: newText }))
+            let processedText = newText
+            const field = magicEditState.field
+
+            // Если это поля редактора, конвертим plain text в HTML
+            if (field === 'draft_announce' || field === 'draft_longread') {
+                if (!newText.includes('<p>') && !newText.includes('<div>')) {
+                    const paragraphs = newText.split('\n\n')
+                    processedText = paragraphs
+                        .filter(p => p.trim())
+                        .map(p => `<p>${p.trim().replace(/\n/g, '<br>')}</p>`)
+                        .join('')
+                }
+            }
+
+            setData(prev => ({ ...prev, [field]: processedText }))
             setMagicEditState(null)
-            // Refresh history to show the new edit
-            await fetchContentData()
         }
     }
 
@@ -508,8 +573,10 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
                     onOpenChange={(open) => !open && setMagicEditState(null)}
                     originalText={magicEditState.value}
                     onSave={handleMagicSave}
+                    onHistoryUpdate={handleHistoryUpdate}
                     itemId={contentId}
                     itemType={contentType}
+                    initialHistory={correctionHistory}
                 />
             )}
         </>

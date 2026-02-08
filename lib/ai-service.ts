@@ -25,6 +25,7 @@ export async function getAISettings(): Promise<AISettings> {
     const { data, error } = await supabase
         .from('project_settings')
         .select('key, value')
+        .eq('project_key', 'ainews')
         .in('key', [
             'ai_provider', 'ai_model', 'ai_base_url', 'ai_proxy_url', 'ai_proxy_enabled',
             'ai_image_provider', 'ai_image_model',
@@ -32,8 +33,33 @@ export async function getAISettings(): Promise<AISettings> {
             'ai_api_key' // Fallback
         ]);
 
-    if (error || !data) {
-        throw new Error('Failed to fetch AI settings');
+    console.log('[getAISettings] Query result:', { error, dataLength: data?.length });
+
+    // If DB connection fails, use env vars as fallback
+    if (error) {
+        console.error('[getAISettings] Supabase error, using ENV fallback:', error);
+        const envProvider = process.env.AI_PROVIDER || 'openrouter';
+        return {
+            ai_provider: envProvider,
+            ai_model: process.env.AI_MODEL || 'anthropic/claude-3.5-sonnet',
+            ai_base_url: process.env.AI_BASE_URL || PROVIDER_BASE_URLS[envProvider as keyof typeof PROVIDER_BASE_URLS] || 'https://openrouter.ai/api/v1',
+            ai_proxy_url: process.env.AI_PROXY_URL,
+            ai_proxy_enabled: process.env.AI_PROXY_ENABLED === 'true',
+            ai_image_provider: process.env.AI_IMAGE_PROVIDER,
+            ai_image_model: process.env.AI_IMAGE_MODEL,
+            keys: {
+                openai: process.env.AI_KEY_OPENAI || '',
+                openrouter: process.env.AI_KEY_OPENROUTER || '',
+                anthropic: process.env.AI_KEY_ANTHROPIC || '',
+                custom: process.env.AI_KEY_CUSTOM || '',
+                default: process.env.AI_API_KEY || ''
+            }
+        };
+    }
+
+    if (!data || data.length === 0) {
+        console.error('[getAISettings] No data returned from project_settings');
+        throw new Error('No AI settings found in database');
     }
 
     const map = data.reduce((acc, { key, value }) => ({ ...acc, [key]: value }), {} as any);

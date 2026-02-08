@@ -8,65 +8,97 @@ export async function POST(req: Request) {
         const { text, instruction, apiKey, baseUrl, model, provider, proxyUrl, itemId, itemType } = await req.json();
 
         // 0. Save Correction History
-        // Helper to validate UUID format
-        const isUUID = (str: any) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)
+        // Helper to validate UUID format (8-4-4-4-12 digits)
+        const isUUID = (str: any) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/i.test(str)
 
         const validItemId = itemId && isUUID(itemId) ? itemId : null;
 
-        if (validItemId && itemType) {
-            const table = itemType === 'news' ? 'news_items' : 'review_items'
+        console.log('[AI Edit API] Request:', { itemId, itemType, validItemId, textLen: text?.length, instruction })
+
+        if (validItemId) {
+            let table = itemType === 'news' ? 'news_items' : 'review_items'
+
             try {
-                // Fetch current history
-                const { data: current, error: fetchError } = await supabase
+                // 1. Try primary table
+                let { data: current, error: fetchError } = await supabase
                     .from(table)
                     .select('correction_history')
                     .eq('id', validItemId)
-                    .single()
+                    .maybeSingle()
+
+                // 2. Fallback to other table if not found
+                if (!current && !fetchError) {
+                    const fallbackTable = table === 'news_items' ? 'review_items' : 'news_items'
+                    const { data: fallbackCurrent, error: fallbackError } = await supabase
+                        .from(fallbackTable)
+                        .select('correction_history')
+                        .eq('id', validItemId)
+                        .maybeSingle()
+
+                    if (fallbackCurrent) {
+                        current = fallbackCurrent
+                        table = fallbackTable // Update table for subsequent update
+                        console.log('[AI Edit API] Item found in fallback table:', table)
+                    }
+                }
 
                 if (fetchError) {
                     console.error('[AI Edit API] Error fetching history:', fetchError)
                 }
 
-                const history = Array.isArray(current?.correction_history)
-                    ? current.correction_history
-                    : []
+                console.log('[AI Edit API] Current history found:', !!current, current?.correction_history?.length, 'in table:', table)
 
-                // Append new instruction
-                history.push({
-                    date: new Date().toISOString(),
-                    instruction,
-                    original_text_snippet: text.substring(0, 100) + (text.length > 100 ? '...' : '')
-                })
+                // Only proceed if item exists
+                if (current) {
+                    const history = Array.isArray(current?.correction_history)
+                        ? current.correction_history
+                        : []
 
-                // Update item history
-                const { error: updateError } = await supabase
-                    .from(table)
-                    .update({ correction_history: history })
-                    .eq('id', validItemId)
+                    // Append new instruction
+                    const safeText = text || ''
+                    const newHistoryItem = {
+                        date: new Date().toISOString(),
+                        instruction: instruction || '',
+                        original_text_snippet: safeText.substring(0, 100) + (safeText.length > 100 ? '...' : '')
+                    }
+                    history.push(newHistoryItem)
 
-                if (updateError) {
-                    console.error('[AI Edit API] Error updating history:', updateError)
+                    console.log('[AI Edit API] Saving new history:', history.length, 'items', 'to', table)
+
+                    // Update item history
+                    const { error: updateError } = await supabase
+                        .from(table)
+                        .update({ correction_history: history })
+                        .eq('id', validItemId)
+
+                    if (updateError) {
+                        console.error('[AI Edit API] Error updating history:', updateError)
+                    } else {
+                        console.log('[AI Edit API] History saved successfully')
+                    }
+
+                    // Only log to global table if item exists
+                    try {
+                        const { error: globalLogError } = await supabase.from('ai_correction_logs').insert({
+                            news_id: (table === 'news_items') ? validItemId : null,
+                            review_id: (table === 'review_items') ? validItemId : null,
+                            instruction: instruction || 'No instruction provided',
+                            original_text_snippet: safeText.substring(0, 1000),
+                            context: table === 'news_items' ? 'editor_news' : 'editor_review'
+                        })
+
+                        if (globalLogError) {
+                            console.error('[AI Edit API] Error saving global log:', globalLogError)
+                        }
+                    } catch (logErr) {
+                        console.error('[AI Edit API] Critical error in global logging:', logErr)
+                    }
                 }
             } catch (histError) {
                 console.warn("[AI Edit API] Exception in history saving:", histError)
             }
-        }
-
-        // ALWAYS Log to dedicated table for global history (even if no associated item)
-        try {
-            const { error: globalLogError } = await supabase.from('ai_correction_logs').insert({
-                news_id: (itemType === 'news' && validItemId) ? validItemId : null,
-                review_id: (itemType === 'review' && validItemId) ? validItemId : null,
-                instruction: instruction || 'No instruction provided',
-                original_text_snippet: text?.substring(0, 1000) || '',
-                context: itemType ? `editor_${itemType}` : 'general_editor'
-            })
-
-            if (globalLogError) {
-                console.error('[AI Edit API] Error saving global log:', globalLogError)
-            }
-        } catch (logErr) {
-            console.error('[AI Edit API] Critical error in global logging:', logErr)
+        } else {
+            console.warn('[AI Edit API] Skipping history save: invalid itemId', { itemId })
         }
 
         // 1. Fetch System Prompt from DB

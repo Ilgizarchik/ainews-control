@@ -140,7 +140,7 @@ export function PublicationsPage() {
                 }}
             />
             {/* Hero Header with Video Background */}
-            <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 p-6 rounded-xl overflow-hidden border border-border/50 shadow-sm bg-card/40 group">
+            <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 p-6 rounded-xl overflow-hidden border border-border/50 shadow-sm bg-card/40 group flex-wrap">
 
                 {/* Video Background Layer */}
                 <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden rounded-xl">
@@ -158,21 +158,21 @@ export function PublicationsPage() {
                 </div>
 
                 {/* Title Section */}
-                <div className="relative z-10 w-full mb-4 sm:mb-0 text-center sm:text-left sm:w-auto">
-                    <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center justify-center sm:justify-start gap-2">
+                <div className="relative z-10 w-full mb-4 lg:mb-0 text-center lg:text-left lg:w-auto shrink-0">
+                    <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center justify-center lg:justify-start gap-2">
                         Календарь публикаций
                         <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                     </h1>
-                    <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto sm:mx-0">
+                    <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto lg:mx-0">
                         Управление и планирование AI-контента.
                     </p>
                 </div>
 
                 {/* Actions Toolbar */}
-                <div className="relative z-10 flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto mt-2 sm:mt-0">
+                <div className="relative z-10 flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto mt-2 lg:mt-0 flex-wrap justify-center lg:justify-end">
 
-                    {/* 1. Improved Legend (Hidden on very small screens, Visible on desktop) */}
-                    <div className="hidden lg:flex items-center gap-3 px-3 py-1.5 bg-background/80 backdrop-blur-sm rounded-md border border-border mr-2 shadow-sm">
+                    {/* 1. Improved Legend (Visible only on XL screens) */}
+                    <div className="hidden xl:flex items-center gap-3 px-3 py-1.5 bg-background/80 backdrop-blur-sm rounded-md border border-border mr-2 shadow-sm">
                         {Object.values(PLATFORM_CONFIG).map((platform) => (
                             <div key={platform.label} className="flex items-center gap-1.5" title={platform.label}>
                                 <span className={cn("w-2 h-2 rounded-full shadow-sm", platform.dotClass)} />
@@ -181,8 +181,8 @@ export function PublicationsPage() {
                         ))}
                     </div>
 
-                    {/* Separator - Hide on mobile */}
-                    <div className="h-6 w-[1px] bg-border mx-1 hidden lg:block" />
+                    {/* Separator - Hide on smaller screens */}
+                    <div className="h-6 w-[1px] bg-border mx-1 hidden xl:block" />
 
                     {/* Tabs & Button Container - Flex row on mobile to keep them together */}
                     <div className="flex items-center gap-2 w-full sm:w-auto justify-center sm:justify-end">

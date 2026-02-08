@@ -16,21 +16,41 @@ export async function POST(req: Request) {
     try {
         const { review_id, news_id, platforms }: GeneratePlatformAnnouncesRequest = await req.json()
         const contentId = review_id || news_id
-        const tableName = news_id ? 'news_items' : 'review_items'
+        let tableName = news_id ? 'news_items' : 'review_items'
 
         if (!contentId || !platforms || platforms.length === 0) {
             return NextResponse.json({ error: 'ID and platforms are required' }, { status: 400 })
         }
 
         // 1. Get content item (User Context)
-        const { data: item, error: fetchError } = await (supabase
+        // 1. Get content item (User Context) - Robust check
+        let item: any = null
+        let { data, error: fetchError } = await (supabase
             .from(tableName)
             .select('draft_announce, draft_title, draft_longread, draft_longread_site')
             .eq('id', contentId)
             .single() as any)
 
-        if (fetchError || !item) {
-            return NextResponse.json({ error: 'Content item not found' }, { status: 404 })
+        if (!fetchError && data) {
+            item = data
+        } else {
+            // Try fallback table
+            const fallbackTable = tableName === 'news_items' ? 'review_items' : 'news_items'
+            const { data: fallbackData, error: fallbackError } = await (supabase
+                .from(fallbackTable)
+                .select('draft_announce, draft_title, draft_longread, draft_longread_site')
+                .eq('id', contentId)
+                .single() as any)
+
+            if (fallbackData && !fallbackError) {
+                item = fallbackData
+                tableName = fallbackTable // CRITICAL: Update table name for subsequent updates
+                console.log(`[GenerateAnnounce] Relocated item ${contentId} in ${tableName}`)
+            }
+        }
+
+        if (!item) {
+            return NextResponse.json({ error: 'Content item not found in any table' }, { status: 404 })
         }
 
         const baseAnnounce = item.draft_announce || ''
@@ -124,10 +144,14 @@ export async function POST(req: Request) {
 
                 // INCREMENTAL SAVE: Update DB immediately to handle client disconnects or timeouts
                 const platformKey = platform === 'site' ? 'draft_longread_site' : `draft_announce_${platform}`
-                await supabase
-                    .from(tableName)
+                const { error: updateError } = await supabase
+                    .from(tableName as any)
                     .update({ [platformKey]: generatedText.trim() })
                     .eq('id', contentId)
+
+                if (updateError) {
+                    console.error(`[GenerateAnnounce] DB Update Error for ${platform}:`, updateError)
+                }
 
             } catch (error: any) {
                 console.error(`Error generating announce for ${platform}:`, error)

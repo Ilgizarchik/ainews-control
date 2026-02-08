@@ -180,12 +180,21 @@ function SortablePromptCard({ prompt, editedContent, isEdited, isSaving, onSave,
 
   const { icon: Icon, color, bg, borderColor, textColor } = getSocialConfig(prompt.key)
 
-  // Auto-resize textarea
+  // Auto-resize textarea with jumping prevention
   React.useEffect(() => {
     const textarea = textareaRef.current
     if (textarea) {
+      // Save current scroll position
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop
+
+      // Update height
       textarea.style.height = 'auto'
       textarea.style.height = `${textarea.scrollHeight}px`
+
+      // Restore scroll position
+      if (scrollTop !== (window.pageYOffset || document.documentElement.scrollTop)) {
+        window.scrollTo(0, scrollTop)
+      }
     }
   }, [editedContent])
 
@@ -217,7 +226,7 @@ function SortablePromptCard({ prompt, editedContent, isEdited, isSaving, onSave,
               {isEdited && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-400 rounded-full border border-amber-500/30">
                   <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span>
-                  Unsaved
+                  Не сохранено
                 </span>
               )}
             </h3>
@@ -225,10 +234,10 @@ function SortablePromptCard({ prompt, editedContent, isEdited, isSaving, onSave,
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              Last updated:{' '}
+              Обновлено:{' '}
               {mounted && prompt.updated_at
                 ? new Date(prompt.updated_at).toLocaleString('ru-RU')
-                : 'Never'}
+                : 'Никогда'}
             </p>
           </div>
         </div>
@@ -246,9 +255,10 @@ function SortablePromptCard({ prompt, editedContent, isEdited, isSaving, onSave,
           `}
         >
           <Save className="h-4 w-4 mr-2" />
-          {isSaving ? 'Saving...' : isEdited ? 'Save Changes' : 'Saved'}
+          {isSaving ? 'Сохранение...' : isEdited ? 'Сохранить' : 'Сохранено'}
         </Button>
       </div>
+
 
       <div className="p-6 bg-gradient-to-br from-background to-muted/10">
         <textarea
@@ -277,7 +287,7 @@ function SortablePromptCard({ prompt, editedContent, isEdited, isSaving, onSave,
           "
           value={editedContent}
           onChange={(e) => onChange(prompt.id, e.target.value)}
-          placeholder="Enter system prompt..."
+          placeholder="Введите системный промпт..."
           spellCheck={false}
         />
 
@@ -286,18 +296,18 @@ function SortablePromptCard({ prompt, editedContent, isEdited, isSaving, onSave,
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            {editedContent.length} characters
+            {editedContent.length} символов
           </p>
 
           {isEdited && (
             <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5 font-medium px-2.5 py-1 bg-amber-500/10 rounded-full border border-amber-500/20">
               <span className="inline-block w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span>
-              Unsaved changes
+              Несохраненные изменения
             </p>
           )}
         </div>
       </div>
-    </div>
+    </div >
   )
 }
 
@@ -335,7 +345,7 @@ function PromptsContent() {
       .select('id, key, content, category, updated_at')
 
     if (promptsError) {
-      toast.error('Failed to load prompts')
+      toast.error('Не удалось загрузить промпты')
       return
     }
 
@@ -405,12 +415,12 @@ function PromptsContent() {
       .eq('id', id)
 
     if (error) {
-      toast.error('Failed to save prompt')
+      toast.error('Не удалось сохранить промпт')
       setSaving(prev => ({ ...prev, [idStr]: false }))
       return
     }
 
-    toast.success('Prompt saved successfully')
+    toast.success('Промпт успешно сохранен')
 
     setPrompts(prev =>
       prev.map(p => (String(p.id) === idStr ? { ...p, content, updated_at: now } : p))
@@ -447,7 +457,7 @@ function PromptsContent() {
             is_active: true
           } as any)
           .then(({ error }) => {
-            if (error) toast.error('Failed to save order')
+            if (error) toast.error('Не удалось сохранить порядок')
           })
 
         return newItems

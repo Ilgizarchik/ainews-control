@@ -26,6 +26,10 @@ export function CreatePostDialog({ open, onOpenChange, onSuccess }: CreatePostDi
         e.preventDefault()
         if (!title) return
 
+        let intervalId: NodeJS.Timeout | undefined
+        // toastId we can just use string 'generate' which is constant.
+        const toastId = 'generate'
+
         try {
             setLoading(true)
             let fileId = null
@@ -52,7 +56,20 @@ export function CreatePostDialog({ open, onOpenChange, onSuccess }: CreatePostDi
             }
 
             // 2. Generate post via AI
-            toast.loading('Генерирую пост с помощью AI...', { id: 'generate' })
+            const LOADING_MESSAGES = [
+                "Думаю над заголовком...", "Пишу текст...", "Форматирую структуру...",
+                "Добавляю креатива...", "Анализирую тренды...", "Подбираю лучшие формулировки...",
+                "Почти готово...", "Еще немного магии..."
+            ]
+
+            let msgIndex = 0
+            toast.loading("Запускаю AI генератор...", { id: toastId })
+
+            // Cycle messages
+            intervalId = setInterval(() => {
+                msgIndex = (msgIndex + 1) % LOADING_MESSAGES.length
+                toast.loading(LOADING_MESSAGES[msgIndex], { id: toastId })
+            }, 2500)
 
             const factpack = {
                 description: description || undefined
@@ -75,7 +92,7 @@ export function CreatePostDialog({ open, onOpenChange, onSuccess }: CreatePostDi
             }
 
             const result = await generateRes.json()
-            toast.success(`Пост успешно создан! ID: ${result.review_id}`, { id: 'generate' })
+            toast.success(`Пост успешно создан! ID: ${result.review_id}`, { id: toastId })
 
             // Reset form
             setTitle('')
@@ -86,8 +103,9 @@ export function CreatePostDialog({ open, onOpenChange, onSuccess }: CreatePostDi
 
         } catch (error: any) {
             console.error('Error creating post:', error)
-            toast.error(error.message || 'Ошибка создания поста', { id: 'generate' })
+            toast.error(error.message || 'Ошибка создания поста', { id: toastId })
         } finally {
+            clearInterval(intervalId)
             setLoading(false)
         }
     }

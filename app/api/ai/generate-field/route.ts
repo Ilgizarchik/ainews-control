@@ -120,10 +120,16 @@ export async function POST(req: Request) {
         )
 
         // 5. Update DB (Optional, but good for saving progress)
-        await supabase
+        const { error: updateError } = await supabase
             .from(tableName as any)
             .update({ [field]: generatedText.trim() })
             .eq('id', contentId)
+
+        if (updateError) {
+            console.error('[GenerateField] DB Update Error:', updateError)
+            // We don't throw here to return the result to the user, but we log it.
+            // The frontend will likely update the state and save it eventually anyway.
+        }
 
         return NextResponse.json({
             success: true,

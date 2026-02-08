@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -17,22 +17,27 @@ interface MagicTextEditorProps {
     onSave: (newText: string) => void
     itemId?: string
     itemType?: 'news' | 'review'
+    onHistoryUpdate?: (historyItem: { date: string; instruction: string; original_text_snippet: string }) => void
+    initialHistory?: any[]
 }
 
-export function MagicTextEditor({ isOpen, onOpenChange, originalText, onSave, itemId, itemType }: MagicTextEditorProps) {
+export function MagicTextEditor({ isOpen, onOpenChange, originalText, onSave, itemId, itemType, onHistoryUpdate, initialHistory = [] }: MagicTextEditorProps) {
     const [instruction, setInstruction] = useState('')
     const [generatedText, setGeneratedText] = useState('')
     const [loading, setLoading] = useState(false)
-    const [history, setHistory] = useState<any[]>([])
+    const [history, setHistory] = useState<any[]>(initialHistory)
     const [showHistory, setShowHistory] = useState(false)
     const [historyLoading, setHistoryLoading] = useState(false)
 
     // Use the shared client
-    const supabaseClient = createClient()
+    const supabaseClient = useMemo(() => createClient(), [])
 
     // Display history effect
     useEffect(() => {
         if (!isOpen || !showHistory || !itemId || !itemType) return;
+
+        // If we already have history from props and it's not empty, maybe we don't need to fetch?
+        // But let's fetch to be sure we have latest.
 
         const fetchHistory = async () => {
             setHistoryLoading(true)
@@ -115,6 +120,7 @@ export function MagicTextEditor({ isOpen, onOpenChange, originalText, onSave, it
                     original_text_snippet: originalText.substring(0, 100) + (originalText.length > 100 ? '...' : '')
                 }
                 setHistory(prev => [...prev, newHistoryItem])
+                onHistoryUpdate?.(newHistoryItem)
             }
         } catch (e: any) {
             timers.forEach(clearTimeout)
