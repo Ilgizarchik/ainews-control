@@ -156,7 +156,7 @@ export async function callAI(systemPrompt: string, userPrompt: string, config?: 
         method: 'POST',
         headers: headers,
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(60000) // 60 second timeout
+        signal: AbortSignal.timeout(150000) // 150 second timeout
     };
 
     if (settings.ai_proxy_url && settings.ai_proxy_enabled) {
@@ -208,7 +208,7 @@ export async function callAI(systemPrompt: string, userPrompt: string, config?: 
         if (error.name === 'AbortError' || error.name === 'TimeoutError') {
             // ...
             // preserve existing error handling
-            const timeoutMsg = `AI request timeout (${provider}/${model}) after 60 seconds${proxyMsg}`;
+            const timeoutMsg = `AI request timeout (${provider}/${model}) after 150 seconds${proxyMsg}`;
             console.error(`[AI] ${timeoutMsg}`);
             await logErrorToTelegram(timeoutMsg, `callAI (${model})`);
             throw new Error(timeoutMsg);
@@ -263,7 +263,7 @@ export async function generateImage(prompt: string): Promise<string> {
             method: 'POST',
             headers: headers,
             body: JSON.stringify(body),
-            signal: AbortSignal.timeout(90000) // 90 second timeout for image generation
+            signal: AbortSignal.timeout(150000) // 150 second timeout for image generation
         };
 
         if (settings.ai_proxy_url && settings.ai_proxy_enabled) {
