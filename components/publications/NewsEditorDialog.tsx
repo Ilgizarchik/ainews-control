@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { toast } from 'sonner'
-import { Loader2, Check, Trash2, XCircle, History, Tag, Plus } from 'lucide-react'
+import { Loader2, Check, Trash2, XCircle, History, Tag, Plus, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { RichEditor } from '@/components/ui/rich-editor'
 import { VoiceInput } from '@/components/ui/voice-input'
@@ -650,11 +650,25 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
                             </div>
                         )}
                     </div>
-                    <DialogFooter className="p-4 bg-muted/20 border-t-2 shrink-0">
-                        <Button variant="outline" onClick={() => setShowScraperPreview(false)} className="h-11 px-8 rounded-xl font-bold">Закрыть</Button>
-                        <Button onClick={handleCheckScraper} disabled={scraping} className="h-11 px-8 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black">
-                            {scraping ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : 'Повторить'}
-                        </Button>
+                    <DialogFooter className="p-4 bg-muted/20 border-t-2 shrink-0 flex flex-row items-center justify-between sm:justify-between">
+                        {data.source_url && (
+                            <Button
+                                variant="ghost"
+                                asChild
+                                className="h-11 px-4 gap-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl font-bold transition-all"
+                            >
+                                <a href={data.source_url} target="_blank" rel="noopener noreferrer">
+                                    <ExternalLink className="w-4 h-4" />
+                                    Перейти по ссылке
+                                </a>
+                            </Button>
+                        )}
+                        <div className="flex items-center gap-3">
+                            <Button variant="outline" onClick={() => setShowScraperPreview(false)} className="h-11 px-8 rounded-xl font-bold">Закрыть</Button>
+                            <Button onClick={handleCheckScraper} disabled={scraping} className="h-11 px-8 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black">
+                                {scraping ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : 'Повторить'}
+                            </Button>
+                        </div>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

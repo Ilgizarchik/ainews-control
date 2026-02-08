@@ -317,11 +317,23 @@ export function ContentDetailDialog({ item, open, onOpenChange, onActionComplete
                             </div>
                         )}
                     </div>
-                    <DialogFooter className="p-4 bg-muted/20 border-t-2 shrink-0">
-                        <Button variant="outline" onClick={() => setShowScraperPreview(false)} className="h-11 px-8 rounded-xl font-bold">Закрыть</Button>
-                        <Button onClick={handleCheckScraper} disabled={scraping} className="h-11 px-8 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black">
-                            {scraping ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : 'Повторить'}
+                    <DialogFooter className="p-4 bg-muted/20 border-t-2 shrink-0 flex flex-row items-center justify-between sm:justify-between">
+                        <Button
+                            variant="ghost"
+                            asChild
+                            className="h-11 px-4 gap-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl font-bold transition-all"
+                        >
+                            <a href={ensureAbsoluteUrl(item.canonical_url, item.source_name)} target="_blank" rel="noopener noreferrer">
+                                <ExternalLink className="w-4 h-4" />
+                                Перейти по ссылке
+                            </a>
                         </Button>
+                        <div className="flex items-center gap-3">
+                            <Button variant="outline" onClick={() => setShowScraperPreview(false)} className="h-11 px-8 rounded-xl font-bold">Закрыть</Button>
+                            <Button onClick={handleCheckScraper} disabled={scraping} className="h-11 px-8 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black">
+                                {scraping ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : 'Повторить'}
+                            </Button>
+                        </div>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

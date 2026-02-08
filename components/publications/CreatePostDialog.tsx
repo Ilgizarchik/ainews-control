@@ -112,101 +112,139 @@ export function CreatePostDialog({ open, onOpenChange, onSuccess }: CreatePostDi
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-                <DialogHeader data-tutorial="create-post-header">
-                    <DialogTitle>Создать новую публикацию</DialogTitle>
-                    <DialogDescription>
+            <DialogContent className="max-w-xl max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden border-2 border-border/50 shadow-2xl rounded-3xl bg-background">
+                {/* Premium Header */}
+                <DialogHeader data-tutorial="create-post-header" className="px-8 py-6 border-b-2 bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 dark:from-emerald-950/30 dark:via-teal-950/30 dark:to-cyan-950/30 shrink-0">
+                    <DialogTitle className="text-2xl font-black tracking-tight bg-gradient-to-r from-emerald-700 to-teal-700 dark:from-emerald-400 dark:to-teal-400 bg-clip-text text-transparent">
+                        Создать новую публикацию
+                    </DialogTitle>
+                    <DialogDescription className="text-muted-foreground/70 font-bold mt-1">
                         AI создаст полный пост: заголовок, анонс и подробный лонгрид.
                     </DialogDescription>
                 </DialogHeader>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                            <Label htmlFor="title">Название *</Label>
-                            <VoiceInput
-                                onTranscription={(text) => setTitle(prev => prev ? `${prev} ${text}` : text)}
-                            />
-                        </div>
-                        <Input
-                            data-tutorial="create-post-title"
-                            id="title"
-                            placeholder="Например: Нож Mora Companion Heavy Duty"
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            disabled={loading}
-                            required
-                        />
-                    </div>
-
-                    <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                            <Label htmlFor="description">Описание / Заметки</Label>
-                            <VoiceInput
-                                onTranscription={(text) => setDescription(prev => prev ? `${prev} ${text}` : text)}
-                            />
-                        </div>
-                        <Textarea
-                            data-tutorial="create-post-description"
-                            id="description"
-                            placeholder="Краткое описание, особенности, характеристики, цена, впечатления..."
-                            className="min-h-[150px]"
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            disabled={loading}
-                        />
-                    </div>
-
-                    <div data-tutorial="create-post-photo" className="space-y-2">
-                        <Label>Фото</Label>
-                        {imageFile ? (
-                            <div className="flex items-center justify-between p-2 border rounded-md">
-                                <span className="text-sm truncate max-w-[400px]">{imageFile.name}</span>
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => setImageFile(null)}
-                                    disabled={loading}
-                                >
-                                    <X className="w-4 h-4" />
-                                </Button>
-                            </div>
-                        ) : (
-                            <div className="flex items-center gap-2">
-                                <Input
-                                    id="imageFile"
-                                    type="file"
-                                    accept="image/*"
-                                    className="hidden"
-                                    onChange={(e) => {
-                                        if (e.target.files?.[0]) {
-                                            setImageFile(e.target.files[0])
-                                        }
-                                    }}
-                                    disabled={loading}
+                <div className="flex-1 overflow-y-auto px-8 py-8 bg-background/50">
+                    <form onSubmit={handleSubmit} className="space-y-8">
+                        {/* Title Field */}
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <Label htmlFor="title" className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                                    📌 Название *
+                                </Label>
+                                <VoiceInput
+                                    onTranscription={(text) => setTitle(prev => prev ? `${prev} ${text}` : text)}
                                 />
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => document.getElementById('imageFile')?.click()}
-                                    className="w-full border-dashed"
-                                    disabled={loading}
-                                >
-                                    <ImageIcon className="w-4 h-4 mr-2" />
-                                    Выберите фото
-                                </Button>
                             </div>
-                        )}
-                    </div>
+                            <Input
+                                data-tutorial="create-post-title"
+                                id="title"
+                                placeholder="Например: Нож Mora Companion Heavy Duty"
+                                value={title}
+                                onChange={(e) => setTitle(e.target.value)}
+                                disabled={loading}
+                                className="h-14 text-lg font-bold rounded-2xl border-2 px-5 shadow-sm focus-visible:ring-emerald-500 transition-all bg-background"
+                                required
+                            />
+                        </div>
 
-                    <div className="flex justify-end pt-2">
-                        <Button data-tutorial="create-post-submit" type="submit" disabled={loading || !title}>
-                            {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                            Создать пост
-                        </Button>
-                    </div>
-                </form>
+                        {/* Description Field */}
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <Label htmlFor="description" className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                                    📝 Описание / Заметки
+                                </Label>
+                                <VoiceInput
+                                    onTranscription={(text) => setDescription(prev => prev ? `${prev} ${text}` : text)}
+                                />
+                            </div>
+                            <Textarea
+                                data-tutorial="create-post-description"
+                                id="description"
+                                placeholder="Краткое описание, особенности, характеристики, цена, впечатления..."
+                                className="min-h-[160px] text-base font-medium rounded-2xl border-2 p-5 shadow-sm focus-visible:ring-emerald-500 transition-all bg-background leading-relaxed"
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                                disabled={loading}
+                            />
+                        </div>
+
+                        {/* Photo Field */}
+                        <div data-tutorial="create-post-photo" className="space-y-3">
+                            <Label className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                                🖼️ Фото
+                            </Label>
+                            {imageFile ? (
+                                <div className="flex items-center justify-between p-4 bg-emerald-50 dark:bg-emerald-950/20 border-2 border-emerald-200 dark:border-emerald-800 rounded-2xl shadow-sm animate-in fade-in slide-in-from-top-1">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                                            <ImageIcon className="w-5 h-5" />
+                                        </div>
+                                        <span className="text-sm font-bold truncate max-w-[300px] text-emerald-800 dark:text-emerald-200">
+                                            {imageFile.name}
+                                        </span>
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => setImageFile(null)}
+                                        disabled={loading}
+                                        className="h-10 w-10 text-rose-500 hover:text-rose-600 hover:bg-rose-100 dark:hover:bg-rose-950/40 rounded-xl"
+                                    >
+                                        <X className="w-5 h-5" />
+                                    </Button>
+                                </div>
+                            ) : (
+                                <div className="group relative">
+                                    <Input
+                                        id="imageFile"
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                            if (e.target.files?.[0]) {
+                                                setImageFile(e.target.files[0])
+                                            }
+                                        }}
+                                        disabled={loading}
+                                    />
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => document.getElementById('imageFile')?.click()}
+                                        className="w-full h-24 border-dashed border-2 rounded-2xl flex flex-col gap-2 hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/10 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all duration-300 group-hover:scale-[1.01]"
+                                        disabled={loading}
+                                    >
+                                        <ImageIcon className="w-6 h-6 mb-1 opacity-50 group-hover:opacity-100 transition-opacity" />
+                                        <span className="font-bold text-sm">Выберите фото для публикации</span>
+                                        <span className="text-[10px] uppercase font-black tracking-widest opacity-40 group-hover:opacity-100">или просто перетащите сюда</span>
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+                    </form>
+                </div>
+
+                {/* Premium Footer */}
+                <div className="px-8 py-6 border-t-2 bg-muted/10 shrink-0 flex items-center justify-end">
+                    <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-12 px-8 rounded-xl font-bold mr-4">
+                        Отмена
+                    </Button>
+                    <Button
+                        data-tutorial="create-post-submit"
+                        type="submit"
+                        onClick={(e) => handleSubmit(e as any)}
+                        disabled={loading || !title}
+                        className="h-12 px-10 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black shadow-lg shadow-emerald-500/20 transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+                    >
+                        {loading ? (
+                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        ) : (
+                            <span className="mr-2">🚀</span>
+                        )}
+                        Создать пост
+                    </Button>
+                </div>
             </DialogContent>
         </Dialog>
     )

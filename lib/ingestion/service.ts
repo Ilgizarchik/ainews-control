@@ -1,11 +1,16 @@
 import * as cheerio from 'cheerio'
 import Parser from 'rss-parser'
-import { fetch as undiciFetch } from 'undici'
+import { fetch as undiciFetch, ProxyAgent } from 'undici'
 import { LEGACY_SOURCES, IngestionSource } from './sources'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createParamsClient, SupabaseClient } from '@supabase/supabase-js'
 import { Database } from '@/types/database.types'
 import { processGate1 } from '../generation-service'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+import path from 'path'
+
+const execPromise = promisify(exec)
 
 // Types for parsed items
 export type ParsedItem = {
@@ -19,29 +24,53 @@ export type ParsedItem = {
 }
 
 // Helper for proxy
-async function getProxyDispatcher() {
+async function getProxyConfig() {
     try {
         const supabase = await createClient()
         const { data } = await supabase
             .from('project_settings')
-            .select('value')
+            .select('key, value')
             .eq('project_key', 'ainews')
-            .eq('key', 'ai_proxy_url')
-            .single()
+            .in('key', ['ai_proxy_url', 'ai_proxy_enabled'])
 
-        if (data?.value) {
-            const { ProxyAgent } = await import('undici')
-            return new ProxyAgent(data.value)
+        if (!data) return null
+
+        return {
+            url: data.find(r => r.key === 'ai_proxy_url')?.value,
+            enabled: data.find(r => r.key === 'ai_proxy_enabled')?.value === 'true'
         }
     } catch { }
-    return undefined
+    return null
 }
 
-// Helper to fetch valid HTML
+// Helper to fetch valid HTML with Python Bridge Protection Bypass
 async function fetchHtml(url: string): Promise<string> {
-    const dispatcher = await getProxyDispatcher()
+    const proxyConfig = await getProxyConfig()
 
-    // Modern headers to mimic the scanner's successful logic
+    // 1. Try Python Bridge (Stronger protection bypass)
+    try {
+        console.log(`[Ingestion] Attempting Python Bridge for: ${url}`)
+        const bridgePath = path.join(process.cwd(), 'scraper_bridge.py')
+        let cmd = `python "${bridgePath}" --url "${url}" --html`
+        if (proxyConfig?.enabled && proxyConfig?.url) {
+            cmd += ` --proxy "${proxyConfig.url}"`
+        }
+
+        const { stdout } = await execPromise(cmd, { timeout: 45000 })
+        const jsonMatch = stdout.match(/\{[\s\S]*\}/)
+        if (jsonMatch) {
+            const result = JSON.parse(jsonMatch[0])
+            if (result.success && result.content) {
+                console.log(`[Ingestion] Python Bridge Success for ${url}`)
+                return result.content
+            }
+        }
+    } catch (e: any) {
+        console.warn(`[Ingestion] Python Bridge failed for ${url}, falling back:`, e.message)
+    }
+
+    // 2. Fallback to Node.js native fetch with modern headers
+    const dispatcher = proxyConfig?.enabled && proxyConfig?.url ? new ProxyAgent(proxyConfig.url) : undefined
     const res = await undiciFetch(url, {
         dispatcher: dispatcher as any,
         headers: {
@@ -52,8 +81,8 @@ async function fetchHtml(url: string): Promise<string> {
             'Pragma': 'no-cache'
         }
     })
-    if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`)
-    return res.text() // Assume UTF-8 for now
+    if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`)
+    return res.text()
 }
 
 // ------------------------------------------------------------------
@@ -173,19 +202,16 @@ async function parseMooirRu(source: IngestionSource): Promise<ParsedItem[]> {
     const $ = cheerio.load(html)
     const items: ParsedItem[] = []
 
-    // Mooir articles usually have a numeric ID at the end: /official/world-news/1521/
-    // We filter specifically for this pattern to avoid picking up category or pagination links.
     $('a[href*="/official/world-news/"]').each((_, el) => {
         const $link = $(el)
         const href = $link.attr('href')
         if (!href) return
 
-        // Regex for numeric ID at the end (with or without trailing slash)
         const isArticle = /\/official\/world-news\/\d+\/?$/.test(href.split('?')[0])
         if (!isArticle || href.includes('?page=') || href.includes('archive/')) return
 
         const title = $link.text().trim()
-        if (!title || title.length < 5) return // Skip small links/buttons
+        if (!title || title.length < 5) return
 
         items.push({
             title,
@@ -209,7 +235,6 @@ async function parseMooirPrikras(source: IngestionSource): Promise<ParsedItem[]>
         const href = $link.attr('href')
         if (!href) return
 
-        // Ensure it has a numeric ID at the end
         const isArticle = /\/official\/prikras\/\d+\/?$/.test(href.split('?')[0])
         if (!isArticle) return
 
@@ -260,7 +285,6 @@ async function parseOhotnikiSearch(source: IngestionSource): Promise<ParsedItem[
 // ------------------------------------------------------------------
 
 export async function runIngestion(sourceIds?: string[], client?: SupabaseClient<Database>) {
-    // Standard client for broadcasting (server-side realtime)
     const supabase = (client || createParamsClient<Database>(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY! || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -271,7 +295,6 @@ export async function runIngestion(sourceIds?: string[], client?: SupabaseClient
         }
     )) as SupabaseClient<Database>
 
-    // Broadcast Setup for UI Feedback
     const broadcastChannel = supabase.channel('ingestion-updates')
     broadcastChannel.subscribe(() => { })
 
@@ -283,7 +306,6 @@ export async function runIngestion(sourceIds?: string[], client?: SupabaseClient
         })
     }
 
-    // Fetch DB Sources
     const { data: dbSources } = await supabase
         .from('ingestion_sources')
         .select('*')
@@ -335,7 +357,6 @@ export async function runIngestion(sourceIds?: string[], client?: SupabaseClient
                 default: console.warn(`Unknown parser ${source.parser}`);
             }
 
-            // Dedupe and Insert
             for (const item of items) {
                 if (!item.link) continue
 
@@ -351,16 +372,12 @@ export async function runIngestion(sourceIds?: string[], client?: SupabaseClient
                         const selDetail = (source.selectors as any)?.date_detail
                         const selMain = (source.selectors as any)?.date
 
-                        // We only fetch if we have at least one selector to try
                         if (selDetail || selMain) {
                             try {
-                                // Use modern fetch with proxy handled in fetchHtml
                                 const artHtml = await fetchHtml(item.link)
                                 const $art = cheerio.load(artHtml)
-
                                 let detailDate: string | null = null
 
-                                // 1. Try explicit detail selector
                                 if (selDetail) {
                                     if (selDetail.includes('meta')) {
                                         detailDate = $art(selDetail).attr('content') || $art(selDetail).attr('value') || null
@@ -369,7 +386,6 @@ export async function runIngestion(sourceIds?: string[], client?: SupabaseClient
                                     }
                                 }
 
-                                // 2. Fallback to main selector
                                 if (!detailDate && selMain) {
                                     if (selMain.includes('meta')) {
                                         detailDate = $art(selMain).attr('content') || $art(selMain).attr('value') || null
@@ -407,7 +423,6 @@ export async function runIngestion(sourceIds?: string[], client?: SupabaseClient
 
                     results.newInserted++
                 } else {
-                    // TEMP: Force re-trigger AI for existing items (User Request)
                     try {
                         await processGate1(existing.id)
                     } catch (g1Err) {
@@ -424,8 +439,7 @@ export async function runIngestion(sourceIds?: string[], client?: SupabaseClient
             }
 
             results.totalFound += items.length
-            await sendStatus(`${source.name}: Найдено ${items.length} (Новых: ${items.length // Approximation, true count is inside loop
-                })`, 'success')
+            await sendStatus(`${source.name}: Найдено ${items.length}`, 'success')
 
         } catch (e: any) {
             console.error(`[Ingestion] Error processing ${source.name}:`, e)

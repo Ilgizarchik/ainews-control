@@ -5,6 +5,11 @@ import * as cheerio from 'cheerio'
 import { ProxyAgent, fetch as undiciFetch } from 'undici'
 import { JSDOM } from 'jsdom'
 import { Readability } from '@mozilla/readability'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+import path from 'path'
+
+const execPromise = promisify(exec)
 
 // Helper to interact with the chosen AI provider
 async function callAiCompletion(systemPrompt: string, userContent: string) {
@@ -15,7 +20,17 @@ async function callAiCompletion(systemPrompt: string, userContent: string) {
         .from('project_settings')
         .select('*')
         .eq('project_key', 'ainews')
-        .in('key', ['ai_provider', 'ai_model', 'ai_base_url', 'ai_key_openrouter', 'ai_key_openai', 'ai_key_anthropic', 'ai_key_custom', 'ai_proxy_url'])
+        .in('key', [
+            'ai_provider',
+            'ai_model',
+            'ai_base_url',
+            'ai_key_openrouter',
+            'ai_key_openai',
+            'ai_key_anthropic',
+            'ai_key_custom',
+            'ai_proxy_url',
+            'ai_proxy_enabled'
+        ])
 
     const config: Record<string, string> = {};
     (settings as any[])?.forEach(s => config[s.key] = s.value)
@@ -66,7 +81,7 @@ async function callAiCompletion(systemPrompt: string, userContent: string) {
         body: JSON.stringify(payload)
     }
 
-    if (config['ai_proxy_url']) {
+    if (config['ai_proxy_enabled'] === 'true' && config['ai_proxy_url']) {
         fetchOptions.dispatcher = new ProxyAgent(config['ai_proxy_url'])
     }
     const res = await fetch(url, fetchOptions)
@@ -83,50 +98,60 @@ async function callAiCompletion(systemPrompt: string, userContent: string) {
     return content
 }
 
-async function getProxyDispatcher() {
-    try {
-        const supabase = await createClient()
-        const { data } = await supabase
-            .from('project_settings')
-            .select('value')
-            .eq('project_key', 'ainews')
-            .eq('key', 'ai_proxy_url')
-            .single()
+async function fetchHtmlWithPythonBridge(url: string): Promise<string> {
+    const supabase = await createClient()
+    const { data: proxyData } = await supabase
+        .from('project_settings')
+        .select('*')
+        .eq('project_key', 'ainews')
+        .in('key', ['ai_proxy_url', 'ai_proxy_enabled'])
 
-        if (data?.value) {
-            return new ProxyAgent(data.value)
-        }
-    } catch {
-        // console.warn('Proxy lookup failed', e)
+    const proxyConfig = {
+        url: (proxyData as any[])?.find(r => r.key === 'ai_proxy_url')?.value,
+        enabled: (proxyData as any[])?.find(r => r.key === 'ai_proxy_enabled')?.value === 'true'
     }
-    return undefined
+
+    try {
+        console.log(`[Scan] Attempting Python Bridge for: ${url}`)
+        const bridgePath = path.join(process.cwd(), 'scraper_bridge.py')
+        let cmd = `python "${bridgePath}" --url "${url}" --html`
+        if (proxyConfig?.enabled && proxyConfig?.url) {
+            cmd += ` --proxy "${proxyConfig.url}"`
+        }
+
+        const { stdout } = await execPromise(cmd, { timeout: 45000 })
+        const jsonMatch = stdout.match(/\{[\s\S]*\}/)
+        if (!jsonMatch) throw new Error(`Could not find JSON in Python output`)
+
+        const result = JSON.parse(jsonMatch[0])
+        if (result.success && result.content) {
+            console.log(`[Scan] Python Bridge Success! Size: ${result.content.length}`)
+            return result.content
+        }
+        throw new Error(result.error || 'Python bridge failed to return content')
+    } catch (e: any) {
+        console.warn(`[Scan] Python Bridge failed, falling back to Node.js:`, e.message)
+
+        // Fallback to native Node.js fetch
+        const dispatcher = proxyConfig.enabled && proxyConfig.url ? new ProxyAgent(proxyConfig.url) : undefined
+        const res = await undiciFetch(url, {
+            dispatcher: dispatcher as any,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Referer': 'https://www.google.com/'
+            }
+        })
+        if (!res.ok) throw new Error(`Site returned error: ${res.status}`)
+        return await res.text()
+    }
 }
 
 export async function scanUrlForSelectors(url: string) {
     try {
-        // 1. Fetch HTML with better headers
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 15000) // 15s timeout
-        const dispatcher = await getProxyDispatcher()
-
-        const res = await undiciFetch(url, {
-            signal: controller.signal,
-            dispatcher: dispatcher as any,
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
-                'Cache-Control': 'no-cache',
-                'Pragma': 'no-cache'
-            }
-        }).catch(err => {
-            if (err.name === 'AbortError') throw new Error('Connection timed out (15s)')
-            throw new Error(`Connection failed: ${err.message}`)
-        })
-        clearTimeout(timeoutId)
-
-        if (!res.ok) throw new Error(`Site returned error: ${res.status} ${res.statusText}`)
-        const html = await res.text()
+        // 1. Fetch HTML using Bridge or Node.js Fallback
+        const html = await fetchHtmlWithPythonBridge(url)
 
         // 2. Pre-process HTML (Cheerio) to reduce tokens
         const $ = cheerio.load(html)
@@ -135,10 +160,9 @@ export async function scanUrlForSelectors(url: string) {
         $('script, style, svg, footer, nav, iframe, noscript').remove()
 
         // Try to identify the main content area or list
-        // We'll take the <body> content but truncated
         let cleanHtml = $('body').html() || ''
 
-        // Limit to ~20kb of text to avoid context limits, but keep structure
+        // Limit to ~50kb of text to avoid context limits
         if (cleanHtml.length > 50000) {
             cleanHtml = cleanHtml.substring(0, 50000) + '...'
         }
@@ -157,12 +181,10 @@ export async function scanUrlForSelectors(url: string) {
         const aiResponse = await callAiCompletion(systemPrompt, `Analyze this HTML and find the news item list:\n\n${cleanHtml}`)
 
         // 5. Parse JSON
-        // Cleanup markdown if present
         const jsonStr = aiResponse.replace(/```json/g, '').replace(/```/g, '').trim()
         const selectors = JSON.parse(jsonStr)
 
         // *** PHASE 2: AUTO-DETECT DATE IN ARTICLE ***
-        // Only try to find detail date if we couldn't find it on the main listing
         const hasDate = selectors.date && selectors.date !== 'null'
 
         if (!hasDate && selectors.link && selectors.container) {
@@ -177,29 +199,11 @@ export async function scanUrlForSelectors(url: string) {
                         fullLink = new URL(link, url).toString()
                     }
 
-                    const dispatcher = await getProxyDispatcher()
-                    const artRes = await undiciFetch(fullLink, {
-                        dispatcher: dispatcher as any,
-                        // Full headers to avoid bot detection on deep pages
-                        headers: {
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                            'Accept-Language': 'en-US,en;q=0.9',
-                            'Referer': url // Vital for anti-bot
-                        }
-                    })
-
-                    if (artRes.ok) {
-                        const artHtml = await artRes.text()
-
-                        // Limit size
-                        let cleanArt = artHtml
-                        if (cleanArt.length > 40000) cleanArt = cleanArt.substring(0, 40000)
-
+                    const artHtml = await fetchHtmlWithPythonBridge(fullLink)
+                    if (artHtml) {
                         // Ask AI to specificially find date in this article
                         const datePrompt = `Here is an article page HTML. Find the CSS selector for the publication date/time. Return JSON: { "date_detail": "css_selector" }. If not found, return null.`
-
-                        const dateAiRes = await callAiCompletion(systemPrompt, `${datePrompt}\n\n${cleanArt}`)
+                        const dateAiRes = await callAiCompletion(systemPrompt, `${datePrompt}\n\n${artHtml.substring(0, 40000)}`)
                         const dateJson = JSON.parse(dateAiRes.replace(/```json/g, '').replace(/```/g, '').trim())
 
                         if (dateJson.date_detail) {
@@ -224,14 +228,8 @@ export async function testSelectors(url: string, selectors: any) {
     try {
         if (!selectors.container) throw new Error('Container selector missing')
 
-        const dispatcher = await getProxyDispatcher()
-
-        // Fetch
-        const res = await undiciFetch(url, {
-            dispatcher: dispatcher as any,
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
-        } as any)
-        const html = await res.text()
+        // Fetch using Bridge or Node.js Fallback
+        const html = await fetchHtmlWithPythonBridge(url)
         const $ = cheerio.load(html)
 
         const items: any[] = []
@@ -254,7 +252,7 @@ export async function testSelectors(url: string, selectors: any) {
             })
         })
 
-        // NEW: Fetch first article content
+        // Fetch first article content
         if (items.length > 0 && items[0].link && items[0].link !== 'not found') {
             try {
                 let link = items[0].link
@@ -262,29 +260,8 @@ export async function testSelectors(url: string, selectors: any) {
                     link = new URL(link, url).toString()
                 }
 
-                const artRes = await undiciFetch(link, {
-                    dispatcher: dispatcher as any,
-                    redirect: 'follow',
-                    // cache: 'no-store', // cache is not a valid prop for undici fetch in some versions, or named differently
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-                        'Accept-Language': 'en-US,en;q=0.9',
-                        'Accept-Encoding': 'gzip, deflate, br',
-                        'Referer': url,
-                        'Upgrade-Insecure-Requests': '1',
-                        'Sec-Ch-Ua': '"Not A(Brand";v="99", "Google Chrome";v="121", "Chromium";v="121"',
-                        'Sec-Ch-Ua-Mobile': '?0',
-                        'Sec-Ch-Ua-Platform': '"Windows"',
-                        'Sec-Fetch-Site': 'same-origin',
-                        'Sec-Fetch-Mode': 'navigate',
-                        'Sec-Fetch-User': '?1',
-                        'Sec-Fetch-Dest': 'document'
-                    }
-                })
-                if (artRes.ok) {
-                    const artHtml = await artRes.text()
-
+                const artHtml = await fetchHtmlWithPythonBridge(link)
+                if (artHtml) {
                     // Try to extract detail date if selector present
                     if (selectors.date_detail) {
                         try {
@@ -292,8 +269,7 @@ export async function testSelectors(url: string, selectors: any) {
                             const detailDate = $art(selectors.date_detail).text().trim()
                             if (detailDate) {
                                 items[0].dateFromDetail = detailDate
-                                // If main date is missing, use this one for display
-                                if (!items[0].date || items[0].date === 'empty text' || items[0].date === 'not found' || items[0].date === 'null' || items[0].date === 'empty attr') {
+                                if (!items[0].date || items[0].date === 'empty text' || items[0].date === 'not found' || items[0].date === 'null') {
                                     items[0].date = detailDate + ' (from article)'
                                 }
                             }
@@ -302,30 +278,24 @@ export async function testSelectors(url: string, selectors: any) {
                         }
                     }
 
-                    // Use Readability for smart extraction
+                    // Use Readability
                     try {
                         const dom = new JSDOM(artHtml, { url: link })
                         const reader = new Readability(dom.window.document)
                         const article = reader.parse()
 
                         if (article) {
-                            const cleanText = (article.textContent || '')
-                                .replace(/\s+/g, ' ') // Just flatten it for the preview snippet to avoid layout issues
-                                .trim()
-
+                            const cleanText = (article.textContent || '').replace(/\s+/g, ' ').trim()
                             items[0].previewText = `${cleanText.substring(0, 1200)}...`
                         } else {
                             throw new Error('Readability failed')
                         }
                     } catch {
-                        // Fallback to raw text
                         const $art = cheerio.load(artHtml)
                         $art('script, style, nav, footer, header, aside, svg').remove()
                         const text = $art('body').text().replace(/\s+/g, ' ').trim()
                         items[0].previewText = `${text.substring(0, 1200)}...`
                     }
-                } else {
-                    items[0].previewText = `Error fetching article: ${artRes.status}`
                 }
             } catch (e: any) {
                 items[0].previewText = `Error fetching article: ${e.message}`
@@ -358,7 +328,6 @@ export async function getDbSources() {
     if (error) return []
     return data
 }
-
 
 export async function deleteSource(id: string) {
     const supabase = await createClient()

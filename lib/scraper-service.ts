@@ -40,6 +40,9 @@ export async function scrapeArticleText(url: string, selector?: string): Promise
         console.log(`[Scraper] Attempting Python Bridge for: ${url}`);
         const bridgePath = path.join(process.cwd(), 'scraper_bridge.py');
         let cmd = `python "${bridgePath}" --url "${url}"`;
+        if (selector) {
+            cmd += ` --selector "${selector}"`;
+        }
         if (proxyConfig?.enabled && proxyConfig?.url) {
             cmd += ` --proxy "${proxyConfig.url}"`;
         }

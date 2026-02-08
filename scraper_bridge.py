@@ -35,7 +35,7 @@ with suppress_all():
     except Exception:
         create_session = None
 
-def scrape(url, proxy=None):
+def scrape(url, proxy=None, return_html=False, selector=None):
     if not create_session:
         return {"error": "Module anti_detect.py or dependencies not found", "content": ""}
         
@@ -66,16 +66,33 @@ def scrape(url, proxy=None):
         if response.status_code != 200:
             return {"error": f"HTTP {response.status_code}", "content": ""}
 
+        if return_html:
+            return {
+                "success": True,
+                "content": response.text[:500000],
+                "status": response.status_code
+            }
+
         # Парсинг
         soup = BeautifulSoup(response.text, 'lxml')
         
+        # Если передан селектор, пытаемся взять именно его
+        if selector:
+            target = soup.select_one(selector)
+            if target:
+                return {
+                    "success": True,
+                    "content": target.get_text(separator='\n', strip=True),
+                    "status": response.status_code
+                }
+
+        # Обычная очистка
         for tag in soup(['script', 'style', 'nav', 'header', 'footer', 'aside']):
             tag.decompose()
             
         main_content = ""
         article = soup.find('article')
         if article:
-            # Убираем лишние пробелы и пустые строки
             main_content = article.get_text(separator='\n', strip=True)
         else:
             content_tags = soup.find_all(['main', 'div', 'section'], class_=lambda x: x and any(c in x.lower() for c in ['content', 'article', 'post', 'body', 'main']))
@@ -98,17 +115,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", required=True)
     parser.add_argument("--proxy", required=False)
+    parser.add_argument("--html", action="store_true")
+    parser.add_argument("--selector", required=False)
     args = parser.parse_args()
 
     # Сначала собираем результат
-    result = scrape(args.url, args.proxy)
+    result = scrape(args.url, args.proxy, return_html=args.html, selector=args.selector)
     
     # И в самом конце выводим ТОЛЬКО финальный JSON. 
-    # Никакие импорты или ошибки выше не должны сюда попасть.
     json_output = json.dumps(result, ensure_ascii=False)
     
-    # Используем прямое системное обращение к stdout дескриптору, 
-    # чтобы обойти возможные перехваты в Python
     sys.stdout.write(json_output)
     sys.stdout.flush()
-    os._exit(0) # Жесткий выход, чтобы не допустить никаких принтов в фазе завершения скрипта
+    os._exit(0)
