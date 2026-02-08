@@ -1,8 +1,8 @@
 ﻿'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { ContentBoard } from '@/components/content/ContentBoard'
 import { ContentItem, ContentFilter, ContentStats } from '@/types/content'
+import { ContentBoard, ContentSortOption } from '@/components/content/ContentBoard'
 import { LoadingDots } from '@/components/ui/loading-dots'
 import { createClient } from '@/lib/supabase/client'
 import { getContentStats } from '@/app/actions/content-actions'
@@ -19,6 +19,7 @@ export default function ContentPage() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [currentFilter, setCurrentFilter] = useState<ContentFilter>('pending')
   const [selectedSources, setSelectedSources] = useState<string[]>([])
+  const [sortOption, setSortOption] = useState<ContentSortOption>('date-desc')
   const [page, setPage] = useState(0)
   const [totalCount, setTotalCount] = useState(0)
   const supabase = useMemo(() => createClient(), [])
@@ -54,14 +55,25 @@ export default function ContentPage() {
     return query
   }
 
-  const fetchPage = async (filter: ContentFilter, sources: string[], pageIndex: number) => {
+  const fetchPage = async (filter: ContentFilter, sources: string[], pageIndex: number, sort: ContentSortOption) => {
     const from = pageIndex * PAGE_SIZE
     const to = from + PAGE_SIZE - 1
 
-    const { data, error, count } = await buildQuery(filter, sources)
-      .order('created_at', { ascending: false }) // Use creation time as primary to show newest first in queue
-      .order('published_at', { ascending: false })
-      .range(from, to)
+    let query = buildQuery(filter, sources)
+
+    if (sort === 'no-date') {
+      // Put items without date first, then sort by creation date
+      query = query
+        .order('published_at', { ascending: false, nullsFirst: true })
+        .order('created_at', { ascending: false })
+    } else {
+      const isAscending = sort === 'date-asc'
+      query = query
+        .order('published_at', { ascending: isAscending, nullsFirst: false })
+        .order('created_at', { ascending: isAscending })
+    }
+
+    const { data, error, count } = await query.range(from, to)
 
     if (error) {
       console.error('[ContentPage] fetchPage error:', error)
@@ -78,7 +90,7 @@ export default function ContentPage() {
     try {
       // Parallel fetch but with individual error handling or fallback
       const [pageResults, statsResults] = await Promise.allSettled([
-        fetchPage(filter, sources, 0),
+        fetchPage(filter, sources, 0, sortOption),
         getContentStats(),
       ])
 
@@ -115,7 +127,7 @@ export default function ContentPage() {
     const nextPage = page + 1
     setLoadingMore(true)
     try {
-      const { data: moreItems } = await fetchPage(currentFilter, selectedSources, nextPage)
+      const { data: moreItems } = await fetchPage(currentFilter, selectedSources, nextPage, sortOption)
       setItems(prev => {
         const existingIds = new Set(prev.map(i => i.id))
         const uniqueNewItems = moreItems.filter(i => !existingIds.has(i.id))
@@ -132,7 +144,7 @@ export default function ContentPage() {
   useEffect(() => {
     // Only use full screen loading for the very first mount
     loadData(currentFilter, selectedSources, loading)
-  }, [currentFilter, selectedSources])
+  }, [currentFilter, selectedSources, sortOption])
 
   const handleItemUpdated = async (id: string, outcome?: 'updated' | 'stale') => {
     // Optimistic remove for pending
@@ -185,6 +197,8 @@ export default function ContentPage() {
         onItemUpdated={handleItemUpdated}
         selectedSources={selectedSources}
         onSourcesChange={setSelectedSources}
+        sortOption={sortOption}
+        onSortChange={setSortOption}
         isRefreshing={refreshing}
       />
     </div>

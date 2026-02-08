@@ -51,7 +51,7 @@ type CalendarEvent = RBCEvent & {
 }
 
 export function CalendarViewBig() {
-    const { jobs, fetchJobs, updateJobTime, updateBatchJobs } = useCalendarJobs()
+    const { jobs, fetchJobs, updateJobTime, updateBatchJobs, cancelJobOptimistically, removeNewsOptimistically } = useCalendarJobs()
     const [recipes, setRecipes] = useState<Recipe[]>([])
     const [currentDate, setCurrentDate] = useState(new Date())
     const [viewType, setViewType] = useState('month')
@@ -291,6 +291,8 @@ export function CalendarViewBig() {
                     isOpen={!!editingJob}
                     onClose={() => setEditingJob(null)}
                     onUpdate={refreshCalendar}
+                    onOptimisticCancel={cancelJobOptimistically}
+                    onOptimisticRemove={removeNewsOptimistically}
                 />
             )}
 

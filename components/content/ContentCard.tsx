@@ -41,8 +41,8 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
         }
     }
 
-    const handleApprove = async (e: React.MouseEvent) => {
-        e.stopPropagation()
+    const handleApprove = async (e?: React.MouseEvent) => {
+        if (e) e.stopPropagation()
         setIsLoading(true)
 
         const toastId = toast.loading('🚀 Запуск AI агентов...')
@@ -83,8 +83,9 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
         }
     }
 
-    const handleReject = async (e: React.MouseEvent) => {
-        e.stopPropagation()
+    const handleReject = async (e?: React.MouseEvent) => {
+        if (e) e.stopPropagation()
+        setDetailOpen(false) // Close dialog if open
         // Optimistic UI: Animate out immediately
         setIsAnimatingOut('reject')
 
@@ -192,15 +193,19 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
                     </div>
 
                     {/* Floating Source Badge (Bottom Left) */}
-                    <div className="absolute bottom-4 left-4 z-10">
-                        <div className="flex items-center gap-2 bg-black/80 backdrop-blur-xl px-3 py-2 rounded-xl border border-white/20 shadow-xl transition-all hover:bg-black/90 hover:scale-105">
-                            <span className="font-bold text-white text-[11px] tracking-wider uppercase">{item.source_name || 'source'}</span>
-                            <span className="w-px h-3 bg-white/30" />
-                            <span className="flex items-center gap-1.5 text-[11px] text-white/90 font-medium whitespace-nowrap">
-                                <Clock className="w-3 h-3 opacity-80" />
-                                {item.published_at
-                                    ? formatDistanceToNow(new Date(item.published_at), { addSuffix: true, locale: ru })
-                                    : ''}
+                    <div className="absolute bottom-4 left-4 z-10 max-w-[calc(100%-2rem)]">
+                        <div className="flex items-center gap-2 bg-black/80 backdrop-blur-xl px-3 py-2 rounded-xl border border-white/20 shadow-xl transition-all hover:bg-black/90 hover:scale-105 overflow-hidden">
+                            <span className="font-bold text-white text-[11px] tracking-wider uppercase truncate min-w-[30px] flex-shrink-1">
+                                {item.source_name || 'source'}
+                            </span>
+                            <span className="w-px h-3 bg-white/30 flex-shrink-0" />
+                            <span className="flex items-center gap-1.5 text-[11px] text-white/90 font-medium whitespace-nowrap overflow-hidden">
+                                <Clock className="w-3 h-3 opacity-80 flex-shrink-0" />
+                                <span className="truncate">
+                                    {item.published_at
+                                        ? formatDistanceToNow(new Date(item.published_at), { addSuffix: true, locale: ru })
+                                        : ''}
+                                </span>
                             </span>
                         </div>
                     </div>
@@ -289,7 +294,14 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
                 </div>
             </Card>
 
-            <ContentDetailDialog item={item} open={detailOpen} onOpenChange={setDetailOpen} />
+            <ContentDetailDialog
+                item={item}
+                open={detailOpen}
+                onOpenChange={setDetailOpen}
+                onActionComplete={onActionComplete}
+                onApprove={() => handleApprove()}
+                onReject={() => handleReject()}
+            />
         </>
     )
 }

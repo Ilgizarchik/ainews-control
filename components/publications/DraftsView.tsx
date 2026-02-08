@@ -298,6 +298,10 @@ export function DraftsView() {
 
     // --- Effects ---
 
+    const removeDraftOptimistically = useCallback((id: string) => {
+        setDrafts(prev => prev.filter(d => d.id !== id))
+    }, [])
+
     useEffect(() => {
         fetchActivePlatforms()
         fetchDrafts()
@@ -385,42 +389,35 @@ export function DraftsView() {
             {editingDraft && (
                 <NewsEditorDialog
                     contentId={editingDraft}
-                    contentType={(drafts.find(d => d.id === editingDraft) as any)?.is_news_item ? 'news' : 'review'}
+                    contentType={drafts.find(d => d.id === editingDraft)?._is_news ? 'news' : 'review'}
                     isOpen={!!editingDraft}
                     onClose={() => setEditingDraft(null)}
-                    onSaved={() => {
-                        fetchDrafts()
-                        toast.success('Черновик сохранен')
-                    }}
+                    onSaved={fetchDrafts}
+                    onOptimisticRemove={removeDraftOptimistically}
                 />
             )}
 
+            {/* Social Post Editor Dialog */}
             {editingPlatform && (
                 <SocialPostEditorDialog
                     job={{
-                        id: '',
+                        id: '', // New job
                         platform: editingPlatform.platform,
-                        social_content: editingPlatform.content,
-                        publish_at: new Date().toISOString(),
                         status: 'queued',
-                        review_id: editingPlatform.isNews ? null : editingPlatform.draftId,
+                        social_content: editingPlatform.content,
                         news_id: editingPlatform.isNews ? editingPlatform.draftId : null,
+                        review_id: !editingPlatform.isNews ? editingPlatform.draftId : null,
+                        publish_at: new Date().toISOString(),
                         created_at: new Date().toISOString(),
                         updated_at: new Date().toISOString(),
                         retry_count: 0,
-                        external_id: null,
-                        published_url: null,
-                        published_at_actual: null,
-                        error_message: null,
-                        news_items: null,
-                        review_items: null
-                    } as JobWithNews}
+                        news_items: editingPlatform.isNews ? drafts.find(d => d.id === editingPlatform.draftId) : null,
+                        review_items: !editingPlatform.isNews ? drafts.find(d => d.id === editingPlatform.draftId) : null
+                    } as any}
                     isOpen={!!editingPlatform}
                     onClose={() => setEditingPlatform(null)}
-                    onUpdate={() => {
-                        fetchDrafts()
-                        toast.success('Публикация сохранена')
-                    }}
+                    onUpdate={fetchDrafts}
+                    onOptimisticRemove={removeDraftOptimistically}
                 />
             )}
 

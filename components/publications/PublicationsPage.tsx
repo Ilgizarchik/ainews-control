@@ -82,7 +82,7 @@ export function PublicationsPage() {
     const [mounted, setMounted] = useState(false)
 
     // Создаем шаги туториала с callback для переключения вкладок и открытия диалога
-    const publicationsSteps = useMemo(() => getPublicationsTutorialSteps(setActiveTab, () => setIsCreateOpen(true)), []);
+    const publicationsSteps = useMemo(() => getPublicationsTutorialSteps(setActiveTab, () => setIsCreateOpen(true), () => setIsCreateOpen(false)), []);
 
     useEffect(() => {
         setMounted(true)

@@ -144,7 +144,8 @@ export const TUTORIAL_STEPS: DriveStep[] = [
  */
 export const getPublicationsTutorialSteps = (
   onTabChange: (tab: 'drafts' | 'board' | 'calendar') => void,
-  onOpenCreateDialog?: () => void
+  onOpenCreateDialog?: () => void,
+  onCloseCreateDialog?: () => void
 ): DriveStep[] => [
     {
       popover: {
@@ -449,7 +450,8 @@ export const getPublicationsTutorialSteps = (
       `,
         side: 'bottom',
         align: 'center'
-      }
+      },
+      onHighlightStarted: () => onCloseCreateDialog?.()
     }
   ]
 

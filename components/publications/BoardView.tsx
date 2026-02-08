@@ -51,7 +51,7 @@ export interface GroupedNews {
 }
 
 export function BoardView() {
-    const { jobs, loading, error, fetchJobs, activePlatforms } = useBoardJobs()
+    const { jobs, loading, error, fetchJobs, activePlatforms, cancelJobOptimistically, removeNewsOptimistically } = useBoardJobs()
     const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([null, null])
     const [selectedTags, setSelectedTags] = useState<string[]>([])
     const [sortBy, setSortBy] = useState<'publish_at' | 'created_at'>('publish_at')
@@ -479,6 +479,8 @@ export function BoardView() {
                             isOpen={!!editingJob}
                             onClose={() => setEditingJob(null)}
                             onUpdate={fetchJobs}
+                            onOptimisticCancel={cancelJobOptimistically}
+                            onOptimisticRemove={removeNewsOptimistically}
                         />
                     )}
 
@@ -491,6 +493,7 @@ export function BoardView() {
                             onSaved={() => {
                                 fetchJobs()
                             }}
+                            onOptimisticRemove={removeNewsOptimistically}
                         />
                     )}
                 </div>

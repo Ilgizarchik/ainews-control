@@ -86,5 +86,17 @@ export function useCalendarJobs() {
     if (errors.length > 0) throw new Error(`Failed updates: ${errors.length}`)
   }
 
-  return { jobs, loading, fetchJobs, updateJobTime, updateBatchJobs }
+  const cancelJobOptimistically = useCallback((jobId: string) => {
+    setJobs(prev => prev.map(job =>
+      job.id === jobId ? { ...job, status: 'cancelled' } as JobWithNews : job
+    ))
+  }, [])
+
+  const removeNewsOptimistically = useCallback((contentId: string) => {
+    setJobs(prev => prev.filter(job =>
+      job.news_id !== contentId && job.review_id !== contentId
+    ))
+  }, [])
+
+  return { jobs, setJobs, loading, fetchJobs, updateJobTime, updateBatchJobs, cancelJobOptimistically, removeNewsOptimistically }
 }

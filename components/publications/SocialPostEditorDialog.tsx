@@ -17,9 +17,11 @@ interface SocialPostEditorDialogProps {
     isOpen: boolean
     onClose: () => void
     onUpdate: () => void // Callback to refresh board
+    onOptimisticCancel?: (jobId: string) => void
+    onOptimisticRemove?: (contentId: string) => void
 }
 
-export function SocialPostEditorDialog({ job, isOpen, onClose, onUpdate }: SocialPostEditorDialogProps) {
+export function SocialPostEditorDialog({ job, isOpen, onClose, onUpdate, onOptimisticCancel, onOptimisticRemove }: SocialPostEditorDialogProps) {
     const getDraftContent = () => {
         const item = job.news_items || job.review_items
         if (!item) return ''
@@ -243,6 +245,15 @@ export function SocialPostEditorDialog({ job, isOpen, onClose, onUpdate }: Socia
 
     const handleDelete = async () => {
         // Optimistic UI Flow
+        const jobId = job.id
+        const contentId = job.news_id || job.review_id
+
+        if (onOptimisticCancel && jobId) {
+            onOptimisticCancel(jobId)
+        } else if (onOptimisticRemove && contentId) {
+            onOptimisticRemove(contentId)
+        }
+
         setDeleting(true)
         onClose() // Close immediately
 

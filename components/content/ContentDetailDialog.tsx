@@ -23,42 +23,40 @@ interface ContentDetailDialogProps {
     item: ContentItem
     open: boolean
     onOpenChange: (open: boolean) => void
+    onActionComplete?: (id: string, outcome?: 'updated' | 'stale') => void
+    onApprove?: () => Promise<void>
+    onReject?: () => Promise<void>
 }
 
-export function ContentDetailDialog({ item, open, onOpenChange }: ContentDetailDialogProps) {
+export function ContentDetailDialog({ item, open, onOpenChange, onActionComplete, onApprove, onReject }: ContentDetailDialogProps) {
     // Track which specific action is loading: 'approve' | 'reject' | null
     const [loadingAction, setLoadingAction] = useState<'approve' | 'reject' | null>(null)
 
     const handleApprove = async () => {
+        if (onApprove) {
+            setLoadingAction('approve')
+            try {
+                await onApprove()
+            } finally {
+                setLoadingAction(null)
+            }
+            return
+        }
+
+        // Fallback (should not be reached if used via ContentCard)
         setLoadingAction('approve')
-
-        // Immediate feedback
         const toastId = toast.loading('🚀 Запуск AI агентов...')
-
-        // Simulation of progress steps (visual feedback only)
-        const timers: NodeJS.Timeout[] = []
-        timers.push(setTimeout(() => toast.loading('✍️ Пишем лонгрид и заголовок...', { id: toastId }), 2000))
-        timers.push(setTimeout(() => toast.loading('📢 Формулируем анонс...', { id: toastId }), 7000))
-        timers.push(setTimeout(() => toast.loading('🎨 Придумываем идею для картинки...', { id: toastId }), 14000))
-        timers.push(setTimeout(() => toast.loading('🖼️ Генерируем изображение...', { id: toastId }), 22000))
-        timers.push(setTimeout(() => toast.loading('📤 Сохраняем результаты...', { id: toastId }), 35000))
-        timers.push(setTimeout(() => toast.loading('🛠️ Финализируем метаданные...', { id: toastId }), 45000))
-        timers.push(setTimeout(() => toast.loading('📊 Почти готово, последние штрихи...', { id: toastId }), 55000))
-
         try {
             const result = await approveContentItem(item.id)
-            timers.forEach(clearTimeout) // Clear simulation if finished earlier
             toast.dismiss(toastId)
-
             if (result.success) {
                 toast.success('✨ Черновик успешно создан!')
                 onOpenChange(false)
+                onActionComplete?.(item.id, 'updated')
             } else {
-                const errorMsg = result.error?.message || String(result.error)
-                toast.error(`Ошибка: ${errorMsg}`)
+                toast.error(`Ошибка: ${result.error?.message || String(result.error)}`)
             }
         } catch (error: any) {
-            timers.forEach(clearTimeout)
             toast.dismiss(toastId)
             toast.error(`Произошла ошибка: ${error.message || error}`)
         } finally {
@@ -67,41 +65,26 @@ export function ContentDetailDialog({ item, open, onOpenChange }: ContentDetailD
     }
 
     const handleReject = async () => {
-        // Optimistic UI: Close immediately
-        onOpenChange(false)
-
-        let isCancelled = false
-
-        // Delay actual execution
-        const timerId = setTimeout(async () => {
-            if (isCancelled) return
-
+        if (onReject) {
+            setLoadingAction('reject')
             try {
-                const result = await rejectContentItem(item.id)
-                if (result.success) {
-                    // Success silently updates (or parent refreshes)
-                } else {
-                    const errorMsg = result.error?.message || String(result.error)
-                    toast.error(`Ошибка при отклонении: ${errorMsg}`)
-                }
-            } catch (error: any) {
-                toast.error(`Произошла ошибка при отклонении: ${error.message || error}`)
+                await onReject()
+            } finally {
+                setLoadingAction(null)
             }
-        }, 7000)
+            return
+        }
 
-        toast("Новость отклонена", {
-            description: "Действие будет применено через 7 секунд",
-            action: {
-                label: "Отменить",
-                onClick: () => {
-                    isCancelled = true
-                    clearTimeout(timerId)
-                    onOpenChange(true) // Re-open dialog on undo
-                    toast.dismiss()
-                }
-            },
-            duration: 7000,
-        })
+        // Fallback (should not be reached if used via ContentCard)
+        onOpenChange(false)
+        try {
+            const result = await rejectContentItem(item.id)
+            if (result.success) {
+                onActionComplete?.(item.id, 'updated')
+            }
+        } catch (error: any) {
+            toast.error(`Ошибка при отклонении: ${error.message || error}`)
+        }
     }
     const getScoreColor = (score: number | null) => {
         if (!score) return 'bg-gray-500'

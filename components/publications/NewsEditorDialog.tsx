@@ -26,6 +26,7 @@ type NewsEditorDialogProps = {
     isOpen: boolean
     onClose: () => void
     onSaved: () => void
+    onOptimisticRemove?: (contentId: string) => void
 }
 
 type NewsData = {
@@ -45,7 +46,7 @@ type CorrectionHistoryItem = {
 
 const AVAILABLE_TAGS = ["hunting", "weapons", "dogs", "recipes", "culture", "travel", "law", "events", "conservation", "other"]
 
-export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onClose, onSaved }: NewsEditorDialogProps) {
+export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onClose, onSaved, onOptimisticRemove }: NewsEditorDialogProps) {
     const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
     const [deleting, setDeleting] = useState(false)
@@ -181,16 +182,16 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
         }
     }
 
-    const handleDelete = async () => {
-        try {
-            const { data: jobs } = await supabase.from('publish_jobs').select('platform').eq(contentType === 'review' ? 'review_id' : 'news_id', contentId).neq('status', 'cancelled')
-            const platforms = Array.from(new Set(jobs?.map((j: any) => j.platform) || [])).join(', ')
-            setDeleteConfirmMsg(`Публикации будут удалены (cancelled) в соц. сетях: ${platforms || '(нет активных)'}.\n\nВы уверены, что хотите отклонить новость?`)
-            setDeleteConfirmOpen(true)
-        } catch (e: any) { toast.error('Ошибка проверки: ' + e.message) }
+    const handleDelete = () => {
+        setDeleteConfirmMsg('Вы уверены, что хотите отклонить новость?')
+        setDeleteConfirmOpen(true)
     }
 
-    const confirmDelete = async () => {
+    const handleReject = async () => {
+        if (onOptimisticRemove) {
+            onOptimisticRemove(contentId)
+        }
+
         try {
             setDeleting(true)
             const { data: { user } } = await supabase.auth.getUser()
@@ -351,7 +352,7 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
                     <div className="p-6 text-sm">{deleteConfirmMsg}</div>
                     <DialogFooter className="p-6 bg-muted/20 border-t-2 gap-3">
                         <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)} className="flex-1 h-11 rounded-xl">Отмена</Button>
-                        <Button variant="destructive" onClick={confirmDelete} disabled={deleting} className="flex-1 h-11 rounded-xl font-black">{deleting ? <Loader2 className="animate-spin h-5 w-5" /> : 'Да, отклонить'}</Button>
+                        <Button variant="destructive" onClick={handleReject} disabled={deleting} className="flex-1 h-11 rounded-xl font-black">{deleting ? <Loader2 className="animate-spin h-5 w-5" /> : 'Да, отклонить'}</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

@@ -80,5 +80,17 @@ export function useBoardJobs() {
     await fetchJobs()
   }
 
-  return { jobs, loading, error, fetchJobs, updateJobTime, mainPlatform, activePlatforms }
+  const cancelJobOptimistically = useCallback((jobId: string) => {
+    setJobs(prev => prev.map(job =>
+      job.id === jobId ? { ...job, status: 'cancelled' } : job
+    ))
+  }, [])
+
+  const removeNewsOptimistically = useCallback((contentId: string) => {
+    setJobs(prev => prev.filter(job =>
+      job.news_id !== contentId && job.review_id !== contentId
+    ))
+  }, [])
+
+  return { jobs, setJobs, loading, error, fetchJobs, updateJobTime, cancelJobOptimistically, removeNewsOptimistically, mainPlatform, activePlatforms }
 }

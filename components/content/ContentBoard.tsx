@@ -30,6 +30,8 @@ import { getModerationTutorialSteps } from '@/lib/tutorial/tutorial-config'
 
 // ... imports
 
+export type ContentSortOption = 'date-desc' | 'date-asc' | 'no-date'
+
 interface ContentBoardProps {
     items: ContentItem[]
     stats: ContentStats
@@ -42,10 +44,10 @@ interface ContentBoardProps {
     onItemUpdated: (id: string, outcome?: 'updated' | 'stale') => void
     selectedSources: string[]
     onSourcesChange: (sources: string[]) => void
+    sortOption: ContentSortOption
+    onSortChange: (sort: ContentSortOption) => void
     isRefreshing?: boolean
 }
-
-type SortOption = 'date-desc' | 'date-asc' | 'source-asc' | 'source-desc'
 
 export function ContentBoard({
     items,
@@ -59,10 +61,11 @@ export function ContentBoard({
     onItemUpdated,
     selectedSources,
     onSourcesChange,
+    sortOption,
+    onSortChange,
     isRefreshing = false,
 }: ContentBoardProps) {
     const [searchQuery, setSearchQuery] = useState('')
-    const [sortOption, setSortOption] = useState<SortOption>('date-desc')
     const [sourceStats, setSourceStats] = useState<{ source: string, count: number }[]>([])
 
     const moderationSteps = useMemo(() => getModerationTutorialSteps(onFilterChange), [onFilterChange])
@@ -114,27 +117,9 @@ export function ContentBoard({
             })
         }
 
-        // 2. Sort (Client Side)
-        return [...result].sort((a, b) => {
-            if (sortOption === 'date-desc') {
-                const dateA = a.published_at ? new Date(a.published_at).getTime() : new Date(a.created_at || 0).getTime()
-                const dateB = b.published_at ? new Date(b.published_at).getTime() : new Date(b.created_at || 0).getTime()
-                return dateB - dateA
-            }
-            if (sortOption === 'date-asc') {
-                const dateA = a.published_at ? new Date(a.published_at).getTime() : new Date(a.created_at || 0).getTime()
-                const dateB = b.published_at ? new Date(b.published_at).getTime() : new Date(b.created_at || 0).getTime()
-                return dateA - dateB
-            }
-            if (sortOption === 'source-asc') {
-                return (a.source_name || '').localeCompare(b.source_name || '')
-            }
-            if (sortOption === 'source-desc') {
-                return (b.source_name || '').localeCompare(a.source_name || '')
-            }
-            return 0
-        })
-    }, [items, searchQuery, sortOption])
+        // 2. Sort is now handled by Parent (Server Side)
+        return result
+    }, [items, searchQuery])
 
     const filterButtons: Array<{ value: ContentFilter; label: string; count: number }> = [
         { value: 'pending', label: 'Ожидание', count: stats.pending },
@@ -271,7 +256,7 @@ export function ContentBoard({
                     </DropdownMenu>
 
                     {/* Sorting */}
-                    <Select value={sortOption} onValueChange={(v) => setSortOption(v as SortOption)}>
+                    <Select value={sortOption} onValueChange={(v) => onSortChange(v as ContentSortOption)}>
                         <SelectTrigger data-tutorial="moderation-sort" className="w-full sm:w-[180px]">
                             <SelectValue placeholder="Сортировка" />
                         </SelectTrigger>
@@ -288,16 +273,13 @@ export function ContentBoard({
                                     <span>Сначала старые</span>
                                 </div>
                             </SelectItem>
-                            <SelectItem value="source-asc">
+                            <SelectItem value="no-date">
                                 <div className="flex items-center gap-2">
-                                    <Newspaper className="w-4 h-4" />
-                                    <span>Источник (А-Я)</span>
-                                </div>
-                            </SelectItem>
-                            <SelectItem value="source-desc">
-                                <div className="flex items-center gap-2">
-                                    <Newspaper className="w-4 h-4" />
-                                    <span>Источник (Я-А)</span>
+                                    <Calendar className="w-4 h-4 opacity-50" />
+                                    <span className="flex items-center gap-1.5">
+                                        Без даты
+                                        <Badge variant="outline" className="text-[9px] h-4 px-1 leading-none border-dashed bg-muted/30">наверх</Badge>
+                                    </span>
                                 </div>
                             </SelectItem>
                         </SelectContent>
