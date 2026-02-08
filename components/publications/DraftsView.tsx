@@ -140,26 +140,34 @@ export function DraftsView() {
 
         // 2. Fetch news_items with specific columns
         try {
+            console.log('[Drafts] Starting news_items fetch...')
             const { data, error } = await supabase
                 .from('news_items')
-                .select('id, created_at, approve1_decided_at, status, title, draft_title, draft_announce, draft_longread, draft_longread_site, draft_announce_site, draft_image_url, draft_image_file_id, image_url, draft_announce_tg, draft_announce_vk, draft_announce_ok, draft_announce_fb, draft_announce_x, draft_announce_threads')
-                .eq('status', 'drafts_ready')
-                .order('approve1_decided_at', { ascending: false })
+                .select('*') // Simplify to check if it works at all
+                .limit(10)
+                .order('created_at', { ascending: false })
 
             if (error) {
-                // More robust logging for empty error objects
-                console.error('[Drafts] News items fetch error FULL:', error)
-                console.error('[Drafts] Error stringified:', JSON.stringify(error))
-                console.error('[Drafts] Error message:', error.message)
-                console.error('[Drafts] Error details:', error.details)
+                console.error('[Drafts] News items fetch error detected!')
+                console.error('[Drafts] Error raw:', error)
+                console.error('[Drafts] Error keys:', Object.keys(error))
 
-                toast.error(`Ошибка загрузки новостей: ${error.message || 'Error ' + (error.code || '')}`)
+                // Attempt to reach into the object even if stringify fails
+                const errObj = error as any
+                const message = errObj.message || errObj.error_description || 'No message'
+                const code = errObj.code || errObj.status || 'No code'
+
+                console.error(`[Drafts] Extracted info - Message: ${message}, Code: ${code}`)
+                console.error('[Drafts] Error stringified:', JSON.stringify(error, null, 2))
+
+                toast.error(`Ошибка загрузки новостей: ${message} (${code})`)
                 newsData = []
             } else {
+                console.log(`[Drafts] Successfully fetched ${data?.length || 0} news items`)
                 newsData = (data as any) || []
             }
         } catch (e: any) {
-            console.error('[Drafts] News items exception:', e)
+            console.error('[Drafts] News items catch block exception:', e)
             toast.error(`Критическая ошибка при загрузке новостей: ${e.message || 'Unknown'}`)
         }
 
