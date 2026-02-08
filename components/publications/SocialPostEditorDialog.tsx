@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { JobWithNews } from '@/hooks/useBoardJobs'
 import { format } from 'date-fns'
@@ -853,6 +853,9 @@ export function SocialPostEditorDialog({ job, isOpen, onClose, onUpdate, onOptim
                             <DialogTitle className="text-2xl text-white font-bold flex items-center gap-2">
                                 {!job.id || job.id === '' ? '✨ Новая публикация' : '✏️ Редактирование'}
                             </DialogTitle>
+                            <DialogDescription className="sr-only">
+                                Редактор текста публикации для выбранной социальной сети с предпросмотром и инструментами AI.
+                            </DialogDescription>
 
                             {/* Platform Badge */}
                             <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-white/20 backdrop-blur-sm border border-white/30 rounded-full w-fit shadow-lg">

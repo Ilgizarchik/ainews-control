@@ -586,6 +586,9 @@ export function PlatformAnnouncesTab({
                             <DialogTitle>
                                 Редактирование промпта: {editingPrompt === 'tg_emoji' ? 'Telegram (Шаг 2: Эмодзи)' : editingPrompt}
                             </DialogTitle>
+                            <DialogDescription className="sr-only">
+                                Настройка системных инструкций для генерации текста под конкретную социальную сеть.
+                            </DialogDescription>
                         </DialogHeader>
 
                         <div className="flex-1 min-h-0 py-4">

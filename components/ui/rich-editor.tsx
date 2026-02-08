@@ -1,7 +1,5 @@
 import { useEditor, EditorContent, Editor, Extension } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import Link from '@tiptap/extension-link'
-import Underline from '@tiptap/extension-underline'
 import { Plugin } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { Button } from '@/components/ui/button'
@@ -230,13 +228,6 @@ export function RichEditor({ value, onChange, className, itemId, itemType }: Ric
                 },
             }),
             BubbleMenuExtension,
-            Link.configure({
-                openOnClick: false,
-                HTMLAttributes: {
-                    class: 'text-primary underline underline-offset-4',
-                },
-            }),
-            Underline,
             HashtagHighlighter,
         ],
         content: value,

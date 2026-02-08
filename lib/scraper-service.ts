@@ -47,7 +47,7 @@ export async function scrapeArticleText(url: string, selector?: string): Promise
             cmd += ` --proxy "${proxyConfig.url}"`;
         }
 
-        const { stdout } = await execPromise(cmd, { timeout: 45000 });
+        const { stdout } = await execPromise(cmd, { timeout: 60000 });
 
         // Поиск JSON в выводе (на случай если просочились варнинги)
         const jsonMatch = stdout.match(/\{[\s\S]*\}/);

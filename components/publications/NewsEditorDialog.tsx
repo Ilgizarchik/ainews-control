@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -407,6 +407,7 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
                     <DialogHeader data-tutorial="editor-header" className="px-8 py-6 border-b-2 bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 dark:from-emerald-950/30 dark:via-teal-950/30 dark:to-cyan-950/30 shrink-0 flex flex-row items-center justify-between">
                         <div className="flex items-center gap-4">
                             <DialogTitle className="text-2xl font-black tracking-tight bg-gradient-to-r from-emerald-700 to-teal-700 dark:from-emerald-400 dark:to-teal-400 bg-clip-text text-transparent">Редактирование контента</DialogTitle>
+                            <DialogDescription className="sr-only">Форма для редактирования заголовка, анонса, основного текста и метаданных новости</DialogDescription>
 
                             {correctionHistory.length > 0 && (
                                 <Popover>
@@ -573,6 +574,7 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
                 <DialogContent className="max-w-md rounded-3xl border-2 shadow-2xl p-0 overflow-hidden">
                     <DialogHeader className="p-6 bg-rose-50 border-b-2 border-rose-100">
                         <DialogTitle className="text-xl font-black text-rose-700">Подтверждение удаления</DialogTitle>
+                        <DialogDescription className="sr-only">Вы действительно хотите отклонить эту новость? Это действие нельзя отменить в очереди публикации.</DialogDescription>
                     </DialogHeader>
                     <div className="p-6 text-sm">{deleteConfirmMsg}</div>
                     <DialogFooter className="p-6 bg-muted/20 border-t-2 gap-3">
@@ -587,6 +589,7 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
                 <DialogContent className="max-w-3xl h-[80vh] flex flex-col">
                     <DialogHeader>
                         <DialogTitle>Редактирование промпта: {editingPromptKey}</DialogTitle>
+                        <DialogDescription className="sr-only">Настройка системного промпта для генерации контента через AI</DialogDescription>
                     </DialogHeader>
                     <div className="flex-1 min-h-0 py-4">
                         {loadingPrompt ? (
@@ -631,6 +634,7 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
                     <DialogHeader className="p-6 bg-emerald-50 border-b-2 shrink-0">
                         <div className="flex items-center justify-between">
                             <DialogTitle className="text-xl font-black text-emerald-800">Результат скрапинга статьи</DialogTitle>
+                            <DialogDescription className="sr-only">Просмотр извлеченного текста из исходной статьи</DialogDescription>
                             <div className="text-[10px] font-black uppercase text-emerald-600 bg-white px-2 py-1 rounded-full border border-emerald-200">
                                 {scrapedText ? `${scrapedText.length} символов` : 'Загрузка...'}
                             </div>

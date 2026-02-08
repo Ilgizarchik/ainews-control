@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
@@ -146,6 +146,9 @@ export function MagicTextEditor({ isOpen, onOpenChange, originalText, onSave, it
                         <Wand2 className="w-5 h-5 text-purple-500" />
                         AI Редактор
                     </DialogTitle>
+                    <DialogDescription className="sr-only">
+                        Используйте AI для редактирования, перефразирования или изменения тона выбранного текста.
+                    </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4 py-2 flex-1 overflow-y-auto pr-1">

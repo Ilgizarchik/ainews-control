@@ -6,7 +6,8 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
-    DialogFooter
+    DialogFooter,
+    DialogDescription
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -158,6 +159,9 @@ export function ContentDetailDialog({ item, open, onOpenChange, onActionComplete
                         <DialogTitle className="text-3xl md:text-4xl font-black leading-tight tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
                             {item.title}
                         </DialogTitle>
+                        <DialogDescription className="sr-only">
+                            Просмотр подробной информации о новости, включая краткое содержание, оценку AI и исходные данные.
+                        </DialogDescription>
 
                         <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
                             {item.published_at && (
@@ -298,6 +302,7 @@ export function ContentDetailDialog({ item, open, onOpenChange, onActionComplete
                     <DialogHeader className="p-6 bg-emerald-50 border-b-2 shrink-0">
                         <div className="flex items-center justify-between">
                             <DialogTitle className="text-xl font-black text-emerald-800">Результат скрапинга статьи</DialogTitle>
+                            <DialogDescription className="sr-only">Текст, извлеченный с помощью скрапера из оригинального источника.</DialogDescription>
                             <div className="text-[10px] font-black uppercase text-emerald-600 bg-white px-2 py-1 rounded-full border border-emerald-200">
                                 {scrapedText ? `${scrapedText.length} символов` : 'Загрузка...'}
                             </div>

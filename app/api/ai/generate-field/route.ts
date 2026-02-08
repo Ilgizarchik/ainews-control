@@ -11,24 +11,23 @@ type GenerateFieldRequest = {
 }
 
 export async function POST(req: Request) {
-    const supabase = await createClient()
     const supabaseAdmin = createAdminClient()
 
     try {
         const { review_id, news_id, field, extraContext }: GenerateFieldRequest = await req.json()
         const contentId = review_id || news_id
 
+        console.log(`[GenerateField] Received request for field: ${field}, contentId: ${contentId}`)
+
         if (!contentId || !field) {
             return NextResponse.json({ error: 'ID and field are required' }, { status: 400 })
         }
 
-        // Default table based on ID presence, but can be switched
         let tableName = news_id ? 'news_items' : 'review_items'
-
-        // 1. Get content item - Try primary table first
         let item: any = null
 
-        const { data: data1, error: error1 } = await supabase
+        // Use Admin Client to bypass RLS and ensure we find the item
+        const { data: data1, error: error1 } = await supabaseAdmin
             .from(tableName as any)
             .select('*')
             .eq('id', contentId)
@@ -37,9 +36,9 @@ export async function POST(req: Request) {
         if (!error1 && data1) {
             item = data1
         } else {
-            // Try fallback table
+            console.log(`[GenerateField] Item not found in ${tableName}, trying fallback...`)
             const fallbackTable = tableName === 'news_items' ? 'review_items' : 'news_items'
-            const { data: data2, error: error2 } = await supabase
+            const { data: data2, error: error2 } = await supabaseAdmin
                 .from(fallbackTable as any)
                 .select('*')
                 .eq('id', contentId)
@@ -47,46 +46,39 @@ export async function POST(req: Request) {
 
             if (!error2 && data2) {
                 item = data2
-                tableName = fallbackTable // Update table name for later usage
+                tableName = fallbackTable
             } else {
-                // If both failed, return valid error
+                console.error(`[GenerateField] Content item ${contentId} not found in either table.`)
                 return NextResponse.json({ error: 'Content item not found' }, { status: 404 })
             }
         }
 
-        // 2. Determine Prompt Key and Context
         let promptKey = ''
         let userContent = ''
 
-        // For longread, we MUST have the original text
         if (field === 'draft_longread') {
             promptKey = 'rewrite_longread'
 
-            // Check if we have the original text saved
             let originalText = item.original_text || item.cleaned_text
 
-            // If no original text, try to scrape it NOW
             if (!originalText && item.canonical_url) {
                 console.log(`[GenerateField] No original text for ${contentId}. Attempting on-the-fly scraping...`)
                 try {
                     const { scrapeArticleText } = await import('@/lib/scraper-service')
-
-                    // Try to find a custom selector
                     let contentSelector: string | undefined = undefined
-                    try {
-                        const { data: source } = await supabaseAdmin
-                            .from('ingestion_sources')
-                            .select('selectors')
-                            .eq('name', item.source_name)
-                            .single() as any
-                        if (source?.selectors?.content_selector) {
-                            contentSelector = source.selectors.content_selector
-                        }
-                    } catch { }
+
+                    const { data: source } = await supabaseAdmin
+                        .from('ingestion_sources')
+                        .select('selectors')
+                        .eq('name', item.source_name)
+                        .single() as any
+
+                    if (source?.selectors?.content_selector) {
+                        contentSelector = source.selectors.content_selector
+                    }
 
                     originalText = await scrapeArticleText(item.canonical_url, contentSelector)
 
-                    // Save it for future use!
                     if (originalText && originalText.length > 100) {
                         await supabaseAdmin
                             .from(tableName as any)
@@ -102,7 +94,7 @@ export async function POST(req: Request) {
             userContent = originalText || item.rss_summary || item.title || ''
         } else if (field === 'draft_title') {
             promptKey = 'rewrite_title'
-            userContent = item.draft_announce || item.draft_longread || item.original_text || item.rss_summary || ''
+            userContent = item.draft_announce || item.draft_longread || item.original_text || item.rss_summary || item.title || ''
         } else if (field === 'draft_announce') {
             promptKey = 'rewrite_announce'
             userContent = item.draft_longread || item.original_text || item.rss_summary || ''
@@ -110,11 +102,16 @@ export async function POST(req: Request) {
 
         if (extraContext) userContent = extraContext;
 
+        console.log(`[GenerateField] Using promptKey: ${promptKey}, userContent length: ${userContent?.length || 0}`)
+
         if (!userContent) {
             return NextResponse.json({ error: 'No source content available for generation' }, { status: 400 })
         }
 
-        // 3. Fetch Prompt
+        if (!promptKey) {
+            return NextResponse.json({ error: `Unknown field: ${field}` }, { status: 400 })
+        }
+
         const { data: promptData, error: promptError } = await supabaseAdmin
             .from('system_prompts')
             .select('content, provider, model, temperature')
@@ -122,10 +119,10 @@ export async function POST(req: Request) {
             .single()
 
         if (promptError || !promptData) {
+            console.error(`[GenerateField] Prompt not found for key: ${promptKey}`, promptError)
             return NextResponse.json({ error: `Prompt not found: ${promptKey}` }, { status: 404 })
         }
 
-        // 4. Call AI
         const config = {
             provider: promptData.provider,
             model: promptData.model,
@@ -139,11 +136,14 @@ export async function POST(req: Request) {
             config
         )
 
-        // 5. Update DB
         const { error: updateError } = await supabaseAdmin
             .from(tableName as any)
             .update({ [field]: generatedText.trim() })
             .eq('id', contentId)
+
+        if (updateError) {
+            console.error('[GenerateField] Final DB update error:', updateError)
+        }
 
         return NextResponse.json({
             success: true,
