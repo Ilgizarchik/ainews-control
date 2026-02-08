@@ -397,7 +397,7 @@ export function DraftsView() {
             {editingDraft && (
                 <NewsEditorDialog
                     contentId={editingDraft}
-                    contentType={drafts.find(d => d.id === editingDraft)?._is_news ? 'news' : 'review'}
+                    contentType={drafts.find(d => d.id === editingDraft)?.is_news_item ? 'news' : 'review'}
                     isOpen={!!editingDraft}
                     onClose={() => setEditingDraft(null)}
                     onSaved={fetchDrafts}

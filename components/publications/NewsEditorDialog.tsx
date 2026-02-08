@@ -65,6 +65,7 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
         draft_image_url: '',
         gate1_tags: []
     })
+    const [hasUrl, setHasUrl] = useState(false)
 
     const [announces, setAnnounces] = useState<Record<string, string>>({})
     const [activeTab, setActiveTab] = useState('main')
@@ -155,6 +156,7 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
                     gate1_tags: typedData.gate1_tags || []
                 })
 
+                setHasUrl(!!typedData.canonical_url)
                 const loadedAnnounces: Record<string, string> = {}
                 const PLATFORMS = ['site', 'tg', 'vk', 'ok', 'fb', 'x', 'threads']
                 PLATFORMS.forEach(platform => {
@@ -457,14 +459,16 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
                                                 />
                                             </div>
                                             <div className="flex items-center gap-3">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="h-8 text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg p-0 flex items-center gap-2"
-                                                    onClick={handleCheckScraper}
-                                                >
-                                                    🔍 Проверить скрапер
-                                                </Button>
+                                                {hasUrl && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-8 text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg p-0 flex items-center gap-2"
+                                                        onClick={handleCheckScraper}
+                                                    >
+                                                        🔍 Проверить скрапер
+                                                    </Button>
+                                                )}
                                                 <VoiceInput onTranscription={(t) => setData(p => ({ ...p, draft_title: p.draft_title ? `${p.draft_title} ${t}` : t }))} />
                                             </div>
                                         </div>
