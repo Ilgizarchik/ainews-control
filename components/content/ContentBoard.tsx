@@ -46,6 +46,8 @@ interface ContentBoardProps {
     onSourcesChange: (sources: string[]) => void
     sortOption: ContentSortOption
     onSortChange: (sort: ContentSortOption) => void
+    searchQuery: string
+    onSearchChange: (search: string) => void
     isRefreshing?: boolean
 }
 
@@ -63,12 +65,29 @@ export function ContentBoard({
     onSourcesChange,
     sortOption,
     onSortChange,
+    searchQuery,
+    onSearchChange,
     isRefreshing = false,
 }: ContentBoardProps) {
-    const [searchQuery, setSearchQuery] = useState('')
+    const [localSearch, setLocalSearch] = useState(searchQuery)
     const [sourceStats, setSourceStats] = useState<{ source: string, count: number }[]>([])
 
     const moderationSteps = useMemo(() => getModerationTutorialSteps(onFilterChange), [onFilterChange])
+
+    // Debounce search input
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (localSearch !== searchQuery) {
+                onSearchChange(localSearch)
+            }
+        }, 500)
+        return () => clearTimeout(timer)
+    }, [localSearch, onSearchChange, searchQuery])
+
+    // Sync local search with prop if it changes externally
+    useEffect(() => {
+        setLocalSearch(searchQuery)
+    }, [searchQuery])
 
     // Load available sources with counts from server (independent of pagination)
     useEffect(() => {
@@ -96,30 +115,6 @@ export function ContentBoard({
             count: items.filter(i => (i.source_name || 'unknown') === s).length
         }))
     }, [sourceStats, items])
-
-    const filteredItems = useMemo(() => {
-        let result = items
-
-        // 0. Source Filter is handled by Parent (Server Side), so we don't filter `result` here again 
-        // unless we want to filter within the page, but that might be confusing if pagination is partial.
-        // Actually, since parent reloads items based on filter, we trust `items` to be correct.
-
-        // 1. Filter by Search (Client Side)
-        if (searchQuery.trim()) {
-            const query = searchQuery.toLowerCase()
-            result = result.filter(item => {
-                return (
-                    item.title?.toLowerCase().includes(query) ||
-                    item.source_name?.toLowerCase().includes(query) ||
-                    item.gate1_tags?.some((tag: string) => tag.toLowerCase().includes(query)) ||
-                    item.gate1_reason?.toLowerCase().includes(query)
-                )
-            })
-        }
-
-        // 2. Sort is now handled by Parent (Server Side)
-        return result
-    }, [items, searchQuery])
 
     const filterButtons: Array<{ value: ContentFilter; label: string; count: number }> = [
         { value: 'pending', label: 'Ожидание', count: stats.pending },
@@ -289,8 +284,8 @@ export function ContentBoard({
                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
                             placeholder="Поиск по названию, источнику..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
+                            value={localSearch}
+                            onChange={(e) => setLocalSearch(e.target.value)}
                             className="pl-8"
                         />
                     </div>
@@ -299,7 +294,7 @@ export function ContentBoard({
 
             {/* Content Area */}
             <div className="relative min-h-[400px]">
-                {isRefreshing && filteredItems.length > 0 && (
+                {isRefreshing && items.length > 0 && (
                     <div className="absolute inset-x-0 top-0 flex justify-center z-50 pointer-events-none -mt-4">
                         <div className="flex items-center gap-3 bg-zinc-900/95 dark:bg-zinc-100/95 backdrop-blur-xl px-4 py-2 rounded-2xl shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-500 scale-90">
                             <LoadingDots dotClassName="w-1.5 h-1.5 bg-zinc-100 dark:bg-zinc-900" />
@@ -310,7 +305,7 @@ export function ContentBoard({
                     </div>
                 )}
 
-                {filteredItems.length === 0 ? (
+                {items.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center min-h-[400px]">
                         {isRefreshing ? (
                             <div className="space-y-6">
@@ -339,16 +334,16 @@ export function ContentBoard({
                 ) : (
                     <div className={cn("transition-all duration-700 ease-in-out", isRefreshing && "opacity-50 blur-[2px] grayscale-[0.3] pointer-events-none")}>
                         <div data-tutorial="moderation-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                            {filteredItems.map((item) => (
+                            {items.map((item) => (
                                 <ContentCard key={item.id} item={item} onActionComplete={onItemUpdated} />
                             ))}
                         </div>
 
                         <div className="flex flex-col items-center gap-3 mt-12 pb-12">
                             <div className="text-sm text-muted-foreground text-center">
-                                Показано {filteredItems.length} из {totalCount} элементов
+                                Показано {items.length} из {totalCount} элементов
                             </div>
-                            {canLoadMore && !searchQuery.trim() && (
+                            {canLoadMore && (
                                 <Button
                                     variant="outline"
                                     onClick={onLoadMore}

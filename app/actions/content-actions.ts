@@ -243,7 +243,8 @@ export async function fetchContentItems(
     sources: string[],
     page: number = 0,
     pageSize: number = 51,
-    sort: 'date-desc' | 'date-asc' | 'no-date' = 'date-desc'
+    sort: 'date-desc' | 'date-asc' | 'no-date' = 'date-desc',
+    search?: string
 ): Promise<{ data: any[], count: number, error?: any }> {
     const adminDb = createAdminClient()
 
@@ -268,6 +269,12 @@ export async function fetchContentItems(
 
     if (sources.length > 0) {
         query = query.in('source_name', sources)
+    }
+
+    if (search && search.trim()) {
+        const s = search.trim().replace(/,/g, '\\,')
+        // Search in title, source_name, reason (partial match) and tags (exact match within array)
+        query = query.or(`title.ilike.*${s}*,source_name.ilike.*${s}*,gate1_reason.ilike.*${s}*,gate1_tags.cs.{${s}}`)
     }
 
     // Apply sorting
