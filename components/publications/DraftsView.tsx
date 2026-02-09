@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
-import { CalendarDays, Plus, Sparkles } from 'lucide-react'
+import { CalendarDays, Plus, Sparkles, Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getPlatformConfig, PLATFORM_CONFIG } from '@/lib/platform-config'
 import { NewsEditorDialog } from './NewsEditorDialog'
@@ -33,6 +33,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Send } from 'lucide-react' // Added Send icon
 import { publishItem } from '@/app/actions/publish-actions' // Added action import
+import { downloadImageAsJpg } from '@/lib/image-utils'
 
 
 type DraftItem = any // Using any to avoid complex union intersections since it is a combined view
@@ -77,6 +78,7 @@ const LOADING_MESSAGES = [
 export function DraftsView() {
     const [drafts, setDrafts] = useState<DraftItem[]>([])
     const [loading, setLoading] = useState(true)
+    const [refreshing, setRefreshing] = useState(false)
     const [editingDraft, setEditingDraft] = useState<string | null>(null)
     const [editingPlatform, setEditingPlatform] = useState<{
         draftId: string
@@ -109,8 +111,9 @@ export function DraftsView() {
         }
     }, [supabase])
 
-    const fetchDrafts = useCallback(async (): Promise<void> => {
-        setLoading(true)
+    const fetchDrafts = useCallback(async (isInitial: boolean = false): Promise<void> => {
+        if (isInitial || drafts.length === 0) setLoading(true)
+        else setRefreshing(true)
         let reviewData: any[] = []
         let newsData: any[] = []
 
@@ -193,7 +196,8 @@ export function DraftsView() {
 
         setDrafts(combined as any[])
         setLoading(false)
-    }, [supabase])
+        setRefreshing(false)
+    }, [supabase, drafts.length])
 
     const handlePlatformClick = useCallback((draft: DraftItem, platform: string) => {
         // Для website берем draft_longread_site или draft_longread
@@ -312,7 +316,7 @@ export function DraftsView() {
 
     useEffect(() => {
         fetchActivePlatforms()
-        fetchDrafts()
+        fetchDrafts(true) // Initial load
 
         // 1. Subscribe to news_items changes
         const newsSubscription = supabase
@@ -378,8 +382,18 @@ export function DraftsView() {
 
     return (
         <>
-            <div className="p-6 space-y-6 h-full overflow-y-auto">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-8 pb-32">
+            <div className="p-6 space-y-6 h-full overflow-y-auto relative">
+                {refreshing && (
+                    <div className="absolute top-10 left-1/2 -translate-x-1/2 z-50">
+                        <div className="bg-card/90 backdrop-blur-md border border-border px-4 py-2 rounded-full shadow-2xl flex items-center gap-3 animate-in fade-in zoom-in duration-300">
+                            <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                            <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                            <div className="w-2 h-2 bg-primary rounded-full animate-bounce"></div>
+                            <span className="text-[10px] font-bold uppercase tracking-widest opacity-80">Обновление</span>
+                        </div>
+                    </div>
+                )}
+                <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-8 pb-32 transition-all duration-500 ${refreshing ? 'opacity-70 blur-[1px]' : ''}`}>
                     {drafts.map(draft => (
                         <DraftCard
                             key={draft.id}
@@ -575,6 +589,26 @@ function DraftCard({
                         className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-60" />
+
+                    {/* Hover Download Button */}
+                    <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            className="h-8 w-8 p-0 bg-white/90 hover:bg-white text-slate-900 rounded-full shadow-lg border-none"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                const url = `/api/telegram/photo/${draft.draft_image_file_id}`;
+                                const toastId = toast.loading('Подготовка JPG...');
+                                downloadImageAsJpg(url, `draft_${draft.id}.jpg`)
+                                    .then(() => toast.success('Сохранено', { id: toastId }))
+                                    .catch(() => toast.error('Ошибка', { id: toastId }));
+                            }}
+                            title="Скачать JPG"
+                        >
+                            <Download className="w-4 h-4" />
+                        </Button>
+                    </div>
 
                     {/* Floating Draft Badge */}
                     <div className="absolute top-3 right-3 px-2 py-0.5 rounded-md bg-black/40 backdrop-blur-md border border-white/10 text-white/90 text-[10px] uppercase tracking-wider font-bold shadow-sm">

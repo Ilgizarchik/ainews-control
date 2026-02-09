@@ -242,7 +242,7 @@ export async function fetchContentItems(
     filter: ContentFilter,
     sources: string[],
     page: number = 0,
-    pageSize: number = 50,
+    pageSize: number = 51,
     sort: 'date-desc' | 'date-asc' | 'no-date' = 'date-desc'
 ): Promise<{ data: any[], count: number, error?: any }> {
     const adminDb = createAdminClient()

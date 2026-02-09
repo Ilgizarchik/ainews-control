@@ -4,13 +4,14 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { Loader2, Wand2, Image as ImageIcon, Sparkles } from 'lucide-react'
+import { Loader2, Wand2, Image as ImageIcon, Sparkles, Download } from 'lucide-react'
 import { VoiceInput } from '@/components/ui/voice-input'
 import { toast } from 'sonner'
 import { regenerateNewsImage, updateItemImage } from '@/app/actions/image-actions'
 import { Upload } from 'lucide-react'
 import { useRef } from 'react'
 import { type DriveStep } from 'driver.js'
+import { downloadImageAsJpg } from '@/lib/image-utils'
 
 interface MediaTabProps {
     contentId: string
@@ -79,6 +80,17 @@ export function MediaTab({ contentId, contentType, initialImageUrl, onUpdated, t
             }
         } finally {
             setLoading(false)
+        }
+    }
+
+    const handleDownload = async () => {
+        if (!imageUrl) return
+        const toastId = toast.loading('Подготовка изображения...')
+        try {
+            await downloadImageAsJpg(imageUrl, `ainews_${contentId}_${new Date().getTime()}.jpg`)
+            toast.success('Изображение сохранено (JPG)', { id: toastId })
+        } catch (error: any) {
+            toast.error('Ошибка при скачивании', { id: toastId })
         }
     }
 
@@ -214,8 +226,17 @@ export function MediaTab({ contentId, contentType, initialImageUrl, onUpdated, t
 
                         {/* Overlay with info */}
                         <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-                            <Button size="sm" variant="secondary" className="shadow-md h-8 text-xs backdrop-blur-md bg-background/80 hover:bg-background" asChild>
-                                <a href={imageUrl} target="_blank" rel="noopener noreferrer">Открыть оригинал</a>
+                            <Button
+                                size="sm"
+                                variant="secondary"
+                                className="shadow-md h-8 text-[10px] font-bold uppercase tracking-wider backdrop-blur-md bg-white/90 hover:bg-white text-slate-900 border-none px-3 gap-2"
+                                onClick={handleDownload}
+                            >
+                                <Download className="w-3.5 h-3.5" />
+                                Скачать JPG
+                            </Button>
+                            <Button size="sm" variant="secondary" className="shadow-md h-8 text-[10px] font-bold uppercase tracking-wider backdrop-blur-md bg-black/50 hover:bg-black/70 text-white border-none px-3" asChild>
+                                <a href={imageUrl} target="_blank" rel="noopener noreferrer">Открыть</a>
                             </Button>
                         </div>
                     </div>

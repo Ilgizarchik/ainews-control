@@ -51,7 +51,17 @@ type CalendarEvent = RBCEvent & {
 }
 
 export function CalendarViewBig() {
-    const { jobs, fetchJobs, updateJobTime, updateBatchJobs, cancelJobOptimistically, removeNewsOptimistically } = useCalendarJobs()
+    const {
+        jobs,
+        fetchJobs,
+        updateJobTime,
+        updateBatchJobs,
+        cancelJobOptimistically,
+        removeNewsOptimistically,
+        updateJobOptimistically,
+        refreshing,
+        loading
+    } = useCalendarJobs()
     const [recipes, setRecipes] = useState<Recipe[]>([])
     const [currentDate, setCurrentDate] = useState(new Date())
     const [viewType, setViewType] = useState('month')
@@ -78,8 +88,11 @@ export function CalendarViewBig() {
     useRealtime('publish_jobs', refreshCalendar)
 
     useEffect(() => {
-        refreshCalendar()
-    }, [refreshCalendar])
+        const start = subDays(startOfMonth(currentDate), 7)
+        const end = addDays(endOfMonth(currentDate), 7)
+        // Use full screen-loading only if we have no jobs at all
+        fetchJobs(start, end, jobs.length === 0)
+    }, [currentDate, fetchJobs])
 
     const events: CalendarEvent[] = useMemo(() => {
         // 1. Sort jobs by time first
@@ -149,6 +162,7 @@ export function CalendarViewBig() {
         const mainRecipe = recipes.find(r => r.is_active && r.is_main)
         const isMain = !!mainRecipe && mainRecipe.platform === platform
 
+        // Optimistic UI for single or batch
         if (isMain) {
             if (confirm('Перенести ВСЕ связанные публикации? Отмена - только эту.')) {
                 const updates: any[] = [{ id: event.id, publish_at: start.toISOString() }]
@@ -173,26 +187,30 @@ export function CalendarViewBig() {
                     })
 
                 try {
+                    // Update locally first (optional, batch is tricky so maybe just re-fetch)
                     await updateBatchJobs(updates)
                     toast.success('Цепочка пересчитана')
                     refreshCalendar()
                 } catch {
                     toast.error('Ошибка')
+                    refreshCalendar() // Restore on error
                 }
             } else {
+                updateJobOptimistically(event.id, start)
                 try {
                     await updateJobTime(event.id, start)
-                    toast.success('Перемещено')
                 } catch {
                     toast.error('Ошибка перемещения')
+                    refreshCalendar() // Sync back
                 }
             }
         } else {
+            updateJobOptimistically(event.id, start)
             try {
                 await updateJobTime(event.id, start)
-                toast.success('Перемещено')
             } catch {
                 toast.error('Ошибка перемещения')
+                refreshCalendar() // Sync back
             }
         }
     }
@@ -296,7 +314,17 @@ export function CalendarViewBig() {
                 </div>
             </div>
 
-            <div className="flex-1 min-h-0 p-4 bg-background">
+            <div className={`flex-1 min-h-0 p-4 bg-background relative ${refreshing ? 'opacity-70 grayscale-[0.2] pointer-events-none transition-all duration-700' : ''}`}>
+                {refreshing && (
+                    <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/10 backdrop-blur-[1px]">
+                        <div className="bg-card/90 border border-border px-4 py-2 rounded-full shadow-2xl flex items-center gap-3 animate-in fade-in zoom-in duration-300">
+                            <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                            <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                            <div className="w-2 h-2 bg-primary rounded-full animate-bounce"></div>
+                            <span className="text-[10px] font-bold uppercase tracking-widest opacity-80">Обновление</span>
+                        </div>
+                    </div>
+                )}
                 <DragAndDropCalendar
                     localizer={localizer}
                     culture="ru"

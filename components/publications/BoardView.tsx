@@ -12,7 +12,8 @@ import {
     Plus,
     MoreHorizontal,
     CheckCircle2,
-    AlertCircle
+    AlertCircle,
+    Download
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -28,8 +29,9 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { Skeleton } from "@/components/ui/skeleton"
+import { downloadImageAsJpg } from "@/lib/image-utils"
 import { toast } from "sonner"
+import { Skeleton } from "@/components/ui/skeleton"
 
 import { useBoardJobs, JobWithNews } from "@/hooks/useBoardJobs"
 import { TAG_COLORS, getTagColors } from "@/lib/tag-colors"
@@ -51,7 +53,16 @@ export interface GroupedNews {
 }
 
 export function BoardView() {
-    const { jobs, loading, error, fetchJobs, activePlatforms, cancelJobOptimistically, removeNewsOptimistically } = useBoardJobs()
+    const {
+        jobs,
+        loading,
+        refreshing,
+        error,
+        fetchJobs,
+        activePlatforms,
+        cancelJobOptimistically,
+        removeNewsOptimistically
+    } = useBoardJobs()
     const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([null, null])
     const [selectedTags, setSelectedTags] = useState<string[]>([])
     const [sortBy, setSortBy] = useState<'publish_at' | 'created_at'>('publish_at')
@@ -59,8 +70,8 @@ export function BoardView() {
     const [filterStatuses, setFilterStatuses] = useState<string[]>(['queued', 'processing'])
 
     useEffect(() => {
-        fetchJobs()
-    }, [fetchJobs])
+        fetchJobs(true) // Initial load
+    }, []) // Run once
 
     // Editor states
     const [editingJob, setEditingJob] = useState<JobWithNews | null>(null)
@@ -200,8 +211,18 @@ export function BoardView() {
     }
 
     return (
-        <div className="h-full overflow-y-auto">
-            <div className="sticky top-0 z-50 px-4 sm:px-6 py-4 bg-card border-b">
+        <div className="h-full overflow-y-auto relative">
+            {refreshing && (
+                <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50">
+                    <div className="bg-card/90 backdrop-blur-md border border-border px-4 py-2 rounded-full shadow-2xl flex items-center gap-3 animate-in fade-in zoom-in duration-300">
+                        <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                        <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                        <div className="w-2 h-2 bg-primary rounded-full animate-bounce"></div>
+                        <span className="text-[10px] font-bold uppercase tracking-widest opacity-80">Обновление</span>
+                    </div>
+                </div>
+            )}
+            <div className={`sticky top-0 z-40 px-4 sm:px-6 py-4 bg-card border-b transition-opacity duration-500 ${refreshing ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
                 <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
                     <h2 className="text-2xl font-bold tracking-tight shrink-0">Очередь публикаций</h2>
 
@@ -448,7 +469,7 @@ export function BoardView() {
                 </div>
             </div>
 
-            <div className="p-6 space-y-6">
+            <div className={`p-6 space-y-6 transition-all duration-500 ${refreshing ? 'opacity-70 blur-[1px]' : ''}`}>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 pb-20">
                     {groupedNews.length === 0 && (
                         <div className="col-span-full flex flex-col items-center justify-center py-20 text-center border-2 border-dashed border-border/50 rounded-xl bg-card/30">
@@ -594,6 +615,26 @@ function NewsGroupCard({ group, activePlatforms, onEdit, onOpenEditor, onAddJob 
                         className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-60" />
+
+                    {/* Hover Download Button */}
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            className="h-8 w-8 p-0 bg-white/90 hover:bg-white text-slate-900 rounded-full shadow-lg border-none"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                const url = `/api/telegram/photo/${group.draft_image_file_id}`;
+                                const toastId = toast.loading('Подготовка JPG...');
+                                downloadImageAsJpg(url, `ainews_${group.id}.jpg`)
+                                    .then(() => toast.success('Сохранено', { id: toastId }))
+                                    .catch(() => toast.error('Ошибка', { id: toastId }));
+                            }}
+                            title="Скачать JPG"
+                        >
+                            <Download className="w-4 h-4" />
+                        </Button>
+                    </div>
                 </div>
             )}
 

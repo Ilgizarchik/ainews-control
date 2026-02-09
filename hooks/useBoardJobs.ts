@@ -11,6 +11,7 @@ export type JobWithNews = Database['public']['Tables']['publish_jobs']['Row'] & 
 export function useBoardJobs() {
   const [jobs, setJobs] = useState<JobWithNews[]>([])
   const [loading, setLoading] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const [mainPlatform, setMainPlatform] = useState<string>('site')
   const [activePlatforms, setActivePlatforms] = useState<string[]>(['site'])
 
@@ -20,8 +21,9 @@ export function useBoardJobs() {
 
   const [error, setError] = useState<string | null>(null)
 
-  const fetchJobs = useCallback(async () => {
-    setLoading(true)
+  const fetchJobs = useCallback(async (isInitial: boolean = false) => {
+    if (isInitial || !jobs.length) setLoading(true)
+    else setRefreshing(true)
     setError(null)
 
     try {
@@ -69,7 +71,14 @@ export function useBoardJobs() {
       setJobs(data as JobWithNews[])
     }
     setLoading(false)
-  }, [supabase])
+    setRefreshing(false)
+  }, [supabase, jobs.length])
+
+  const updateJobOptimistically = useCallback((jobId: string, newDate: Date) => {
+    setJobs(prev => prev.map(job =>
+      job.id === jobId ? { ...job, publish_at: newDate.toISOString(), updated_at: new Date().toISOString() } as JobWithNews : job
+    ))
+  }, [])
 
   const updateJobTime = async (jobId: string, newDate: Date) => {
     const { error } = await supabase
@@ -77,12 +86,13 @@ export function useBoardJobs() {
       .update({ publish_at: newDate.toISOString(), updated_at: new Date().toISOString() })
       .eq('id', jobId)
     if (error) throw error
+    // fetchJobs will run in background since jobs.length > 0
     await fetchJobs()
   }
 
   const cancelJobOptimistically = useCallback((jobId: string) => {
     setJobs(prev => prev.map(job =>
-      job.id === jobId ? { ...job, status: 'cancelled' } : job
+      job.id === jobId ? { ...job, status: 'cancelled' } as JobWithNews : job
     ))
   }, [])
 
@@ -92,5 +102,18 @@ export function useBoardJobs() {
     ))
   }, [])
 
-  return { jobs, setJobs, loading, error, fetchJobs, updateJobTime, cancelJobOptimistically, removeNewsOptimistically, mainPlatform, activePlatforms }
+  return {
+    jobs,
+    setJobs,
+    loading,
+    refreshing,
+    error,
+    fetchJobs,
+    updateJobTime,
+    updateJobOptimistically,
+    cancelJobOptimistically,
+    removeNewsOptimistically,
+    mainPlatform,
+    activePlatforms
+  }
 }

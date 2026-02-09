@@ -8,7 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import { getContentStats } from '@/app/actions/content-actions'
 import { toast } from 'sonner'
 
-const PAGE_SIZE = 50
+const PAGE_SIZE = 51
 
 // ... imports
 
@@ -73,8 +73,11 @@ export default function ContentPage() {
   }
 
   const loadData = async (filter: ContentFilter, sources: string[], isInitial: boolean) => {
-    if (isInitial) setLoading(true)
-    else setRefreshing(true)
+    if (isInitial) {
+      setLoading(true)
+    } else {
+      setRefreshing(true)
+    }
 
     try {
       // Parallel fetch but with individual error handling or fallback
@@ -106,7 +109,7 @@ export default function ContentPage() {
         window.location.reload()
       }
     } finally {
-      if (isInitial) setLoading(false)
+      setLoading(false)
       setRefreshing(false)
     }
   }
@@ -136,12 +139,23 @@ export default function ContentPage() {
   }, [currentFilter, selectedSources, sortOption])
 
   const handleItemUpdated = async (id: string, outcome?: 'updated' | 'stale') => {
-    // Optimistic remove for pending
-    if (currentFilter === 'pending' && outcome) {
-      setItems(prev => prev.filter(item => item.id !== id))
+    if (outcome === 'stale') {
+      // If data is stale (e.g. undo action or error), we refresh the whole list
+      await loadData(currentFilter, selectedSources, false)
+      return
     }
-    // Refresh stats and current page
-    await loadData(currentFilter, selectedSources, false)
+
+    // 1. Optimistic removal from local UI list
+    setItems(prev => prev.filter(item => item.id !== id))
+    setTotalCount(prev => Math.max(0, prev - 1))
+
+    // 2. Silently update stats in background without resetting the entire list
+    try {
+      const statsResult = await getContentStats()
+      setStats(statsResult)
+    } catch (e) {
+      console.error('Stats refresh failed:', e)
+    }
   }
 
   const handleFilterChange = (filter: ContentFilter) => {

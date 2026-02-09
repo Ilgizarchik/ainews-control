@@ -3,7 +3,7 @@
 import { ContentItem } from '@/types/content'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { ExternalLink, Clock, Star } from 'lucide-react'
+import { ExternalLink, Clock, Star, Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatDistanceToNow } from 'date-fns'
 import { ru } from 'date-fns/locale'
@@ -13,6 +13,7 @@ import { approveContentItem, rejectContentItem, markContentViewed } from '@/app/
 import { toast, showUndoToast } from '@/components/ui/premium-toasts'
 import { Loader2 } from 'lucide-react'
 import { ensureAbsoluteUrl } from '@/lib/utils'
+import { downloadImageAsJpg } from '@/lib/image-utils'
 
 interface ContentCardProps {
     item: ContentItem
@@ -71,6 +72,11 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
         timers.push(setTimeout(() => toast.loading('📊 Почти готово, последние штрихи...', { id: toastId }), 55000))
 
         try {
+            // Optimistic move: immediately hide and notify parent to remove from "Pending"
+            setIsAnimatingOut('approve')
+            // Delay parent notification slightly for animation
+            setTimeout(() => onActionComplete?.(item.id, 'updated'), 500)
+
             const result = await approveContentItem(item.id)
 
             // Clear ALL timers immediately
@@ -81,22 +87,19 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
 
             if (result.success) {
                 toast.success('✨ Черновик успешно создан!')
-                // Now animate out
-                setIsAnimatingOut('approve')
-                await new Promise(resolve => setTimeout(resolve, 500))
-                onActionComplete?.(item.id, 'updated')
             } else {
                 toast.error(`Ошибка: ${result.error}`)
-                setIsLoading(false)
-                if (String(result.error || '').toLowerCase().includes('already processed')) {
-                    onActionComplete?.(item.id, 'stale')
-                }
+                // In case of error, we might want to refresh the list to show the item again 
+                // if it failed before the 'processing' status was set.
+                // But generally, the immediate removal is better UX.
             }
-        } catch {
+        } catch (err: any) {
             timers.forEach(clearTimeout)
             toast.dismiss(toastId)
             toastIdRef.current = null;
             toast.error('Произошла ошибка при одобрении')
+            console.error(err)
+        } finally {
             setIsLoading(false)
         }
     }
@@ -107,26 +110,29 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
         // Optimistic UI: Animate out immediately
         setIsAnimatingOut('reject')
 
-        // Wait for animation
-        await new Promise(resolve => setTimeout(resolve, 500))
-        setIsAnimatingOut('rejected_hidden') // Hide from view
+        // Optimistic UI: Notify parent immediately after short animation
+        setTimeout(() => {
+            onActionComplete?.(item.id, 'updated')
+            setIsAnimatingOut('rejected_hidden')
+        }, 500)
 
         // Define cleanup to restore card if cancelled
         const handleUndo = () => {
+            // Re-fetch parent data to bring back the item (simplest way)
+            // or we could add a special 'onActionCancelled' callback
             setIsAnimatingOut(null)
+            onActionComplete?.(item.id, 'stale') // Use 'stale' as a trigger to refresh the list
         }
 
         // Define commit action
         const handleCommit = async () => {
             try {
                 const result = await rejectContentItem(item.id)
-                if (result.success) {
-                    onActionComplete?.(item.id, 'updated')
-                    toast.success('Готово!', { description: 'Новость отклонена' })
-                } else {
+                if (!result.success) {
                     handleUndo() // Restore on error
                     toast.error(`Ошибка при отклонении: ${result.error}`)
                 }
+                // If success, we don't need to do anything since it's already removed locally
             } catch {
                 handleUndo()
                 toast.error('Произошла ошибка при отклонении')
@@ -196,8 +202,29 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
                         </div>
                     )}
 
-                    {/* Overlay Gradient for Text Contrast (bottom) */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-70" />
+
+                    {/* Hover Download Button */}
+                    {item.image_url && !imageError && (
+                        <div className="absolute top-4 left-4 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button
+                                size="sm"
+                                variant="secondary"
+                                className="h-8 w-8 p-0 bg-white/90 hover:bg-white text-slate-900 rounded-full shadow-xl border-none"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    const url = `/api/image-proxy?url=${encodeURIComponent(item.image_url!)}`;
+                                    const toastId = toast.loading('Подготовка JPG...');
+                                    downloadImageAsJpg(url, `original_${item.id}.jpg`)
+                                        .then(() => toast.success('Сохранено', { id: toastId }))
+                                        .catch(() => toast.error('Ошибка', { id: toastId }));
+                                }}
+                                title="Скачать оригинал (JPG)"
+                            >
+                                <Download className="w-4 h-4" />
+                            </Button>
+                        </div>
+                    )}
 
                     {/* Score Badge (Top Right) */}
                     <div data-tutorial="moderation-card-score" className="absolute top-4 right-4 z-10">
