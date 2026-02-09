@@ -306,48 +306,60 @@ export async function publishSinglePlatform({ itemId, itemType, platform, conten
             config
         })
 
-        if (res.success && !isTest) {
+        if (res.success) {
             const itemUpdate: any = {}
+
+            // Всегда сохраняем ссылку для сайта (даже в тесте), чтобы ТГ её подхватил
             if (platform === 'site' || platform === 'tilda') {
-                itemUpdate.status = 'published'
-                itemUpdate.published_at = new Date().toISOString()
                 itemUpdate.published_url = res.published_url
+
+                // Статус и время публикации обновляем только при реальной публикации
+                if (!isTest) {
+                    itemUpdate.status = 'published'
+                    itemUpdate.published_at = new Date().toISOString()
+                }
+
+                // Синхронизируем стабильную картинку с Тильды
+                const raw = res.raw_response;
+                const tildaImg = raw?.image || raw?.thumb || raw?.post?.image || raw?.post?.thumb;
+                if (tildaImg && tildaImg.startsWith('http')) {
+                    itemUpdate.draft_image_url = tildaImg;
+                }
             }
 
-            // Sync stable image from Tilda
-            const raw = res.raw_response;
-            const tildaImg = raw?.image || raw?.thumb || raw?.post?.image || raw?.post?.thumb;
-            if (tildaImg && tildaImg.startsWith('http')) {
-                itemUpdate.draft_image_url = tildaImg;
+            // Если не тест, или если это тест сайта (для сохранения ссылки), обновляем запись
+            if (!isTest || platform === 'site' || platform === 'tilda') {
+                if (Object.keys(itemUpdate).length > 0) {
+                    await (supabase as any).from(table).update(itemUpdate).eq('id', itemId)
+                }
             }
 
-            if (Object.keys(itemUpdate).length > 0) {
-                await (supabase as any).from(table).update(itemUpdate).eq('id', itemId)
-            }
+            // Обновление логов джобы только для реальной публикации
+            if (!isTest) {
+                // Sync Job with correct URL and ID
+                const { data: existingJobs } = await supabase.from('publish_jobs').select('id').eq(itemType === 'news' ? 'news_id' : 'review_id', itemId).eq('platform', platform).order('created_at', { ascending: false }).limit(1) as any
+                const jobId = existingJobs?.[0]?.id
+                const now = new Date().toISOString()
 
-            // Sync Job with correct URL and ID
-            const { data: existingJobs } = await supabase.from('publish_jobs').select('id').eq(itemType === 'news' ? 'news_id' : 'review_id', itemId).eq('platform', platform).order('created_at', { ascending: false }).limit(1) as any
-            const jobId = existingJobs?.[0]?.id
-            const now = new Date().toISOString()
+                const jobPayload: any = {
+                    status: 'published',
+                    external_id: res.external_id,
+                    published_url: res.published_url,
+                    social_content: content,
+                    published_at_actual: now,
+                    updated_at: now
+                }
 
-            const jobPayload: any = {
-                status: 'published',
-                external_id: res.external_id,
-                published_url: res.published_url, // THIS SAVES THE FB LINK
-                social_content: content,
-                published_at_actual: now,
-                updated_at: now
-            }
-
-            if (jobId) {
-                await (supabase as any).from('publish_jobs').update(jobPayload).eq('id', jobId)
-            } else {
-                await (supabase as any).from('publish_jobs').insert({
-                    [itemType === 'news' ? 'news_id' : 'review_id']: itemId,
-                    platform,
-                    ...jobPayload,
-                    publish_at: now
-                })
+                if (jobId) {
+                    await (supabase as any).from('publish_jobs').update(jobPayload).eq('id', jobId)
+                } else {
+                    await (supabase as any).from('publish_jobs').insert({
+                        [itemType === 'news' ? 'news_id' : 'review_id']: itemId,
+                        platform,
+                        ...jobPayload,
+                        publish_at: now
+                    })
+                }
             }
         }
 

@@ -22,19 +22,27 @@ export class TelegramPublisher implements IPublisher {
             const finalHtml = convertBbcodeToHtml(context.content_html);
             const titleHtml = convertBbcodeToHtml(context.title);
 
-            // Smart Link Logic: Check if the text ends with a colon (ignoring trailing whitespace and HTML tags)
-            const plainContent = finalHtml.replace(/<[^>]+>/g, '').trim();
-            // Check if the *visible* text ends with a colon
-            const shouldAttachLink = plainContent.endsWith(':') || finalHtml.trim().match(/:\s*(<[^>]+>)*$/) !== null;
+            // 1. Плейсхолдер [LINK] (наивысший приоритет)
+            let textWithLink = finalHtml;
+            const linkHtml = context.source_url ? `<a href="${context.source_url}">${context.source_url}</a>` : '';
 
-            const linkPart = (shouldAttachLink && context.source_url) ? ` <a href="${context.source_url}">${context.source_url}</a>` : '';
+            if (context.source_url && textWithLink.includes('[LINK]')) {
+                textWithLink = textWithLink.replace(/\[LINK\]/g, linkHtml);
+            } else if (context.source_url) {
+                // 2. Умная вставка при наличии двоеточия (старая логика + улучшение)
+                const plainContent = finalHtml.replace(/<[^>]+>/g, '').trim();
+                const shouldAttachLink = plainContent.endsWith(':') || finalHtml.trim().match(/:\s*(<[^>]+>)*$/) !== null;
+
+                if (shouldAttachLink) {
+                    textWithLink = `${textWithLink.trim()} ${linkHtml}`;
+                }
+            }
 
             // 1. Send Photo
             if (context.image_url) {
                 // Caution: Truncating HTML is risky. We assume 'announce' (content_html) is short enough for caption.
                 // If not, we rely on Telegram API to return error, and we fallback to text.
-                // FIX: Removed forced title injection to prevent duplicates (user controls full text in content_html)
-                const caption = `${finalHtml}${linkPart}`;
+                const caption = textWithLink;
 
                 const url = `https://api.telegram.org/bot${this.botToken}/sendPhoto`;
                 const res = await fetch(url, {
@@ -61,10 +69,8 @@ export class TelegramPublisher implements IPublisher {
                 }
             }
 
-            // 2. Fallback / Text Mode
-            // Limit 4096 chars
             const textUrl = `https://api.telegram.org/bot${this.botToken}/sendMessage`;
-            const textBody = `${finalHtml}${linkPart}`;
+            const textBody = textWithLink;
 
             const res = await fetch(textUrl, {
                 method: 'POST',
