@@ -6,6 +6,7 @@ import { ContentBoard, ContentSortOption } from '@/components/content/ContentBoa
 import { LoadingDots } from '@/components/ui/loading-dots'
 import { createClient } from '@/lib/supabase/client'
 import { getContentStats } from '@/app/actions/content-actions'
+import { toast } from 'sonner'
 
 const PAGE_SIZE = 50
 
@@ -56,31 +57,19 @@ export default function ContentPage() {
   }
 
   const fetchPage = async (filter: ContentFilter, sources: string[], pageIndex: number, sort: ContentSortOption) => {
-    const from = pageIndex * PAGE_SIZE
-    const to = from + PAGE_SIZE - 1
+    // Use Server Action instead of client-side RLS query for better performance/reliability
+    const { fetchContentItems } = await import('@/app/actions/content-actions')
 
-    let query = buildQuery(filter, sources)
+    // Convert sort option if needed, currently compatible
+    const result = await fetchContentItems(filter, sources, pageIndex, PAGE_SIZE, sort as any)
 
-    if (sort === 'no-date') {
-      // Put items without date first, then sort by creation date
-      query = query
-        .order('published_at', { ascending: false, nullsFirst: true })
-        .order('created_at', { ascending: false })
-    } else {
-      const isAscending = sort === 'date-asc'
-      query = query
-        .order('published_at', { ascending: isAscending, nullsFirst: false })
-        .order('created_at', { ascending: isAscending })
+    if (result.error) {
+      console.error('[ContentPage] Server Action Error:', result.error)
+      // Propagate error to trigger toast in loadData
+      throw new Error(result.error.message || 'Server Action Failed')
     }
 
-    const { data, error, count } = await query.range(from, to)
-
-    if (error) {
-      console.error('[ContentPage] fetchPage error:', error)
-      return { data: [] as ContentItem[], count: 0 }
-    }
-
-    return { data: (data || []) as ContentItem[], count: count || 0 }
+    return { data: (result.data || []) as ContentItem[], count: result.count || 0 }
   }
 
   const loadData = async (filter: ContentFilter, sources: string[], isInitial: boolean) => {

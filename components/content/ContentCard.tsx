@@ -262,7 +262,7 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
                             <span className="font-black block mb-1 flex items-center gap-1.5">
                                 <span className="text-sm">🤖</span> AI Filter:
                             </span>
-                            <p className="line-clamp-2 italic font-medium">{item.gate1_reason}</p>
+                            <p className="italic font-medium text-sm leading-relaxed">{item.gate1_reason}</p>
                         </div>
                     )}
 

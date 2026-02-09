@@ -502,24 +502,26 @@ function PromptsContent() {
   )
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-      <div data-tutorial="prompts-header" className="flex items-center justify-between">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">System Prompts</h1>
-          <p className="text-muted-foreground text-sm">
-            Управление промптами для генерации и адаптации контента
-          </p>
-        </div>
-        <TutorialButton label="Помощь" steps={promptsTutorialSteps} variant="outline" className="h-10 px-4" />
-      </div>
-
+    <div className="space-y-6 max-w-5xl mx-auto relative">
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList data-tutorial="prompts-tabs" className="grid w-full grid-cols-4">
-          <TabsTrigger value="system">Системные</TabsTrigger>
-          <TabsTrigger value="news">Новости</TabsTrigger>
-          <TabsTrigger value="reviews">Обзоры</TabsTrigger>
-          <TabsTrigger value="social">Соцсети</TabsTrigger>
-        </TabsList>
+        <div data-tutorial="prompts-header" className="flex items-center justify-between mb-6">
+          <div className="space-y-1">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">System Prompts</h1>
+            <p className="text-muted-foreground text-sm">
+              Управление промптами для генерации и адаптации контента
+            </p>
+          </div>
+          <TutorialButton label="Помощь" steps={promptsTutorialSteps} variant="outline" className="h-9 px-4 rounded-full" />
+        </div>
+
+        <div className="sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 py-4 -mx-4 sm:-mx-6 px-4 sm:px-6 mb-6 border-b shadow-sm transition-all">
+          <TabsList data-tutorial="prompts-tabs" className="grid w-full grid-cols-4 h-11 bg-muted/50 p-1 rounded-xl">
+            <TabsTrigger value="system" className="rounded-lg data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm transition-all font-medium">Системные</TabsTrigger>
+            <TabsTrigger value="news" className="rounded-lg data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm transition-all font-medium">Новости</TabsTrigger>
+            <TabsTrigger value="reviews" className="rounded-lg data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm transition-all font-medium">Обзоры</TabsTrigger>
+            <TabsTrigger value="social" className="rounded-lg data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm transition-all font-medium">Соцсети</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="system" className="mt-6">
           {systemPrompts.length > 0 ? (

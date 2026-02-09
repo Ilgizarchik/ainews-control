@@ -338,7 +338,7 @@ export function ContentBoard({
                     </div>
                 ) : (
                     <div className={cn("transition-all duration-700 ease-in-out", isRefreshing && "opacity-50 blur-[2px] grayscale-[0.3] pointer-events-none")}>
-                        <div data-tutorial="moderation-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+                        <div data-tutorial="moderation-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                             {filteredItems.map((item) => (
                                 <ContentCard key={item.id} item={item} onActionComplete={onItemUpdated} />
                             ))}

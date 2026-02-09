@@ -238,3 +238,60 @@ export async function getContentStatsBySource(filter: ContentFilter = 'pending')
         .map(([source, count]) => ({ source, count }))
         .sort((a, b) => b.count - a.count)
 }
+export async function fetchContentItems(
+    filter: ContentFilter,
+    sources: string[],
+    page: number = 0,
+    pageSize: number = 50,
+    sort: 'date-desc' | 'date-asc' | 'no-date' = 'date-desc'
+): Promise<{ data: any[], count: number, error?: any }> {
+    const adminDb = createAdminClient()
+
+    // Base query
+    let query = adminDb.from('news_items').select(`
+        id, title, source_name, canonical_url, published_at,
+        rss_summary, image_url,
+        gate1_decision, gate1_score, gate1_tags, gate1_reason, gate1_processed_at,
+        approve1_decision, approve1_decided_at, approve1_decided_by,
+        sent_to_approve1_at, approve1_message_id, approve1_chat_id,
+        status, is_viewed, created_at
+    `, { count: 'exact' })
+
+    // Apply filters
+    if (filter === 'pending') {
+        query = query.neq('gate1_decision', null).is('approve1_decision', null)
+    } else if (filter === 'approved') {
+        query = query.eq('approve1_decision', 'approved')
+    } else if (filter === 'rejected') {
+        query = query.eq('approve1_decision', 'rejected')
+    }
+
+    if (sources.length > 0) {
+        query = query.in('source_name', sources)
+    }
+
+    // Apply sorting
+    if (sort === 'no-date') {
+        query = query
+            .order('published_at', { ascending: false, nullsFirst: true })
+            .order('created_at', { ascending: false })
+    } else {
+        const isAscending = sort === 'date-asc'
+        query = query
+            .order('published_at', { ascending: isAscending, nullsFirst: false })
+            .order('created_at', { ascending: isAscending })
+    }
+
+    // Pagination
+    const from = page * pageSize
+    const to = from + pageSize - 1
+
+    const { data, count, error } = await query.range(from, to)
+
+    if (error) {
+        console.error('[fetchContentItems] Error:', error)
+        return { data: [], count: 0, error }
+    }
+
+    return { data: data || [], count: count || 0 }
+}
