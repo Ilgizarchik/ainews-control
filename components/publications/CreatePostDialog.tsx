@@ -21,6 +21,7 @@ export function CreatePostDialog({ open, onOpenChange, onSuccess }: CreatePostDi
     const [title, setTitle] = useState('')
     const [description, setDescription] = useState('')
     const [imageFile, setImageFile] = useState<File | null>(null)
+    const [isDragging, setIsDragging] = useState(false)
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -195,7 +196,24 @@ export function CreatePostDialog({ open, onOpenChange, onSuccess }: CreatePostDi
                                     </Button>
                                 </div>
                             ) : (
-                                <div className="group relative">
+                                <div
+                                    className={`group relative transition-all duration-300 ${isDragging ? 'scale-[1.02]' : ''}`}
+                                    onDragOver={(e) => {
+                                        e.preventDefault()
+                                        setIsDragging(true)
+                                    }}
+                                    onDragLeave={() => setIsDragging(false)}
+                                    onDrop={(e) => {
+                                        e.preventDefault()
+                                        setIsDragging(false)
+                                        const file = e.dataTransfer.files?.[0]
+                                        if (file && file.type.startsWith('image/')) {
+                                            setImageFile(file)
+                                        } else if (file) {
+                                            toast.error('Пожалуйста, выберите изображение')
+                                        }
+                                    }}
+                                >
                                     <Input
                                         id="imageFile"
                                         type="file"
@@ -212,13 +230,19 @@ export function CreatePostDialog({ open, onOpenChange, onSuccess }: CreatePostDi
                                         type="button"
                                         variant="outline"
                                         onClick={() => document.getElementById('imageFile')?.click()}
-                                        className="w-full h-24 border-dashed border-2 rounded-2xl flex flex-col gap-2 hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/10 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all duration-300 group-hover:scale-[1.01]"
+                                        className={`w-full h-24 border-dashed border-2 rounded-2xl flex flex-col gap-2 transition-all duration-300 ${isDragging
+                                            ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600'
+                                            : 'hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/10 hover:text-emerald-600'
+                                            }`}
                                         disabled={loading}
                                     >
-                                        <ImageIcon className="w-6 h-6 mb-1 opacity-50 group-hover:opacity-100 transition-opacity" />
+                                        <ImageIcon className={`w-6 h-6 mb-1 transition-opacity ${isDragging ? 'opacity-100' : 'opacity-50 group-hover:opacity-100'}`} />
                                         <span className="font-bold text-sm">Выберите фото для публикации</span>
                                         <span className="text-[10px] uppercase font-black tracking-widest opacity-40 group-hover:opacity-100">или просто перетащите сюда</span>
                                     </Button>
+                                    {isDragging && (
+                                        <div className="absolute inset-0 z-10 pointer-events-none border-2 border-emerald-500 border-dashed rounded-2xl animate-pulse" />
+                                    )}
                                 </div>
                             )}
                         </div>

@@ -79,6 +79,7 @@ export function PublicationsPage() {
     const [activeTab, setActiveTab] = useState<Tab>('drafts')
     const [tabOrder, setTabOrder] = useState<Tab[]>(['drafts', 'board', 'calendar'])
     const [isCreateOpen, setIsCreateOpen] = useState(false)
+    const [refreshKey, setRefreshKey] = useState(0)
     const [mounted, setMounted] = useState(false)
 
     // Создаем шаги туториала с callback для переключения вкладок и открытия диалога
@@ -137,6 +138,7 @@ export function PublicationsPage() {
                 onSuccess={() => {
                     // Switch to drafts tab when new post is created
                     setActiveTab('drafts')
+                    setRefreshKey(prev => prev + 1)
                 }}
             />
             {/* Hero Header with Video Background */}
@@ -259,7 +261,7 @@ export function PublicationsPage() {
             </div>
 
             <div className="main-content flex-1 min-h-0 bg-card rounded-xl border border-border overflow-hidden" data-tutorial="publications-board">
-                {activeTab === 'drafts' && <DraftsView />}
+                {activeTab === 'drafts' && <DraftsView key={refreshKey} />}
                 {activeTab === 'board' && <BoardView />}
                 {activeTab === 'calendar' && <CalendarViewBig />}
             </div>

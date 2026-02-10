@@ -27,6 +27,7 @@ export function MediaTab({ contentId, contentType, initialImageUrl, onUpdated, t
     const [loading, setLoading] = useState(false)
     const [uploading, setUploading] = useState(false)
     const [loadingMessage, setLoadingMessage] = useState("Создаем магию...")
+    const [isDragging, setIsDragging] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     useEffect(() => {
@@ -43,6 +44,57 @@ export function MediaTab({ contentId, contentType, initialImageUrl, onUpdated, t
             return () => clearInterval(interval)
         }
     }, [loading])
+
+    const handleFileUpload = async (file: File) => {
+        if (!file || !file.type.startsWith('image/')) {
+            toast.error('Пожалуйста, выберите изображение')
+            return
+        }
+
+        setUploading(true)
+        const toastId = toast.loading('📤 Загрузка изображения...')
+
+        try {
+            const formData = new FormData()
+            formData.append('file', file)
+
+            // 1. Upload to TG via our API route
+            const uploadRes = await fetch('/api/upload-telegram', {
+                method: 'POST',
+                body: formData
+            })
+
+            const uploadData = await uploadRes.json()
+            if (!uploadRes.ok || !uploadData.file_id) {
+                throw new Error(uploadData.error || 'Failed to upload to Telegram')
+            }
+
+            const fileId = uploadData.file_id
+
+            // 2. Update DB with file_id
+            const dbResult = await updateItemImage(contentId, contentType, fileId)
+
+            if (dbResult.success) {
+                const proxyUrl = `/api/telegram/photo/${fileId}`
+                setImageUrl(proxyUrl)
+                onUpdated(proxyUrl, 'Загружено вручную')
+                toast.success('Изображение успешно загружено', { id: toastId })
+            } else {
+                toast.error(`Ошибка БД: ${dbResult.error}`, { id: toastId })
+            }
+        } catch (error: any) {
+            console.error('[handleFileUpload] Error:', error)
+            toast.error(`Ошибка загрузки: ${error.message}`, { id: toastId })
+        } finally {
+            setUploading(false)
+            if (fileInputRef.current) fileInputRef.current.value = ''
+        }
+    }
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (file) handleFileUpload(file)
+    }
 
     const handleRegenerate = async () => {
         setLoading(true)
@@ -94,49 +146,7 @@ export function MediaTab({ contentId, contentType, initialImageUrl, onUpdated, t
         }
     }
 
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
-        if (!file) return
 
-        setUploading(true)
-        const toastId = toast.loading('📤 Загрузка изображения...')
-
-        try {
-            const formData = new FormData()
-            formData.append('file', file)
-
-            // 1. Upload to TG via our API route
-            const uploadRes = await fetch('/api/upload-telegram', {
-                method: 'POST',
-                body: formData
-            })
-
-            const uploadData = await uploadRes.json()
-            if (!uploadRes.ok || !uploadData.file_id) {
-                throw new Error(uploadData.error || 'Failed to upload to Telegram')
-            }
-
-            const fileId = uploadData.file_id
-
-            // 2. Update DB with file_id
-            const dbResult = await updateItemImage(contentId, contentType, fileId)
-
-            if (dbResult.success) {
-                const proxyUrl = `/api/telegram/photo/${fileId}`
-                setImageUrl(proxyUrl)
-                onUpdated(proxyUrl, 'Загружено вручную')
-                toast.success('Изображение успешно загружено', { id: toastId })
-            } else {
-                toast.error(`Ошибка БД: ${dbResult.error}`, { id: toastId })
-            }
-        } catch (error: any) {
-            console.error('[handleFileUpload] Error:', error)
-            toast.error(`Ошибка загрузки: ${error.message}`, { id: toastId })
-        } finally {
-            setUploading(false)
-            if (fileInputRef.current) fileInputRef.current.value = ''
-        }
-    }
 
     return (
         <div className="flex flex-col lg:flex-row h-full gap-6 p-1">
@@ -200,7 +210,7 @@ export function MediaTab({ contentId, contentType, initialImageUrl, onUpdated, t
                     <input
                         type="file"
                         ref={fileInputRef}
-                        onChange={handleFileUpload}
+                        onChange={handleFileChange}
                         accept="image/*"
                         className="hidden"
                     />
@@ -208,9 +218,33 @@ export function MediaTab({ contentId, contentType, initialImageUrl, onUpdated, t
             </div>
 
             {/* Right Panel: Image Preview - 60% width */}
-            <div className="flex-1 h-full min-h-[300px] lg:min-h-0 bg-muted/10 rounded-xl border border-border/50 relative overflow-hidden group shadow-inner flex items-center justify-center">
+            <div
+                className={`flex-1 h-full min-h-[300px] lg:min-h-0 bg-muted/10 rounded-xl border border-border/50 relative overflow-hidden group shadow-inner flex items-center justify-center transition-all duration-300 ${isDragging ? 'bg-purple-500/5 ring-2 ring-purple-500/50 ring-inset scale-[0.995]' : ''
+                    }`}
+                onDragOver={(e) => {
+                    e.preventDefault()
+                    if (!loading && !uploading) setIsDragging(true)
+                }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={(e) => {
+                    e.preventDefault()
+                    setIsDragging(false)
+                    if (loading || uploading) return
+                    const file = e.dataTransfer.files?.[0]
+                    if (file) handleFileUpload(file)
+                }}
+            >
                 {/* Checkered background for transparency */}
                 <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(#000 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
+
+                {isDragging && (
+                    <div className="absolute inset-0 z-20 bg-purple-500/10 backdrop-blur-[2px] flex items-center justify-center animate-in fade-in duration-300">
+                        <div className="flex flex-col items-center gap-4 text-purple-600 dark:text-purple-400 animate-bounce">
+                            <Upload className="w-12 h-12" />
+                            <span className="text-lg font-black uppercase tracking-wider text-center px-4">Отпустите для загрузки</span>
+                        </div>
+                    </div>
+                )}
 
                 {imageUrl ? (
                     <div className="relative w-full h-full flex items-center justify-center p-4">
