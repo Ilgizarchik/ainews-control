@@ -29,7 +29,6 @@ export class ThreadsPublisher implements IPublisher {
             .replace(/<\/p>|<\/div>/gi, '\n')
             .replace(/<li>/gi, '\n- ')
             .replace(/<[^>]*>/g, '')
-            .replace(/\[\/?(b|i|u|s|url|code|quote|size|color)[^\]]*\]/gi, '')
             .replace(/[ \t]+/g, ' ') // Collapse multiple spaces but NOT newlines
             .replace(/\n\s*\n/g, '\n\n') // Collapse multiple newlines
             .trim();

@@ -51,8 +51,12 @@ export class OkPublisher implements IPublisher {
 
             // 2. Prepare Message
             let message = (context.content_html || context.title || '')
+                .replace(/<br\s*\/?>/gi, '\n')
+                .replace(/<\/p>|<\/div>/gi, '\n')
+                .replace(/<li>/gi, '\n- ')
                 .replace(/<[^>]*>/g, '')
-                .replace(/\[\/?(b|i|u|s|url|code|quote|size|color)[^\]]*\]/gi, '')
+                .replace(/[ \t]+/g, ' ')
+                .replace(/\n\s*\n/g, '\n\n')
                 .trim();
             const sourceUrl = context.source_url || '';
 
@@ -60,9 +64,7 @@ export class OkPublisher implements IPublisher {
                 message = message.replace(/\[LINK\]/gi, sourceUrl);
             }
 
-            if (context.title && !message.includes(context.title)) {
-                message = `${context.title}\n\n${message}`;
-            }
+            // Title is already included in generated message (content_html) via AI prompt
 
             // 3. Prepare Attachment JSON
             const mediaList: any[] = [

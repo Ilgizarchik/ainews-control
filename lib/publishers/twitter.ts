@@ -32,9 +32,11 @@ export class TwitterPublisher implements IPublisher {
         if (!html) return '';
         return html
             .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<\/p>|<\/div>/gi, '\n')
+            .replace(/<li>/gi, '\n- ')
             .replace(/<[^>]*>/g, '')
-            .replace(/\[\/?(b|i|u|s|url|code|quote|size|color)[^\]]*\]/gi, '')
-            .replace(/\s+/g, ' ')
+            .replace(/[ \t]+/g, ' ')
+            .replace(/\n\s*\n/g, '\n\n')
             .trim();
     }
 
@@ -92,7 +94,7 @@ export class TwitterPublisher implements IPublisher {
                 rawBody = rawBody.replace(/\[LINK\]/gi, url);
             }
 
-            let fullText = title ? `${title}\n\n${rawBody}` : rawBody;
+            let fullText = rawBody; // Title is already in rawBody from AI
             fullText = this.truncateText(fullText, 280);
 
             // 3. Пытаемся через библиотеку
