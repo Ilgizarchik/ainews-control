@@ -41,7 +41,7 @@ export class TelegramPublisher implements IPublisher {
             // 1. Send Photo
             if (context.image_url) {
                 const caption = textWithLink;
-                const isTooLongForCaption = caption.length > 1024;
+                const isTooLongForCaption = caption.length > 900;
 
                 if (isTooLongForCaption) {
                     // Method A: Long post > 1024 chars

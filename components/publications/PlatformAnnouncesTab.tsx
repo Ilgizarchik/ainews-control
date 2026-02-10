@@ -543,10 +543,10 @@ export function PlatformAnnouncesTab({
                                         )}
                                     </div>
 
-                                    {platform === 'tg' && (announces[platform]?.length || 0) > 1100 && (
+                                    {platform === 'tg' && (announces[platform]?.length || 0) > 900 && (
                                         <div className="flex items-center gap-1.5 text-[10px] font-medium text-amber-500/80 mt-1">
                                             <AlertCircle className="w-3 h-3" />
-                                            <span>Пост будет разделен: сначала фото, затем текст (лимит 1024 симв.)</span>
+                                            <span>Пост будет разделен: сначала фото, затем текст (лимит подписи ~900 симв.)</span>
                                         </div>
                                     )}
                                 </div>
