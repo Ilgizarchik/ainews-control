@@ -40,7 +40,6 @@ export function AddSourceDialog({ source, trigger, onSuccess }: AddSourceDialogP
         image: source?.selectors?.image || '',
         date_detail: source?.selectors?.date_detail || ''
     })
-    const toastRef = React.useRef<string | number | undefined>(undefined)
 
     // Update state when dialog is opened (especially for edit mode)
     React.useEffect(() => {
@@ -62,15 +61,9 @@ export function AddSourceDialog({ source, trigger, onSuccess }: AddSourceDialogP
         }
     }, [open, source])
 
-    // Funny Scanner Messages
+    // AI Scanning Toast Logic
     React.useEffect(() => {
-        if (!scanning) {
-            if (toastRef.current) {
-                toast.dismiss(toastRef.current)
-                toastRef.current = undefined
-            }
-            return
-        }
+        if (!scanning) return;
 
         const msgs = [
             "Так, зашел на сайт, смотрю данные...",
@@ -81,18 +74,22 @@ export function AddSourceDialog({ source, trigger, onSuccess }: AddSourceDialogP
             "Почти закончил..."
         ]
 
-        // Start sequence
-        let i = 0
-        toastRef.current = toast.loading(msgs[0])
+        const toastId = 'scanning-url-selectors';
+        toast.loading(msgs[0], { id: toastId });
 
+        let i = 0
         const interval = setInterval(() => {
             i++
             if (i < msgs.length) {
-                toast.loading(msgs[i], { id: toastRef.current })
+                toast.loading(msgs[i], { id: toastId })
             }
-        }, 2500)
+        }, 3000)
 
-        return () => clearInterval(interval)
+        return () => {
+            clearInterval(interval);
+            // Dismiss toast on cleanup or unmount
+            toast.dismiss(toastId);
+        }
     }, [scanning])
 
 
@@ -102,6 +99,7 @@ export function AddSourceDialog({ source, trigger, onSuccess }: AddSourceDialogP
             return
         }
 
+        const toastId = 'scanning-url-selectors';
         setScanning(true)
         try {
             const res = await scanUrlForSelectors(url)
@@ -124,12 +122,12 @@ export function AddSourceDialog({ source, trigger, onSuccess }: AddSourceDialogP
                     } catch { }
                 }
 
-                toast.success('Селекторы определены!')
+                toast.success('Селекторы определены!', { id: toastId })
             } else {
-                toast.error(`Ошибка сканирования: ${res.error}`)
+                toast.error(`Ошибка: ${res.error}`, { id: toastId })
             }
         } catch {
-            toast.error('Ошибка сканирования')
+            toast.error('Ошибка сканирования', { id: toastId })
         } finally {
             setScanning(false)
         }

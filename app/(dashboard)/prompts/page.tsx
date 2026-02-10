@@ -184,17 +184,17 @@ function SortablePromptCard({ prompt, editedContent, isEdited, isSaving, onSave,
   React.useEffect(() => {
     const textarea = textareaRef.current
     if (textarea) {
-      // Save current scroll position
-      const scrollTop = window.pageYOffset || document.documentElement.scrollTop
+      // Temporarily disable body scroll to prevent "jumping" in some browsers (like Yandex/Chrome)
+      // while recalculating layout
+      const originalOverflow = document.body.style.overflow
+      const scrollY = window.scrollY
 
-      // Update height
       textarea.style.height = 'auto'
       textarea.style.height = `${textarea.scrollHeight}px`
 
-      // Restore scroll position
-      if (scrollTop !== (window.pageYOffset || document.documentElement.scrollTop)) {
-        window.scrollTo(0, scrollTop)
-      }
+      // Ensure we stay at the same position
+      window.scrollTo(0, scrollY)
+      document.body.style.overflow = originalOverflow
     }
   }, [editedContent])
 

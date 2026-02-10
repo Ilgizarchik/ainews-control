@@ -9,13 +9,16 @@ interface ReviewGenerationRequest {
     };
     draft_image_file_id?: string;
     user_chat_id: number;
+    web_search?: boolean;
 }
+
+export const maxDuration = 300; // 5 minutes for Pro plan support
 
 export async function POST(req: Request) {
     const supabase = await createClient();
 
     try {
-        const { title_seed, factpack, draft_image_file_id, user_chat_id }: ReviewGenerationRequest = await req.json();
+        const { title_seed, factpack, draft_image_file_id, user_chat_id, web_search }: ReviewGenerationRequest = await req.json();
 
 
         if (!title_seed) {
@@ -25,7 +28,7 @@ export async function POST(req: Request) {
         // 1. Получаем настройки AI и промты из БД
         const [aiSettings, prompts] = await Promise.all([
             supabase.from('project_settings').select('key, value').in('key', [
-                'ai_provider', 'ai_api_key', 'ai_model', 'ai_base_url', 'ai_proxy_url', 'review_ai_model'
+                'ai_provider', 'ai_api_key', 'ai_model', 'ai_base_url', 'ai_proxy_url', 'review_ai_model', 'ai_proxy_enabled'
             ]),
             supabase.from('system_prompts').select('key, content').in('key', [
                 'review_title', 'review_announce', 'review_longread'
@@ -62,13 +65,14 @@ export async function POST(req: Request) {
         const model = settings.review_ai_model || settings.ai_model || 'gpt-4o-mini';
         const provider = settings.ai_provider || 'openai';
         const proxyUrl = settings.ai_proxy_url;
+        const proxyEnabled = settings.ai_proxy_enabled === 'true';
 
         if (!apiKey) {
             return NextResponse.json({ error: 'AI API key not configured' }, { status: 500 });
         }
 
         // Helper function for calling AI
-        const makeAICall = async (systemPrompt: string, userPrompt: string): Promise<string> => {
+        const makeAICall = async (systemPrompt: string, userPrompt: string, useSearch: boolean = false): Promise<string> => {
             const headers: Record<string, string> = {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${apiKey}`
@@ -79,23 +83,64 @@ export async function POST(req: Request) {
                 headers['X-Title'] = 'AiNews Control';
             }
 
-            const body = {
-                model: model,
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: userPrompt }
-                ],
+            const body: any = {
                 temperature: 0.7,
-                max_completion_tokens: 30000 // Increased to support long articles (approx 30k chars + reasoning)
+                max_completion_tokens: 30000
             };
+
+            // Inject OpenRouter Web Search plugin
+            let effectiveModel = model;
+
+            // For OpenRouter, ensure provider prefix exists
+            if (provider === 'openrouter' && !effectiveModel.includes('/')) {
+                effectiveModel = `openai/${effectiveModel}`;
+            }
+
+            let effectiveSystemPrompt = systemPrompt;
+            const currentDate = new Date().toLocaleDateString('ru-RU');
+
+            if (useSearch && provider === 'openrouter') {
+                // Важно: :online должен быть в конце строки модели
+                if (!effectiveModel.endsWith(':online')) {
+                    effectiveModel += ':online';
+                }
+
+                body.plugins = [{
+                    id: 'web',
+                    max_results: 10,
+                    engine: "exa"
+                }];
+
+                // Усиливаем системный промпт
+                effectiveSystemPrompt = `Today is ${currentDate}. You ARE connected to the internet. 
+If you see data below tagged as [WEB_RESULT] or provided in context, it IS your actual internet access. Use it.
+\n\n${effectiveSystemPrompt}
+\n\n[SYSTEM: WEB_SEARCH_ENABLED]
+1. Search for real-time information. Focus on 2025-2026 events.
+2. Prioritize search results over training data.
+3. Do not claim you do not have internet access.`;
+
+                console.log(`[ReviewGen] Web Search enabled for ${effectiveModel}`);
+            } else {
+                // Всегда даем дату, даже если поиск выключен
+                effectiveSystemPrompt = `Today is ${currentDate}. \n\n${effectiveSystemPrompt}`;
+            }
+            body.model = effectiveModel;
+            body.messages = [
+                { role: 'system', content: effectiveSystemPrompt },
+                { role: 'user', content: userPrompt }
+            ];
 
             const fetchOptions: any = {
                 method: 'POST',
                 headers: headers,
-                body: JSON.stringify(body)
+                body: JSON.stringify(body),
+                signal: AbortSignal.timeout(300000) // 300 second timeout for complex generation/search
             };
 
-            if (proxyUrl) {
+            console.log('[ReviewGen] Request Body:', JSON.stringify(body, null, 2));
+
+            if (proxyUrl && proxyEnabled) {
                 fetchOptions.dispatcher = new ProxyAgent(proxyUrl);
             }
 
@@ -117,18 +162,25 @@ export async function POST(req: Request) {
         const [longread, reviewTitle] = await Promise.all([
             makeAICall(
                 promptMap.review_longread,
-                `Title: ${title_seed}\nFacts: ${factsContext}`
+                `Title: ${title_seed}\nFacts: ${factsContext}`,
+                web_search // Enable search for longread
             ),
             makeAICall(
                 promptMap.review_title,
-                `CONTEXT:\nTitle: ${title_seed}\nFacts: ${factsContext}`
+                `CONTEXT:\nTitle: ${title_seed}\nFacts: ${factsContext}`,
+                web_search // Enable search for title too
             )
         ]);
 
         // Шаг 2: Генерируем анонс на основе лонгрида
         const finalAnnounce = await makeAICall(
             promptMap.review_announce,
-            `LONGREAD_HTML:\n${longread}`
+            `USER_TASK: Summarize/Format the following verified editorial draft into an announcement headline. 
+DO NOT check facts, DO NOT search the web. This text is already verified.
+Just follow your system instructions for the announcement style.
+
+EDITORIAL_DRAFT:\n${longread}`,
+            false // No search needed for re-formatting
         );
 
         // Используем переданный file_id (картинка уже загружена через /api/upload-telegram)

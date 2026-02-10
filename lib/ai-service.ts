@@ -89,6 +89,7 @@ export type AIConfigOverride = {
     temperature?: number | null;
     maxTokens?: number | null;
     responseFormat?: any;
+    webSearch?: boolean;
 }
 
 export async function callAI(systemPrompt: string, userPrompt: string, config?: AIConfigOverride): Promise<string> {
@@ -107,8 +108,6 @@ export async function callAI(systemPrompt: string, userPrompt: string, config?: 
     let apiKey = settings.keys[provider] || settings.keys.default;
 
     // 3. Determine URL
-    // If using the global default provider, respect the custom configured base URL.
-    // Otherwise, use the standard URL for that provider.
     let baseUrl = settings.ai_base_url;
     if (provider !== settings.ai_provider && PROVIDER_BASE_URLS[provider]) {
         baseUrl = PROVIDER_BASE_URLS[provider];
@@ -135,13 +134,50 @@ export async function callAI(systemPrompt: string, userPrompt: string, config?: 
     }
 
     const body: any = {
-        model: model,
-        messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt }
-        ],
         max_completion_tokens: maxTokens
     };
+
+    // 1. Сначала нормализуем название модели (добавляем провайдера, если его нет)
+    let effectiveModel = model;
+    if (provider === 'openrouter' && !effectiveModel.includes('/')) {
+        effectiveModel = `openai/${effectiveModel}`;
+    }
+
+    let effectiveSystemPrompt = systemPrompt;
+
+    // 2. Обработка Web Search
+    if (config?.webSearch && provider === 'openrouter') {
+        // Важно: :online должен быть в конце строки модели
+        if (!effectiveModel.endsWith(':online')) {
+            effectiveModel += ':online';
+        }
+
+        // Принудительно включаем плагин в body
+        body.plugins = [{
+            id: 'web',
+            max_results: 10,
+            engine: "exa" // Исправлено: OpenRouter принимает только "native" или "exa"
+        }];
+
+        const currentDate = new Date().toLocaleDateString('ru-RU');
+
+        // Усиливаем системный промпт (добавляем дату и принуждаем использовать поиск)
+        effectiveSystemPrompt = `Today is ${currentDate}. You ARE connected to the internet. 
+If you see data below tagged as [WEB_RESULT] or provided in context, it IS your actual internet access. Use it.
+\n\n${effectiveSystemPrompt}
+\n\n[SYSTEM: WEB_SEARCH_ENABLED]
+1. Search for real-time information. Focus on 2025-2026 events.
+2. Prioritize search results over training data.
+3. Do not claim you do not have internet access.`;
+
+        console.log(`[AI] Activating Web Search: ${effectiveModel}`);
+    }
+
+    body.model = effectiveModel;
+    body.messages = [
+        { role: 'system', content: effectiveSystemPrompt },
+        { role: 'user', content: userPrompt }
+    ];
 
     if (config?.responseFormat) {
         body.response_format = config.responseFormat;
@@ -156,8 +192,10 @@ export async function callAI(systemPrompt: string, userPrompt: string, config?: 
         method: 'POST',
         headers: headers,
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(150000) // 150 second timeout
+        signal: AbortSignal.timeout(300000) // 300 second timeout
     };
+
+    console.log('[AI] Request Body:', JSON.stringify(body, null, 2));
 
     if (settings.ai_proxy_url && settings.ai_proxy_enabled) {
         try {

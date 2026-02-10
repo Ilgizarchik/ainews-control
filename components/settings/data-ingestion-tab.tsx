@@ -1,13 +1,13 @@
 'use client'
 
-import React from 'react'
+import React, { useRef, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
-import { RefreshCw, Play, Globe, Rss, FileText, Settings2, Trash2, SwitchCamera, Clock } from 'lucide-react'
+import { RefreshCw, Play, Globe, Rss, FileText, Settings2, Trash2, SwitchCamera, Clock, Save } from 'lucide-react'
 import { toast } from '@/components/ui/premium-toasts'
 import { triggerIngestion } from '@/app/actions/ingest-actions'
 import { toggleSourceActive, deleteSource } from '@/app/actions/scan-source-actions'
@@ -55,6 +55,79 @@ export function DataIngestionTab({
     handleSave,
     updateSingleSetting
 }: DataIngestionTabProps) {
+    const intervalRef = useRef<NodeJS.Timeout | null>(null)
+    const activeToastId = 'manual-ingestion-scanner'
+
+    // Cleanup interval on unmount
+    useEffect(() => {
+        return () => {
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current)
+            }
+            toast.dismiss(activeToastId)
+        }
+    }, [])
+
+    const handleRunScanner = async () => {
+        setIngestionRunning(true)
+        toast.loading("Так-с, что тут у нас в интернетах...", { id: activeToastId })
+
+        // Helper to dispatch logs to WittyBot
+        const dispatchLog = (text: string, type: 'info' | 'thinking' | 'success' | 'error' = 'info') => {
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('witty-log', { detail: { text, type } }))
+            }
+        }
+
+        dispatchLog("Запускаю свои цифровые щупальца 🐙", "info")
+
+        // Funny messages sequence
+        const msgs = [
+            "Погнали искать свежие новости!",
+            "Опа, свежак подъехал?!",
+            "В копилку знаний! 📚",
+            "Почти закончил..."
+        ]
+        let i = 0
+        intervalRef.current = setInterval(() => {
+            if (i < msgs.length) {
+                const msg = msgs[i]
+                toast.loading(msg, { id: activeToastId })
+                dispatchLog(msg, i % 2 === 0 ? "thinking" : "info")
+                i++
+            }
+        }, 3000)
+
+        try {
+            const activeIds = allSources
+                .filter(s => {
+                    const cfg = ingestionConfig[s.id]
+                    return cfg ? cfg.isActive : s.isActive
+                })
+                .map(s => s.id)
+
+            const res = await triggerIngestion(activeIds)
+
+            if (intervalRef.current) clearInterval(intervalRef.current)
+
+            if (res.success && res.data) {
+                const successMsg = `Готово! Добавлено: ${res.data.newInserted}`
+                toast.success(successMsg, { id: activeToastId })
+                dispatchLog(successMsg, "success")
+            } else {
+                const errorMsg = 'Ошибка: ' + res.error
+                toast.error(errorMsg, { id: activeToastId })
+                dispatchLog(errorMsg, "error")
+            }
+        } catch (e: any) {
+            if (intervalRef.current) clearInterval(intervalRef.current)
+            toast.error('Критическая ошибка запуска', { id: activeToastId })
+            dispatchLog('Критическая ошибка запуска', "error")
+        } finally {
+            setIngestionRunning(false)
+        }
+    }
+
     return (
         <div className="mt-8 space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
             {/* Global Automation Switchers */}
@@ -121,65 +194,7 @@ export function DataIngestionTab({
                         <Button
                             size="lg"
                             className="h-14 px-8 rounded-2xl bg-slate-900 dark:bg-slate-100 text-slate-100 dark:text-slate-900 hover:scale-105 transition-all duration-300 shadow-xl font-black text-sm uppercase tracking-widest gap-3"
-                            onClick={async () => {
-                                setIngestionRunning(true)
-                                const toastId = toast.loading("Так-с, что тут у нас в интернетах...")
-
-                                // Helper to dispatch logs to WittyBot
-                                const dispatchLog = (text: string, type: 'info' | 'thinking' | 'success' | 'error' = 'info') => {
-                                    if (typeof window !== 'undefined') {
-                                        window.dispatchEvent(new CustomEvent('witty-log', { detail: { text, type } }))
-                                    }
-                                }
-
-                                dispatchLog("Запускаю свои цифровые щупальца 🐙", "info")
-
-                                // Funny messages sequence
-                                const msgs = [
-                                    "Погнали искать свежие новости!",
-                                    "Опа, свежак подъехал?!",
-                                    "В копилку знаний! 📚",
-                                    "Почти закончил..."
-                                ]
-                                let i = 0
-                                const interval = setInterval(() => {
-                                    if (i < msgs.length) {
-                                        const msg = msgs[i]
-                                        toast.loading(msg, { id: toastId })
-                                        dispatchLog(msg, i % 2 === 0 ? "thinking" : "info")
-                                        i++
-                                    }
-                                }, 2500)
-
-                                try {
-                                    const activeIds = allSources
-                                        .filter(s => {
-                                            const cfg = ingestionConfig[s.id]
-                                            return cfg ? cfg.isActive : s.isActive
-                                        })
-                                        .map(s => s.id)
-
-                                    const res = await triggerIngestion(activeIds)
-
-                                    clearInterval(interval)
-
-                                    if (res.success && res.data) {
-                                        const successMsg = `Готово! Добавлено: ${res.data.newInserted}`
-                                        toast.success(successMsg, { id: toastId })
-                                        dispatchLog(successMsg, "success")
-                                    } else {
-                                        const errorMsg = 'Ошибка: ' + res.error
-                                        toast.error(errorMsg, { id: toastId })
-                                        dispatchLog(errorMsg, "error")
-                                    }
-                                } catch {
-                                    clearInterval(interval)
-                                    toast.error('Критическая ошибка запуска', { id: toastId })
-                                    dispatchLog('Критическая ошибка запуска', "error")
-                                } finally {
-                                    setIngestionRunning(false)
-                                }
-                            }}
+                            onClick={handleRunScanner}
                             disabled={ingestionRunning || saving}
                         >
                             {ingestionRunning ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5 fill-current" />}
@@ -372,26 +387,5 @@ export function DataIngestionTab({
                 </CardFooter>
             </Card>
         </div>
-    )
-}
-
-function Save(props: any) {
-    return (
-        <svg
-            {...props}
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-        >
-            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-            <polyline points="17 21 17 13 7 13 7 21" />
-            <polyline points="7 3 7 8 15 8" />
-        </svg>
     )
 }

@@ -41,6 +41,9 @@ type NewsData = {
     draft_image_url?: string
     gate1_tags: string[]
     source_url?: string
+    factpack?: {
+        description?: string;
+    }
 }
 
 type CorrectionHistoryItem = {
@@ -53,6 +56,7 @@ const AVAILABLE_TAGS = ["hunting", "weapons", "dogs", "recipes", "culture", "tra
 
 export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onClose, onSaved, onOptimisticRemove }: NewsEditorDialogProps) {
     const [loading, setLoading] = useState(false)
+    const [actualTable, setActualTable] = useState<string>(contentType === 'review' ? 'review_items' : 'news_items')
     const [saving, setSaving] = useState(false)
     const [deleting, setDeleting] = useState(false)
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
@@ -65,7 +69,8 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
         draft_image_prompt: '',
         draft_image_url: '',
         gate1_tags: [],
-        source_url: ''
+        source_url: '',
+        factpack: {}
     })
     const [hasUrl, setHasUrl] = useState(false)
 
@@ -110,6 +115,9 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
 
                 if (fallbackError) throw error || fallbackError
                 data = fallbackData
+                setActualTable(fallbackTable)
+            } else {
+                setActualTable(contentType === 'review' ? 'review_items' : 'news_items')
             }
 
             if (data) {
@@ -156,7 +164,8 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
                     draft_image_prompt: typedData.draft_image_prompt || '',
                     draft_image_url: effectiveImageUrl,
                     gate1_tags: typedData.gate1_tags || [],
-                    source_url: typedData.canonical_url || ''
+                    source_url: typedData.canonical_url || '',
+                    factpack: typedData.factpack || {}
                 })
 
                 setHasUrl(!!typedData.canonical_url)
@@ -240,18 +249,36 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
         try {
             setDeleting(true)
             const { data: { user } } = await supabase.auth.getUser()
-            await (supabase.from('publish_jobs').update({ status: 'cancelled' }).eq(contentType === 'review' ? 'review_id' : 'news_id', contentId) as any)
+
+            // 1. Cancel related publish jobs
+            const jobMatchField = actualTable === 'review_items' ? 'review_id' : 'news_id'
+            await (supabase.from('publish_jobs').update({ status: 'cancelled' }).eq(jobMatchField, contentId) as any)
+
+            // 2. Mark the item as rejected
             const updateData: any = { status: 'rejected' }
-            if (contentType === 'news') {
+            if (actualTable === 'news_items') {
                 updateData.approve1_decision = 'rejected'
                 updateData.approve1_decided_at = new Date().toISOString()
                 updateData.approve1_decided_by = user?.id || 'editor'
             }
-            const { error } = await supabase.from(contentType === 'review' ? 'review_items' : 'news_items').update(updateData).eq('id', contentId)
+
+            const { error } = await supabase.from(actualTable).update(updateData).eq('id', contentId)
             if (error) throw error
+
             toast.success('Новость отклонена (Rejected)')
-            setDeleteConfirmOpen(false); onSaved(); onClose()
-        } catch (e: any) { toast.error('Ошибка отклонения: ' + e.message) } finally { setDeleting(false) }
+            setDeleteConfirmOpen(false)
+
+            // Give DB a moment to index before parent refetches, to prevent "blinking"
+            setTimeout(() => {
+                onSaved()
+            }, 600)
+
+            onClose()
+        } catch (e: any) {
+            toast.error('Ошибка отклонения: ' + e.message)
+        } finally {
+            setDeleting(false)
+        }
     }
 
     const handleGenerateField = async (field: 'draft_title' | 'draft_announce' | 'draft_longread') => {
@@ -307,11 +334,12 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
     }
 
     const openPromptEditor = async (field: 'draft_title' | 'draft_announce' | 'draft_longread') => {
+        const prefix = contentType === 'review' ? 'review' : 'rewrite'
         let key = ''
         switch (field) {
-            case 'draft_title': key = 'rewrite_title'; break;
-            case 'draft_announce': key = 'rewrite_announce'; break;
-            case 'draft_longread': key = 'rewrite_longread'; break;
+            case 'draft_title': key = `${prefix}_title`; break;
+            case 'draft_announce': key = `${prefix}_announce`; break;
+            case 'draft_longread': key = `${prefix}_longread`; break;
         }
 
         setEditingPromptKey(key)
@@ -552,12 +580,38 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
                             </div>
 
                             <DialogFooter className="px-8 py-5 border-t-2 bg-muted/10 shrink-0 flex items-center justify-between">
-                                <TutorialButton
-                                    variant="outline"
-                                    label="Помощь"
-                                    className="h-10 px-4 gap-2 text-emerald-600 border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50 hover:border-emerald-300 rounded-xl transition-all"
-                                    steps={editorSteps}
-                                />
+                                <div className="flex items-center gap-3">
+                                    <TutorialButton
+                                        variant="outline"
+                                        label="Помощь"
+                                        className="h-10 px-4 gap-2 text-emerald-600 border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50 hover:border-emerald-300 rounded-xl transition-all"
+                                        steps={editorSteps}
+                                    />
+
+                                    {contentType === 'review' && data.factpack?.description && (
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                                <Button
+                                                    variant="outline"
+                                                    className="h-10 px-4 gap-2 text-amber-600 border-amber-200 bg-amber-50/50 hover:bg-amber-50 hover:border-amber-300 rounded-xl transition-all font-bold"
+                                                >
+                                                    <History className="w-4 h-4" />
+                                                    Заметки
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-96 p-0 rounded-2xl border-2 shadow-xl" align="start" side="top">
+                                                <div className="p-4">
+                                                    <div className="text-xs font-black uppercase tracking-widest text-amber-600 mb-3 flex items-center gap-2">
+                                                        <History className="w-3 h-3" /> Твои исходные заметки
+                                                    </div>
+                                                    <div className="text-sm leading-relaxed text-slate-700 bg-amber-50/30 p-4 rounded-xl border border-amber-100 whitespace-pre-wrap font-medium">
+                                                        {data.factpack.description}
+                                                    </div>
+                                                </div>
+                                            </PopoverContent>
+                                        </Popover>
+                                    )}
+                                </div>
                                 <div className="flex items-center gap-4">
                                     <Button data-tutorial="reject-button" variant="ghost" className="h-11 px-6 text-red-600 rounded-xl font-bold" onClick={handleDelete} disabled={deleting || saving}><Trash2 className="w-5 h-5 mr-2" /> Отклонить</Button>
                                     <div className="w-[1px] h-6 bg-border/50 mx-1" />

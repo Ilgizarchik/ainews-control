@@ -55,9 +55,11 @@ export async function POST(req: Request) {
 
         let promptKey = ''
         let userContent = ''
+        const isReview = tableName === 'review_items'
+        const prefix = isReview ? 'review' : 'rewrite'
 
         if (field === 'draft_longread') {
-            promptKey = 'rewrite_longread'
+            promptKey = `${prefix}_longread`
 
             let originalText = item.original_text || item.cleaned_text
 
@@ -93,10 +95,10 @@ export async function POST(req: Request) {
 
             userContent = originalText || item.rss_summary || item.title || ''
         } else if (field === 'draft_title') {
-            promptKey = 'rewrite_title'
+            promptKey = `${prefix}_title`
             userContent = item.draft_announce || item.draft_longread || item.original_text || item.rss_summary || item.title || ''
         } else if (field === 'draft_announce') {
-            promptKey = 'rewrite_announce'
+            promptKey = `${prefix}_announce`
             userContent = item.draft_longread || item.original_text || item.rss_summary || ''
         }
 

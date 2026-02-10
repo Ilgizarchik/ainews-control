@@ -322,7 +322,7 @@ export function DraftsView() {
             .channel('news_changes')
             .on(
                 'postgres_changes',
-                { event: '*', schema: 'public', table: 'news_items', filter: 'status=eq.drafts_ready' },
+                { event: '*', schema: 'public', table: 'news_items' },
                 () => {
                     fetchDrafts()
                 }
