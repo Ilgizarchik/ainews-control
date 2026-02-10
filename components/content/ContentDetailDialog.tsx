@@ -90,20 +90,18 @@ export function ContentDetailDialog({ item, open, onOpenChange, onActionComplete
 
         try {
             const result = await approveContentItem(item.id)
-            toast.dismiss(toastId)
-            toastIdRef.current = null;
 
             if (result.success) {
-                toast.success('✨ Черновик успешно создан!')
+                toast.success('✨ Черновик успешно создан!', { id: toastId })
                 onOpenChange(false)
                 onActionComplete?.(item.id, 'updated')
             } else {
-                toast.error(`Ошибка: ${result.error?.message || String(result.error)}`)
+                toast.error(`Ошибка: ${result.error?.message || String(result.error)}`, { id: toastId })
             }
-        } catch (error: any) {
-            toast.dismiss(toastId)
             toastIdRef.current = null;
-            toast.error(`Произошла ошибка: ${error.message || error}`)
+        } catch (error: any) {
+            toast.error(`Произошла ошибка: ${error.message || error}`, { id: toastId })
+            toastIdRef.current = null;
         } finally {
             setLoadingAction(null)
         }

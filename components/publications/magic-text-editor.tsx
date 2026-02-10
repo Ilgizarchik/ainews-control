@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Wand2, Loader2, Check, RefreshCw, History as HistoryIcon } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/components/ui/premium-toasts'
 import { createClient } from '@/lib/supabase/client'
 import { VoiceInput } from '@/components/ui/voice-input'
 
@@ -28,6 +28,8 @@ export function MagicTextEditor({ isOpen, onOpenChange, originalText, onSave, it
     const [history, setHistory] = useState<any[]>(initialHistory)
     const [showHistory, setShowHistory] = useState(false)
     const [historyLoading, setHistoryLoading] = useState(false)
+    const timersRef = useRef<NodeJS.Timeout[]>([])
+    const toastIdRef = useRef<string | number | null>(null)
 
     // Use the shared client
     const supabaseClient = useMemo(() => createClient(), [])
@@ -35,9 +37,6 @@ export function MagicTextEditor({ isOpen, onOpenChange, originalText, onSave, it
     // Display history effect
     useEffect(() => {
         if (!isOpen || !showHistory || !itemId || !itemType) return;
-
-        // If we already have history from props and it's not empty, maybe we don't need to fetch?
-        // But let's fetch to be sure we have latest.
 
         const fetchHistory = async () => {
             setHistoryLoading(true)
@@ -53,6 +52,14 @@ export function MagicTextEditor({ isOpen, onOpenChange, originalText, onSave, it
         fetchHistory()
     }, [isOpen, showHistory, itemId, itemType, supabaseClient])
 
+    // Cleanup effect
+    useEffect(() => {
+        return () => {
+            timersRef.current.forEach(clearTimeout)
+            if (toastIdRef.current) toast.dismiss(toastIdRef.current)
+        }
+    }, [])
+
 
     const handleGenerate = async () => {
         if (!instruction) {
@@ -62,12 +69,16 @@ export function MagicTextEditor({ isOpen, onOpenChange, originalText, onSave, it
 
         setLoading(true)
         const toastId = toast.loading('🚀 Запускаю AI редактор...')
+        toastIdRef.current = toastId
 
         // Simulation timers
-        const timers: NodeJS.Timeout[] = []
-        timers.push(setTimeout(() => toast.loading('🧠 Анализирую контекст...', { id: toastId }), 1000))
-        timers.push(setTimeout(() => toast.loading('✍️ Переписываю текст...', { id: toastId }), 2500))
-        timers.push(setTimeout(() => toast.loading('✨ Навожу лоск...', { id: toastId }), 4500))
+        const pushTimer = (msg: string, delay: number) => {
+            timersRef.current.push(setTimeout(() => toast.loading(msg, { id: toastId }), delay))
+        }
+
+        pushTimer('🧠 Анализирую контекст...', 1000)
+        pushTimer('✍️ Переписываю текст...', 2500)
+        pushTimer('✨ Навожу лоск...', 4500)
 
         try {
             if (typeof supabaseClient.from !== 'function') {
@@ -108,8 +119,9 @@ export function MagicTextEditor({ isOpen, onOpenChange, originalText, onSave, it
             }
 
             const data = await res.json()
-            timers.forEach(clearTimeout)
+            timersRef.current.forEach(clearTimeout)
             toast.success('Готово!', { id: toastId })
+            toastIdRef.current = null
             setGeneratedText(data.result)
 
             // Optimistically update history
@@ -123,9 +135,10 @@ export function MagicTextEditor({ isOpen, onOpenChange, originalText, onSave, it
                 onHistoryUpdate?.(newHistoryItem)
             }
         } catch (e: any) {
-            timers.forEach(clearTimeout)
+            timersRef.current.forEach(clearTimeout)
             console.error('Magic Edit Error:', e)
             toast.error(`Error: ${e.message}`, { id: toastId })
+            toastIdRef.current = null
         } finally {
             setLoading(false)
         }

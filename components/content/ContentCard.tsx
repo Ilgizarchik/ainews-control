@@ -26,6 +26,7 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
     const [isAnimatingOut, setIsAnimatingOut] = useState<'approve' | 'reject' | 'approved_hidden' | 'rejected_hidden' | null>(null)
     const [isViewed, setIsViewed] = useState(item.is_viewed ?? false)
     const [imageError, setImageError] = useState(false)
+    const timersRef = useRef<NodeJS.Timeout[]>([])
     // Sync state with props if they change to true from parent
     useEffect(() => {
         if (item.is_viewed) {
@@ -48,11 +49,15 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
     // Cleanup on unmount
     useEffect(() => {
         return () => {
-            if (toastIdRef.current) {
+            // Clear timers on unmount
+            timersRef.current.forEach(clearTimeout);
+
+            // Only dismiss if NOT animating out for approval (let the async task finish)
+            if (toastIdRef.current && isAnimatingOut !== 'approve') {
                 toast.dismiss(toastIdRef.current);
             }
         };
-    }, []);
+    }, [isAnimatingOut]);
 
     const handleApprove = async (e?: React.MouseEvent) => {
         if (e) e.stopPropagation()
@@ -62,14 +67,22 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
         toastIdRef.current = toastId;
 
         // Simulation of progress steps
-        const timers: NodeJS.Timeout[] = []
-        timers.push(setTimeout(() => toast.loading('✍️ Пишем лонгрид и заголовок...', { id: toastId }), 2000))
-        timers.push(setTimeout(() => toast.loading('📢 Формулируем анонс...', { id: toastId }), 7000))
-        timers.push(setTimeout(() => toast.loading('🎨 Придумываем идею для картинки...', { id: toastId }), 14000))
-        timers.push(setTimeout(() => toast.loading('🖼️ Генерируем изображение...', { id: toastId }), 22000))
-        timers.push(setTimeout(() => toast.loading('📤 Сохраняем результаты...', { id: toastId }), 35000))
-        timers.push(setTimeout(() => toast.loading('🛠️ Финализируем метаданные...', { id: toastId }), 45000))
-        timers.push(setTimeout(() => toast.loading('📊 Почти готово, последние штрихи...', { id: toastId }), 55000))
+        const pushTimer = (msg: string, delay: number) => {
+            const t = setTimeout(() => {
+                if (toastIdRef.current) {
+                    toast.loading(msg, { id: toastIdRef.current });
+                }
+            }, delay);
+            timersRef.current.push(t);
+        };
+
+        pushTimer('✍️ Пишем лонгрид и заголовок...', 2000);
+        pushTimer('📢 Формулируем анонс...', 7000);
+        pushTimer('🎨 Придумываем идею для картинки...', 14000);
+        pushTimer('🖼️ Генерируем изображение...', 22000);
+        pushTimer('📤 Сохраняем результаты...', 35000);
+        pushTimer('🛠️ Финализируем метаданные...', 45000);
+        pushTimer('📊 Почти готово, последние штрихи...', 55000);
 
         try {
             // Optimistic move: immediately hide and notify parent to remove from "Pending"
@@ -79,25 +92,22 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
 
             const result = await approveContentItem(item.id)
 
-            // Clear ALL timers immediately
-            timers.forEach(clearTimeout)
-            // Force dismiss the loading toast
-            toast.dismiss(toastId)
-            toastIdRef.current = null;
+            // Clear timers
+            timersRef.current.forEach(clearTimeout)
+            timersRef.current = [];
 
             if (result.success) {
-                toast.success('✨ Черновик успешно создан!')
+                toast.success('✨ Черновик успешно создан!', { id: toastId })
             } else {
-                toast.error(`Ошибка: ${result.error}`)
-                // In case of error, we might want to refresh the list to show the item again 
-                // if it failed before the 'processing' status was set.
-                // But generally, the immediate removal is better UX.
+                toast.error(`Ошибка: ${result.error}`, { id: toastId })
             }
-        } catch (err: any) {
-            timers.forEach(clearTimeout)
-            toast.dismiss(toastId)
             toastIdRef.current = null;
-            toast.error('Произошла ошибка при одобрении')
+
+        } catch (err: any) {
+            timersRef.current.forEach(clearTimeout)
+            timersRef.current = [];
+            toast.error('Произошла ошибка при одобрении', { id: toastId })
+            toastIdRef.current = null;
             console.error(err)
         } finally {
             setIsLoading(false)

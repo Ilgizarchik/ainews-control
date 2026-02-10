@@ -140,7 +140,7 @@ export function showSuccessToast(message: string, description?: string, id?: str
             bgClass="border-emerald-200 dark:border-emerald-800 shadow-emerald-500/10"
             onClose={() => sonnerToast.dismiss(id || t)}
         />
-    ), { duration: 4000, id })
+    ), { duration: 4000, id: id || undefined })
 }
 
 export function showErrorToast(message: string, description?: string, id?: string | number) {
@@ -153,7 +153,7 @@ export function showErrorToast(message: string, description?: string, id?: strin
             bgClass="border-rose-200 dark:border-rose-800 shadow-rose-500/10"
             onClose={() => sonnerToast.dismiss(id || t)}
         />
-    ), { duration: 6000, id })
+    ), { duration: 6000, id: id || undefined })
 }
 
 export function showInfoToast(message: string, description?: string, id?: string | number) {
@@ -166,19 +166,20 @@ export function showInfoToast(message: string, description?: string, id?: string
             bgClass="border-blue-200 dark:border-blue-800 shadow-blue-500/10"
             onClose={() => sonnerToast.dismiss(id || t)}
         />
-    ), { duration: 4000, id })
+    ), { duration: 4000, id: id || undefined })
 }
 
 export function showLoadingToast(message: string, description?: string, id?: string | number) {
-    return sonnerToast.custom((_t) => (
+    return sonnerToast.custom((t) => (
         <BaseToast
             title={message}
             description={description}
             icon={Loader2}
             colorClass="text-zinc-600 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 animate-spin"
             bgClass="border-zinc-200 dark:border-zinc-800 shadow-xl"
+            onClose={() => sonnerToast.dismiss(id || t)}
         />
-    ), { duration: Infinity, id })
+    ), { duration: Infinity, id: id || undefined })
 }
 
 // Unified toast function for compatibility
