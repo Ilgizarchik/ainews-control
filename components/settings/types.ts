@@ -32,6 +32,7 @@ export type ApiKeys = {
     th_user_id: string
     twitter_auth_token: string
     telegram_error_chat_id: string
+    telegram_disable_link_preview: string
 } & Record<string, string>
 
 export type IngestSchedule = {

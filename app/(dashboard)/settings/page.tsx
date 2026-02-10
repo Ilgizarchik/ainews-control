@@ -51,7 +51,8 @@ const AI_KEY_MAP: Record<string, string> = {
     fb_access_token: 'fb_access_token',
     fb_page_id: 'fb_page_id',
     th_access_token: 'th_access_token',
-    th_user_id: 'th_user_id'
+    th_user_id: 'th_user_id',
+    telegram_disable_link_preview: 'telegram_disable_link_preview'
 }
 
 export default function SettingsPage() {
@@ -105,7 +106,8 @@ export default function SettingsPage() {
         th_access_token: '',
         th_user_id: '',
         twitter_auth_token: '',
-        telegram_error_chat_id: ''
+        telegram_error_chat_id: '',
+        telegram_disable_link_preview: 'true'
     })
 
     const [activeTab, setActiveTab] = useState('ai')

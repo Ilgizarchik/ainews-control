@@ -22,7 +22,7 @@ export function useBoardJobs() {
   const [error, setError] = useState<string | null>(null)
 
   const fetchJobs = useCallback(async (isInitial: boolean = false) => {
-    if (isInitial || !jobs.length) setLoading(true)
+    if (isInitial) setLoading(true)
     else setRefreshing(true)
     setError(null)
 
@@ -72,7 +72,7 @@ export function useBoardJobs() {
     }
     setLoading(false)
     setRefreshing(false)
-  }, [supabase, jobs.length])
+  }, [supabase])
 
   const updateJobOptimistically = useCallback((jobId: string, newDate: Date) => {
     setJobs(prev => prev.map(job =>

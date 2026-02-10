@@ -38,6 +38,10 @@ export class TelegramPublisher implements IPublisher {
                 }
             }
 
+            // Link Preview Options from config
+            const disableLinkPreview = context.config?.telegram_disable_link_preview === true;
+            const linkPreviewOptions = { is_disabled: disableLinkPreview };
+
             // 1. Send Photo
             if (context.image_url) {
                 const caption = textWithLink;
@@ -62,7 +66,8 @@ export class TelegramPublisher implements IPublisher {
                         body: JSON.stringify({
                             chat_id: targetChatId,
                             text: caption.substring(0, 4096),
-                            parse_mode: 'HTML'
+                            parse_mode: 'HTML',
+                            link_preview_options: linkPreviewOptions
                         })
                     });
 
@@ -86,7 +91,8 @@ export class TelegramPublisher implements IPublisher {
                             chat_id: targetChatId,
                             photo: context.image_url,
                             caption: caption,
-                            parse_mode: 'HTML'
+                            parse_mode: 'HTML',
+                            link_preview_options: linkPreviewOptions
                         })
                     });
 
@@ -112,7 +118,8 @@ export class TelegramPublisher implements IPublisher {
                 body: JSON.stringify({
                     chat_id: targetChatId,
                     text: textBody.substring(0, 4096),
-                    parse_mode: 'HTML'
+                    parse_mode: 'HTML',
+                    link_preview_options: linkPreviewOptions
                 })
             });
 

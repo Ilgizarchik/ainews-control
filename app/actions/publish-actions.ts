@@ -22,7 +22,8 @@ async function getPublisherConfig(projectKey: string = 'ainews'): Promise<Publis
             'ai_proxy_url',
             'ai_proxy_enabled',
             'telegram_channel_id',
-            'publish_chat_id'
+            'publish_chat_id',
+            'telegram_disable_link_preview'
         ])
 
     if (!data) return {};
@@ -49,6 +50,7 @@ async function getPublisherConfig(projectKey: string = 'ainews'): Promise<Publis
         if (row.key === 'twitter_auth_token') config.twitter_auth_token = row.value
         if (row.key === 'ai_proxy_url') config.ai_proxy_url = row.value
         if (row.key === 'ai_proxy_enabled') config.ai_proxy_enabled = row.value === 'true'
+        if (row.key === 'telegram_disable_link_preview') config.telegram_disable_link_preview = row.value === 'true'
         // Priority to UI set key
         if (row.key === 'publish_chat_id' || row.key === 'telegram_channel_id') {
             config.telegram_channel_id = row.value

@@ -6,7 +6,8 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { Send, RefreshCw, Save, Info, ExternalLink } from 'lucide-react'
+import { Send, RefreshCw, Save, Info, ExternalLink, AlertCircle } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
 import type { ApiKeys } from '@/components/settings/types'
 
 interface IntegrationsTabProps {
@@ -118,6 +119,19 @@ function TabsIntegrationContent({
                                         Нужен числовой chat_id, например -123456789
                                     </p>
                                 )}
+                            </div>
+                        </div>
+                        <div className="space-y-2.5 pt-4 border-t-2 border-border/50">
+                            <div className="flex items-center justify-between">
+                                <div className="flex flex-col gap-0.5">
+                                    <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground opacity-70">Сниппеты ссылок</Label>
+                                    <span className="text-[10px] text-muted-foreground font-medium opacity-60 italic">Отключить предпросмотр ссылок в постах</span>
+                                </div>
+                                <Switch
+                                    checked={apiKeys.telegram_disable_link_preview === 'true'}
+                                    onCheckedChange={(checked) => setApiKeys(prev => ({ ...prev, telegram_disable_link_preview: checked ? 'true' : 'false' }))}
+                                    className="data-[state=checked]:bg-sky-500"
+                                />
                             </div>
                         </div>
                     </CardContent>

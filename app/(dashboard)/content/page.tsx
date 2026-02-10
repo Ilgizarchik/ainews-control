@@ -5,7 +5,7 @@ import { ContentItem, ContentFilter, ContentStats } from '@/types/content'
 import { ContentBoard, ContentSortOption } from '@/components/content/ContentBoard'
 import { LoadingDots } from '@/components/ui/loading-dots'
 import { createClient } from '@/lib/supabase/client'
-import { getContentStats } from '@/app/actions/content-actions'
+import { getContentStats, fetchContentItems } from '@/app/actions/content-actions'
 import { toast } from 'sonner'
 
 const PAGE_SIZE = 51
@@ -27,15 +27,11 @@ export default function ContentPage() {
   const supabase = useMemo(() => createClient(), [])
 
   const fetchPage = async (filter: ContentFilter, sources: string[], pageIndex: number, sort: ContentSortOption, search: string) => {
-    // Use Server Action instead of client-side RLS query for better performance/reliability
-    const { fetchContentItems } = await import('@/app/actions/content-actions')
-
-    // Convert sort option if needed, currently compatible
+    // Server Action call
     const result = await fetchContentItems(filter, sources, pageIndex, PAGE_SIZE, sort as any, search)
 
     if (result.error) {
       console.error('[ContentPage] Server Action Error:', result.error)
-      // Propagate error to trigger toast in loadData
       throw new Error(result.error.message || 'Server Action Failed')
     }
 

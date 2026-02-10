@@ -112,7 +112,7 @@ export function DraftsView() {
     }, [supabase])
 
     const fetchDrafts = useCallback(async (isInitial: boolean = false): Promise<void> => {
-        if (isInitial || drafts.length === 0) setLoading(true)
+        if (isInitial) setLoading(true)
         else setRefreshing(true)
         let reviewData: any[] = []
         let newsData: any[] = []
@@ -197,7 +197,7 @@ export function DraftsView() {
         setDrafts(combined as any[])
         setLoading(false)
         setRefreshing(false)
-    }, [supabase, drafts.length])
+    }, [supabase])
 
     const handlePlatformClick = useCallback((draft: DraftItem, platform: string) => {
         // Для website берем draft_longread_site или draft_longread

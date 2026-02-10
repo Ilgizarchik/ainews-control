@@ -14,44 +14,14 @@ export async function getContentStats(): Promise<ContentStats> {
     const adminDb = createAdminClient()
 
     try {
-        const [totalResult, pendingResult, approvedResult, rejectedResult] = await Promise.all([
-            // Total
-            adminDb
-                .from('news_items')
-                .select('*', { count: 'exact', head: true }),
+        const { data, error } = await (adminDb.rpc as any)('get_content_stats_aggregated')
 
-            // Pending (gate1 passed, no decision) - Match UI logic precisely
-            adminDb
-                .from('news_items')
-                .select('*', { count: 'exact', head: true })
-                .neq('gate1_decision', null)
-                .is('approve1_decision', null),
-
-            // Approved
-            adminDb
-                .from('news_items')
-                .select('*', { count: 'exact', head: true })
-                .eq('approve1_decision', 'approved'),
-
-            // Rejected
-            adminDb
-                .from('news_items')
-                .select('*', { count: 'exact', head: true })
-                .eq('approve1_decision', 'rejected')
-        ])
-
-        // Log errors if present
-        if (totalResult.error) console.error('[Stats] Total Error:', totalResult.error)
-        if (pendingResult.error) console.error('[Stats] Pending Error:', pendingResult.error)
-        if (approvedResult.error) console.error('[Stats] Approved Error:', approvedResult.error)
-        if (rejectedResult.error) console.error('[Stats] Rejected Error:', rejectedResult.error)
-
-        return {
-            total: totalResult.count || 0,
-            pending: pendingResult.count || 0,
-            approved: approvedResult.count || 0,
-            rejected: rejectedResult.count || 0
+        if (error) {
+            console.error('[Action] getContentStats RPC Error:', error)
+            return { total: 0, pending: 0, approved: 0, rejected: 0 }
         }
+
+        return data as unknown as ContentStats
     } catch (error) {
         console.error('[Action] getContentStats exception:', error)
         return { total: 0, pending: 0, approved: 0, rejected: 0 }
@@ -207,36 +177,22 @@ export async function markContentViewed(newsId: string): Promise<ContentActionRe
 export async function getContentStatsBySource(filter: ContentFilter = 'pending'): Promise<{ source: string, count: number }[]> {
     const adminDb = createAdminClient()
 
-    let query = (adminDb.from('news_items' as any) as any).select('source_name')
+    try {
+        const { data, error } = await (adminDb.rpc as any)('get_source_stats', { filter_status: filter })
 
-    if (filter === 'pending') {
-        query = query.eq('gate1_decision', 'send').is('approve1_decision', null)
-    } else if (filter === 'approved') {
-        query = query.eq('approve1_decision', 'approved')
-    } else if (filter === 'rejected') {
-        query = query.eq('approve1_decision', 'rejected')
-    } else {
-        // query = query.neq('gate1_decision', null) // Removed to include raw items
-    }
+        if (error) {
+            console.error('[Action] getSourceStats RPC Error:', error)
+            return []
+        }
 
-    const { data, error } = await query
-        .order('created_at', { ascending: false })
-        .limit(10000) // Increase limit to ensure we count more items (Postgrest default is 1000)
-
-    if (error || !data) {
-        console.error('Error fetching source stats:', error)
+        return (data as unknown as any[]).map(item => ({
+            source: item.source_name,
+            count: Number(item.count)
+        }))
+    } catch (error) {
+        console.error('[Action] getSourceStats exception:', error)
         return []
     }
-
-    const counts: Record<string, number> = {}
-    data.forEach((item: any) => {
-        const src = item.source_name || 'Неизвестно'
-        counts[src] = (counts[src] || 0) + 1
-    })
-
-    return Object.entries(counts)
-        .map(([source, count]) => ({ source, count }))
-        .sort((a, b) => b.count - a.count)
 }
 export async function fetchContentItems(
     filter: ContentFilter,

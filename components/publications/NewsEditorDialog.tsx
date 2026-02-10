@@ -89,7 +89,7 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
 
     const editorSteps = useMemo(() => getEditorTutorialSteps(setActiveTab), [])
 
-    const supabase = createClient()
+    const supabase = useMemo(() => createClient(), [])
 
     const fetchContentData = useCallback(async () => {
         setLoading(true)
@@ -181,7 +181,7 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
         if (isOpen && contentId) {
             fetchContentData()
         }
-    }, [contentId, fetchContentData, isOpen])
+    }, [isOpen, contentId, fetchContentData])
 
     const handleSave = async () => {
         setSaving(true)

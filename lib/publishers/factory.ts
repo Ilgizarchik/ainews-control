@@ -38,6 +38,7 @@ export type PublisherConfig = {
     ai_proxy_enabled?: boolean
     // Routing/Chat IDs
     telegram_channel_id?: string
+    telegram_disable_link_preview?: boolean
 }
 
 export class PublisherFactory {
