@@ -505,39 +505,48 @@ export function PlatformAnnouncesTab({
                                     )}
                                 />
 
-                                <div className="mt-2 flex justify-between items-center px-1">
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <div className="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-wider cursor-help">
-                                                {platform === 'tg' ? 'Поддерживает форматирование' : 'Простой текст'}
+                                <div className="mt-2 flex flex-col gap-1 px-1">
+                                    <div className="flex justify-between items-center">
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <div className="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-wider cursor-help">
+                                                    {platform === 'tg' ? 'Поддерживает форматирование' : 'Простой текст'}
+                                                </div>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top" className="max-w-xs">
+                                                {platform === 'tg' ? (
+                                                    <>
+                                                        <p className="font-semibold mb-1">Markdown форматирование</p>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            Можно использовать **жирный**, *курсив*, [ссылки](url) и другие элементы разметки
+                                                        </p>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <p className="font-semibold mb-1">Обычный текст</p>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            Текст без специального форматирования, как есть
+                                                        </p>
+                                                    </>
+                                                )}
+                                            </TooltipContent>
+                                        </Tooltip>
+                                        {announces[platform] && (
+                                            <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                                                <span className={cn(
+                                                    announces[platform].length > (config?.maxLength || 4000) ? "text-red-500" : ""
+                                                )}>
+                                                    {announces[platform].length}
+                                                </span>
+                                                <span className="opacity-50">/ {config?.maxLength || '∞'}</span>
                                             </div>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="top" className="max-w-xs">
-                                            {platform === 'tg' ? (
-                                                <>
-                                                    <p className="font-semibold mb-1">Markdown форматирование</p>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        Можно использовать **жирный**, *курсив*, [ссылки](url) и другие элементы разметки
-                                                    </p>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <p className="font-semibold mb-1">Обычный текст</p>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        Текст без специального форматирования, как есть
-                                                    </p>
-                                                </>
-                                            )}
-                                        </TooltipContent>
-                                    </Tooltip>
-                                    {announces[platform] && (
-                                        <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                                            <span className={cn(
-                                                announces[platform].length > (config?.maxLength || 4000) ? "text-red-500" : ""
-                                            )}>
-                                                {announces[platform].length}
-                                            </span>
-                                            <span className="opacity-50">/ {config?.maxLength || '∞'}</span>
+                                        )}
+                                    </div>
+
+                                    {platform === 'tg' && (announces[platform]?.length || 0) > 1100 && (
+                                        <div className="flex items-center gap-1.5 text-[10px] font-medium text-amber-500/80 mt-1">
+                                            <AlertCircle className="w-3 h-3" />
+                                            <span>Пост будет разделен: сначала фото, затем текст (лимит 1024 симв.)</span>
                                         </div>
                                     )}
                                 </div>

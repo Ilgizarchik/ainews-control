@@ -40,32 +40,66 @@ export class TelegramPublisher implements IPublisher {
 
             // 1. Send Photo
             if (context.image_url) {
-                // Caution: Truncating HTML is risky. We assume 'announce' (content_html) is short enough for caption.
-                // If not, we rely on Telegram API to return error, and we fallback to text.
                 const caption = textWithLink;
+                const isTooLongForCaption = caption.length > 1024;
 
-                const url = `https://api.telegram.org/bot${this.botToken}/sendPhoto`;
-                const res = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        chat_id: targetChatId,
-                        photo: context.image_url,
-                        caption: caption.substring(0, 1024), // Hard limit
-                        parse_mode: 'HTML'
-                    })
-                });
+                if (isTooLongForCaption) {
+                    // Method A: Long post > 1024 chars
+                    // Send photo first (no caption or just title)
+                    const photoRes = await fetch(`https://api.telegram.org/bot${this.botToken}/sendPhoto`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            chat_id: targetChatId,
+                            photo: context.image_url,
+                        })
+                    });
 
-                const data = await res.json();
-                if (!data.ok) {
-                    console.error("TG Photo failed, retrying text only", data);
-                    // Fallthrough to text
+                    // Then send full text as separate message
+                    const textRes = await fetch(`https://api.telegram.org/bot${this.botToken}/sendMessage`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            chat_id: targetChatId,
+                            text: caption.substring(0, 4096),
+                            parse_mode: 'HTML'
+                        })
+                    });
+
+                    const textData = await textRes.json();
+                    if (textData.ok) {
+                        return {
+                            success: true,
+                            external_id: String(textData.result.message_id),
+                            raw_response: textData
+                        };
+                    } else {
+                        return { success: false, error: textData.description || "Telegram API Error (text part)" };
+                    }
                 } else {
-                    return {
-                        success: true,
-                        external_id: String(data.result.message_id),
-                        raw_response: data
-                    };
+                    // Method B: Normal post <= 1024 chars
+                    const url = `https://api.telegram.org/bot${this.botToken}/sendPhoto`;
+                    const res = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            chat_id: targetChatId,
+                            photo: context.image_url,
+                            caption: caption,
+                            parse_mode: 'HTML'
+                        })
+                    });
+
+                    const data = await res.json();
+                    if (data.ok) {
+                        return {
+                            success: true,
+                            external_id: String(data.result.message_id),
+                            raw_response: data
+                        };
+                    }
+                    // If photo failed for some reason (invalid URL etc), fallback to text
+                    console.error("TG Photo failed, retrying text only", data);
                 }
             }
 
