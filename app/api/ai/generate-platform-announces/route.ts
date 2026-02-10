@@ -115,7 +115,7 @@ export async function POST(req: Request) {
                     provider: promptData.provider,
                     model: promptData.model,
                     temperature: promptData.temperature,
-                    maxTokens: platform === 'site' ? 8000 : 2000 // Increase limit for site longread
+                    maxTokens: platform === 'site' ? 12000 : 6000 // High limits for reasoning models
                 }
 
                 let generatedText = await callAI(
