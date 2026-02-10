@@ -112,38 +112,43 @@ export function DraftsView() {
     }, [supabase])
 
     const fetchDrafts = useCallback(async (isInitial: boolean = false): Promise<void> => {
+        // Validation: ensure environment variables are present on the client
+        const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const sbKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+        if (!sbUrl || !sbKey) {
+            console.error('[Drafts] Supabase configuration missing on client!', { url: !!sbUrl, key: !!sbKey });
+            toast.error('Ошибка конфигурации: отсутствует подключение к Supabase');
+            setLoading(false);
+            return;
+        }
+
         if (isInitial) setLoading(true)
         else setRefreshing(true)
         let reviewData: any[] = []
         let newsData: any[] = []
 
-        // 1. Fetch review_items with specific columns to avoid potential issues with large blobs or missing fields
+        // 1. Fetch review_items. Use * to be resilient against missing columns in the DB.
         try {
             const { data, error } = await supabase
                 .from('review_items')
-                .select('id, created_at, status, title_seed, draft_title, draft_announce, draft_longread, draft_longread_site, draft_announce_site, draft_image_url, draft_image_file_id, draft_announce_tg, draft_announce_vk, draft_announce_ok, draft_announce_fb, draft_announce_x, draft_announce_threads')
+                .select('*')
                 .in('status', ['needs_review', 'drafts_ready'])
                 .order('created_at', { ascending: false })
 
             if (error) {
-                console.error('[Drafts] Review items fetch error FULL:', error)
-                console.error('[Drafts] Review Error details:', {
-                    message: error.message,
-                    details: error.details,
-                    hint: error.hint,
-                    code: error.code
-                })
+                console.error('[Drafts] Review items fetch error:', error.message || error)
                 reviewData = []
             } else {
                 reviewData = (data as any) || []
             }
         } catch (e: any) {
-            console.error('[Drafts] Review items exception:', e)
+            console.error('[Drafts] Review items exception (Network?):', e.message || e);
+            reviewData = [];
         }
 
-        // 2. Fetch news_items with specific columns
+        // 2. Fetch news_items
         try {
-            console.log('[Drafts] Starting news_items fetch...')
             const { data, error } = await supabase
                 .from('news_items')
                 .select('*')
@@ -151,27 +156,21 @@ export function DraftsView() {
                 .order('created_at', { ascending: false })
 
             if (error) {
-                console.error('[Drafts] News items fetch error detected!')
-                console.error('[Drafts] Error raw:', error)
-                console.error('[Drafts] Error keys:', Object.keys(error))
-
-                // Attempt to reach into the object even if stringify fails
-                const errObj = error as any
-                const message = errObj.message || errObj.error_description || 'No message'
-                const code = errObj.code || errObj.status || 'No code'
-
-                console.error(`[Drafts] Extracted info - Message: ${message}, Code: ${code}`)
-                console.error('[Drafts] Error stringified:', JSON.stringify(error, null, 2))
-
-                toast.error(`Ошибка загрузки новостей: ${message} (${code})`)
+                console.error('[Drafts] News items fetch error:', error.message || error)
                 newsData = []
             } else {
-                console.log(`[Drafts] Successfully fetched ${data?.length || 0} news items`)
                 newsData = (data as any) || []
             }
         } catch (e: any) {
-            console.error('[Drafts] News items catch block exception:', e)
-            toast.error(`Критическая ошибка при загрузке новостей: ${e.message || 'Unknown'}`)
+            const isNetworkError = e.message?.includes('Failed to fetch') || e.name === 'TypeError';
+            console.error('[Drafts] News items exception:', e.message || e);
+
+            if (isNetworkError) {
+                toast.error('Ошибка сети: не удалось подключиться к базе данных. Проверьте интернет или VPN.');
+            } else {
+                toast.error(`Ошибка загрузки: ${e.message || 'Unknown error'}`);
+            }
+            newsData = [];
         }
 
         // 3. Combine and sort

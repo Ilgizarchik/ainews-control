@@ -9,7 +9,7 @@ import { MagicTextEditor } from './magic-text-editor'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Trash2, Calendar as CalendarIcon, Save, Wand2, RefreshCw } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, convertBbcodeToHtml } from '@/lib/utils'
 import { VoiceInput } from '@/components/ui/voice-input'
 
 interface SocialPostEditorDialogProps {
@@ -402,7 +402,7 @@ export function SocialPostEditorDialog({ job, isOpen, onClose, onUpdate, onOptim
                              `}</style>
                             {content ? (
                                 <div dangerouslySetInnerHTML={{
-                                    __html: content
+                                    __html: convertBbcodeToHtml(content)
                                         .replace(/\n/g, '<br/>')
                                         .replace(/<tg-spoiler>(.*?)<\/tg-spoiler>/g, '<span class="tg-spoiler" onclick="this.classList.toggle(\'revealed\')">$1</span>')
                                 }} />

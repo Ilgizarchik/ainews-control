@@ -56,10 +56,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (!mounted) {
     return (
       <div className="flex h-screen overflow-hidden bg-background" suppressHydrationWarning>
-        <div className="hidden md:block h-full shrink-0">
+        <div className="hidden md:block h-full shrink-0" suppressHydrationWarning>
           <SideNavSkeleton />
         </div>
-        <div className="flex-1 flex flex-col overflow-hidden w-full">
+        <div className="flex-1 flex flex-col overflow-hidden w-full" suppressHydrationWarning>
           <header className="h-16 border-b border-border flex items-center justify-between px-4 sm:px-6 bg-background/95 shrink-0" />
           <main className="flex-1 overflow-auto p-4 sm:p-6 w-full">
             {children}
@@ -70,13 +70,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden" suppressHydrationWarning>
+    <div className="flex h-screen overflow-hidden bg-background" suppressHydrationWarning>
       {/* Desktop Sidebar */}
-      <div className="hidden md:block h-full shrink-0">
+      <div className="hidden md:block h-full shrink-0" suppressHydrationWarning>
         <SideNav />
       </div>
 
-      <div className="flex-1 flex flex-col overflow-hidden w-full">
+      <div className="flex-1 flex flex-col overflow-hidden w-full" suppressHydrationWarning>
         <header className="h-16 border-b border-border flex items-center justify-between px-4 sm:px-6 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shrink-0 z-30">
           <div className="flex items-center gap-4">
             {/* Mobile Menu Trigger */}
