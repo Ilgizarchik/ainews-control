@@ -266,7 +266,10 @@ export class TildaPublisher implements IPublisher {
         paragraphs.forEach(p => {
             const clean = p.trim();
             if (clean.length > 0) {
-                const htmlReady = clean.replace(/\n/g, '<br>');
+                const htmlReady = clean
+                    .replace(/\n/g, '<br>')
+                    .replace(/\[LINK\]/gi, '')
+                    .replace(/\[\/?(b|i|u|s|url|code|quote|size|color)[^\]]*\]/gi, '');
                 contentBlocks.push({ "ty": "text", "te": htmlReady });
             }
         });

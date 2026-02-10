@@ -14,13 +14,13 @@ async function getPublisherConfig(projectKey: string = 'ainews'): Promise<Publis
         .in('key', [
             'telegram_bot_token',
             'tilda_cookies', 'tilda_project_id', 'tilda_feed_uid',
-            'vk_access_token', 'vk_owner_id',
+            'vk_access_token', 'vk_api_version', 'vk_owner_id',
             'ok_public_key', 'ok_access_token', 'ok_app_secret', 'ok_group_id',
             'fb_access_token', 'fb_page_id',
             'th_access_token', 'th_user_id',
             'twitter_auth_token',
-            'twitter_proxy_url',
-            'meta_proxy_url',
+            'ai_proxy_url',
+            'ai_proxy_enabled',
             'telegram_channel_id',
             'publish_chat_id'
         ])
@@ -36,6 +36,7 @@ async function getPublisherConfig(projectKey: string = 'ainews'): Promise<Publis
         if (row.key === 'tilda_project_id') config.tilda_project_id = row.value
         if (row.key === 'tilda_feed_uid') config.tilda_feed_uid = row.value
         if (row.key === 'vk_access_token') config.vk_access_token = row.value
+        if (row.key === 'vk_api_version') config.vk_api_version = row.value
         if (row.key === 'vk_owner_id') config.vk_owner_id = row.value
         if (row.key === 'ok_public_key') config.ok_public_key = row.value
         if (row.key === 'ok_access_token') config.ok_access_token = row.value
@@ -46,8 +47,8 @@ async function getPublisherConfig(projectKey: string = 'ainews'): Promise<Publis
         if (row.key === 'th_access_token') config.th_access_token = row.value
         if (row.key === 'th_user_id') config.th_user_id = row.value
         if (row.key === 'twitter_auth_token') config.twitter_auth_token = row.value
-        if (row.key === 'twitter_proxy_url') config.twitter_proxy_url = row.value
-        if (row.key === 'meta_proxy_url') config.meta_proxy_url = row.value
+        if (row.key === 'ai_proxy_url') config.ai_proxy_url = row.value
+        if (row.key === 'ai_proxy_enabled') config.ai_proxy_enabled = row.value === 'true'
         // Priority to UI set key
         if (row.key === 'publish_chat_id' || row.key === 'telegram_channel_id') {
             config.telegram_channel_id = row.value

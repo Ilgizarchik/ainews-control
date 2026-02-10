@@ -30,7 +30,12 @@ export class TwitterPublisher implements IPublisher {
 
     private stripHtml(html: string): string {
         if (!html) return '';
-        return html.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+        return html
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<[^>]*>/g, '')
+            .replace(/\[\/?(b|i|u|s|url|code|quote|size|color)[^\]]*\]/gi, '')
+            .replace(/\s+/g, ' ')
+            .trim();
     }
 
     private truncateText(text: string, maxLength: number = 280): string {
@@ -80,10 +85,15 @@ export class TwitterPublisher implements IPublisher {
             // 2. Подготовка контента
             const title = (job.title || '').trim();
             const rawContent = job.content_html || (job as any).text || '';
-            const rawBody = this.stripHtml(rawContent);
+            let rawBody = this.stripHtml(rawContent);
             const url = (job.source_url || '').trim();
+
+            if (rawBody.includes('[LINK]')) {
+                rawBody = rawBody.replace(/\[LINK\]/gi, url);
+            }
+
             let fullText = title ? `${title}\n\n${rawBody}` : rawBody;
-            fullText = (url && !fullText.includes(url)) ? `${this.truncateText(fullText, 240)}\n${url}` : this.truncateText(fullText, 280);
+            fullText = this.truncateText(fullText, 280);
 
             // 3. Пытаемся через библиотеку
             const clientConfig: any = { apiKey: apiKey.trim(), timeout: 45000 };

@@ -24,7 +24,12 @@ export class ThreadsPublisher implements IPublisher {
 
     private stripHtml(html: string): string {
         if (!html) return '';
-        return html.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+        return html
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<[^>]*>/g, '')
+            .replace(/\[\/?(b|i|u|s|url|code|quote|size|color)[^\]]*\]/gi, '')
+            .replace(/\s+/g, ' ')
+            .trim();
     }
 
     async publish(job: PublishContext, settings?: ThreadsSettings): Promise<PublishResult> {
@@ -34,9 +39,11 @@ export class ThreadsPublisher implements IPublisher {
         if (!token) return { success: false, error: 'Threads Error: Access token missing.' };
 
         try {
-            const proxyUrl = job.config?.meta_proxy_url || job.config?.twitter_proxy_url;
-            const proxyAgent = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
-            if (proxyAgent) {
+            const aiProxyUrl = job.config?.ai_proxy_url;
+            const aiProxyEnabled = job.config?.ai_proxy_enabled;
+            let proxyAgent = undefined;
+            if (aiProxyEnabled && aiProxyUrl && (aiProxyUrl.startsWith("http://") || aiProxyUrl.startsWith("https://"))) {
+                proxyAgent = new ProxyAgent(aiProxyUrl);
             }
 
             // 1. Resolve User ID
@@ -54,8 +61,9 @@ export class ThreadsPublisher implements IPublisher {
             const rawContent = job.content_html || (job as any).text || '';
             let text = this.stripHtml(rawContent);
             const sourceUrl = job.source_url || '';
-            if (sourceUrl && !text.includes(sourceUrl)) {
-                text = `${text.trim()}\n\n${sourceUrl}`;
+
+            if (text.includes('[LINK]')) {
+                text = text.replace(/\[LINK\]/gi, job.source_url || '');
             }
 
             const imageUrl = job.image_url;

@@ -146,14 +146,25 @@ function TabsIntegrationContent({
                                 className="h-12 font-mono text-xs bg-background/50 border-2 rounded-xl focus:ring-blue-500/20 transition-all font-bold"
                             />
                         </div>
-                        <div className="space-y-2.5">
-                            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground opacity-70">ID сообщества (с минусом)</Label>
-                            <Input
-                                value={apiKeys.vk_owner_id}
-                                onChange={e => setApiKeys(prev => ({ ...prev, vk_owner_id: e.target.value }))}
-                                placeholder="-123456789"
-                                className="h-12 font-mono text-xs bg-background/50 border-2 rounded-xl focus:ring-blue-500/20 transition-all font-bold"
-                            />
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2.5">
+                                <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground opacity-70">ID сообщества (с минусом)</Label>
+                                <Input
+                                    value={apiKeys.vk_owner_id}
+                                    onChange={e => setApiKeys(prev => ({ ...prev, vk_owner_id: e.target.value }))}
+                                    placeholder="-123456789"
+                                    className="h-12 font-mono text-xs bg-background/50 border-2 rounded-xl focus:ring-blue-500/20 transition-all font-bold"
+                                />
+                            </div>
+                            <div className="space-y-2.5">
+                                <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground opacity-70">Версия API</Label>
+                                <Input
+                                    value={apiKeys.vk_api_version}
+                                    onChange={e => setApiKeys(prev => ({ ...prev, vk_api_version: e.target.value }))}
+                                    placeholder="5.131"
+                                    className="h-12 font-mono text-xs bg-background/50 border-2 rounded-xl focus:ring-blue-500/20 transition-all font-bold"
+                                />
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
@@ -322,15 +333,6 @@ function TabsIntegrationContent({
                                 <ExternalLink className="w-3 h-3 text-zinc-600 dark:text-zinc-400" />
                                 <p className="text-[10px] text-muted-foreground font-medium italic">Используйте X Auth Helper расширение.</p>
                             </div>
-                        </div>
-                        <div className="space-y-2.5">
-                            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground opacity-70">Proxy URL (Опционально)</Label>
-                            <Input
-                                value={apiKeys.twitter_proxy_url}
-                                onChange={e => setApiKeys(prev => ({ ...prev, twitter_proxy_url: e.target.value }))}
-                                placeholder="http://user:pass@host:port"
-                                className="h-12 font-mono text-xs bg-background/50 border-2 rounded-xl focus:ring-zinc-800/20 transition-all font-bold"
-                            />
                         </div>
                     </CardContent>
                 </Card>

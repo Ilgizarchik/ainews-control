@@ -32,7 +32,26 @@ const AI_KEY_MAP: Record<string, string> = {
     openrouter: 'ai_key_openrouter',
     openai: 'ai_key_openai',
     anthropic: 'ai_key_anthropic',
-    custom: 'ai_key_custom'
+    custom: 'ai_key_custom',
+    telegram_bot_token: 'telegram_bot_token',
+    publish_chat_id: 'publish_chat_id',
+    telegram_draft_chat_id: 'telegram_draft_chat_id',
+    telegram_error_chat_id: 'telegram_error_chat_id',
+    tilda_cookies: 'tilda_cookies',
+    tilda_project_id: 'tilda_project_id',
+    tilda_feed_uid: 'tilda_feed_uid',
+    vk_access_token: 'vk_access_token',
+    vk_api_version: 'vk_api_version',
+    vk_owner_id: 'vk_owner_id',
+    ok_access_token: 'ok_access_token',
+    ok_app_secret: 'ok_app_secret',
+    ok_public_key: 'ok_public_key',
+    ok_group_id: 'ok_group_id',
+    twitter_auth_token: 'twitter_auth_token',
+    fb_access_token: 'fb_access_token',
+    fb_page_id: 'fb_page_id',
+    th_access_token: 'th_access_token',
+    th_user_id: 'th_user_id'
 }
 
 export default function SettingsPage() {
@@ -75,6 +94,7 @@ export default function SettingsPage() {
         tilda_project_id: '',
         tilda_feed_uid: '',
         vk_access_token: '',
+        vk_api_version: '5.131',
         vk_owner_id: '',
         ok_public_key: '',
         ok_access_token: '',
@@ -85,7 +105,6 @@ export default function SettingsPage() {
         th_access_token: '',
         th_user_id: '',
         twitter_auth_token: '',
-        twitter_proxy_url: '',
         telegram_error_chat_id: ''
     })
 
@@ -258,13 +277,17 @@ export default function SettingsPage() {
         if (!apiKeys.th_access_token) return;
         setFetchingThreadsId(true);
         try {
-            const res = await fetch(`https://graph.threads.net/v1.0/me?fields=id,username&access_token=${apiKeys.th_access_token}`);
+            const res = await fetch('/api/integrations/threads-metadata', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ accessToken: apiKeys.th_access_token })
+            });
             const data = await res.json();
             if (data.id) {
                 setApiKeys(prev => ({ ...prev, th_user_id: data.id }));
                 toast.success(`Threads ID получен: ${data.id}`);
             } else {
-                toast.error(data.error?.message || 'Failed to fetch Threads ID');
+                toast.error(data.error || data.error?.message || 'Failed to fetch Threads ID');
             }
         } catch (e: any) {
             toast.error(e.message);

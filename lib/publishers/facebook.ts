@@ -4,76 +4,80 @@ import { ProxyAgent } from 'undici';
 export class FacebookPublisher implements IPublisher {
     private accessToken: string;
     private pageId: string;
-    private version = 'v21.0';
+    private version = 'v22.0';
 
     constructor(accessToken: string, pageId: string) {
-        this.accessToken = accessToken;
-        this.pageId = pageId;
+        this.accessToken = (accessToken || '').trim();
+        this.pageId = (pageId || '').trim().replace(/^id/i, '');
     }
 
     async publish(context: PublishContext): Promise<PublishResult> {
         try {
-            if (!this.accessToken) throw new Error("Facebook Publish Failed: No Access Token");
-            if (!this.pageId) throw new Error("Facebook Publish Failed: No Page ID");
+            if (!this.accessToken) throw new Error("No Access Token");
+            if (!this.pageId) throw new Error("No Page ID");
 
-            // --- ОБЯЗАТЕЛЬНЫЙ ПРОКСИ ---
-            // Сначала берем из конфига, если пусто - берем твой проверенный рабочий прокси
-            const configProxy = context.config?.meta_proxy_url || context.config?.twitter_proxy_url;
+            // --- ПРОКСИ ---
+            const aiProxyUrl = context.config?.ai_proxy_url;
+            const aiProxyEnabled = context.config?.ai_proxy_enabled;
             const fallbackProxy = "http://gob2rk:tWL00X@45.147.100.186:8000";
-            const effectiveProxy = configProxy || fallbackProxy;
+            let proxyAgent = undefined;
+            const effectiveProxy = (aiProxyEnabled && aiProxyUrl) ? aiProxyUrl : fallbackProxy;
+            if (effectiveProxy && (effectiveProxy.startsWith('http://') || effectiveProxy.startsWith('https://'))) {
+                proxyAgent = new ProxyAgent(effectiveProxy);
+            }
 
-            const proxyAgent = new ProxyAgent(effectiveProxy);
+            // --- ТЕКСТ ---
+            let message = (context.content_html || context.title || '')
+                .replace(/<[^>]*>/g, '')
+                .replace(/\[\/?(b|i|u|s|url|code|quote|size|color)[^\]]*\]/gi, '')
+                .trim();
 
-            // Очистка текста
-            let message = (context.content_html || context.title || '').replace(/<[^>]*>/g, '').trim();
+            const sourceUrl = context.source_url || '';
+            if (message.includes('[LINK]')) {
+                message = message.replace(/\[LINK\]/gi, sourceUrl);
+            }
+
             if (context.title && !message.includes(context.title)) {
                 message = `${context.title}\n\n${message}`;
             }
 
-            const plainContent = (context.content_html || '').replace(/<[^>]*>/g, '').trim();
-            const lastColonIndex = plainContent.lastIndexOf(':');
-            const shouldAttachLink = lastColonIndex !== -1 && /^[:]\s*[\uD800-\uDBFF\uDC00-\uDFFF\s]*$/.test(plainContent.substring(lastColonIndex));
-            if (shouldAttachLink && context.source_url && !message.includes(context.source_url)) {
-                message += `\n\n${context.source_url}`;
-            }
+            // Формируем URL с токеном прямо в нем — это самый надежный способ для FB
+            let endpoint = `https://graph.facebook.com/${this.version}/${this.pageId}/feed?access_token=${this.accessToken}`;
+            const body: Record<string, any> = { message };
 
-            let endpoint = `https://graph.facebook.com/${this.version}/${this.pageId}/feed`;
-            const params: Record<string, any> = {
-                message: message,
-                access_token: this.accessToken
-            };
-
-            if (context.image_url) {
-                endpoint = `https://graph.facebook.com/${this.version}/${this.pageId}/photos`;
-                params.url = context.image_url;
-                params.caption = message;
-                delete params.message;
+            if (context.image_url && context.image_url.startsWith('http')) {
+                endpoint = `https://graph.facebook.com/${this.version}/${this.pageId}/photos?access_token=${this.accessToken}`;
+                body.url = context.image_url;
+                body.caption = message;
+                delete body.message;
             }
 
             const res = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(params),
+                body: JSON.stringify(body),
                 // @ts-ignore
                 dispatcher: proxyAgent,
                 // @ts-ignore
-                signal: AbortSignal.timeout(40000)
+                signal: AbortSignal.timeout(60000)
             });
 
             const json = await res.json();
 
             if (json.error) {
-                throw new Error(`Facebook API Error: ${json.error.message}`);
+                // Если ошибка все еще про deprecated, значит FB не верит, что это Page Token
+                throw new Error(json.error.message);
             }
 
+            const id = json.id || json.post_id;
             return {
                 success: true,
-                external_id: String(json.id || json.post_id),
-                published_url: `https://facebook.com/${json.id || json.post_id}`
+                external_id: String(id),
+                published_url: `https://facebook.com/${id}`
             };
 
         } catch (e: any) {
-            console.error("Facebook Publish Error Detail:", e);
+            console.error("FB Error:", e.message);
             return { success: false, error: `Facebook Error: ${e.message}` };
         }
     }

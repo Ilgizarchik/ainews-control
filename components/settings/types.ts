@@ -31,7 +31,6 @@ export type ApiKeys = {
     th_access_token: string
     th_user_id: string
     twitter_auth_token: string
-    twitter_proxy_url: string
     telegram_error_chat_id: string
 } & Record<string, string>
 
