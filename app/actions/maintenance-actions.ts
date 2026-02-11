@@ -4,6 +4,7 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 import path from 'path'
 import fs from 'fs'
+import os from 'os'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 const execPromise = promisify(exec)
@@ -14,7 +15,7 @@ export async function createSystemBackup() {
         const backupName = `full_system_backup_${timestamp}.tar.gz`
         const publicPath = path.join(process.cwd(), 'public')
         const backupPath = path.join(publicPath, backupName)
-        const tempDir = path.join(process.cwd(), 'temp_backup')
+        const tempDir = path.join(os.tmpdir(), `backup_${timestamp}`)
 
         if (!fs.existsSync(tempDir)) {
             fs.mkdirSync(tempDir, { recursive: true })
