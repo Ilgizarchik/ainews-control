@@ -102,22 +102,36 @@ async function parseUniversalHtml(source: IngestionSource): Promise<ParsedItem[]
     $(s.container).each((_, el) => {
         const $el = $(el)
 
-        // Helper to extract text or attr
-        const extract = (selector: string | undefined, attr?: string) => {
+        const isPlaceholder = (url: string | null | undefined) => {
+            if (!url) return true
+            return url.includes('data:image/') ||
+                url.includes('spacer') ||
+                url.includes('transparent') ||
+                url.includes('placeholder')
+        }
+
+        const extract = (selector: string | undefined, attr?: string): string | null => {
             if (!selector || selector === 'null') return null
             const $node = $el.find(selector)
             if ($node.length === 0) return null
 
-            // Specific attribute handling
+            // Specific attribute handling for images
             if (attr === 'src' || selector.includes('img')) {
                 const img = $node.is('img') ? $node : $node.find('img').first()
                 if (img.length > 0) {
-                    return img.attr('data-src') ||
-                        img.attr('data-srcset')?.split(' ')[0] ||
-                        img.attr('srcset')?.split(' ')[0] ||
-                        img.attr('data-lazy-src') ||
-                        img.attr('src') ||
-                        null
+                    const attrs = [
+                        'data-src', 'data-srcset', 'srcset', 'data-original',
+                        'data-lazy-src', 'data-lazy', 'data-fallback-src'
+                    ]
+
+                    for (const a of attrs) {
+                        const val = img.attr(a)
+                        if (val && !isPlaceholder(val)) return val.split(' ')[0]
+                    }
+
+                    const src = img.attr('src')
+                    if (!isPlaceholder(src)) return src as string
+                    return null // Return null to trigger deep fallback
                 }
             }
 
@@ -386,7 +400,12 @@ export async function runIngestion(sourceIds?: string[], client?: SupabaseClient
 
                 if (!existing) {
                     // FALLBACK IMAGE & DATE LOGIC
-                    if (!item.publishedAt || item.publishedAt === 'null' || !item.imageUrl) {
+                    const isPlaceholderAttr = item.imageUrl?.includes('data:image/') ||
+                        item.imageUrl?.includes('spacer') ||
+                        item.imageUrl?.includes('transparent') ||
+                        (item.imageUrl?.length || 0) < 10;
+
+                    if (!item.publishedAt || item.publishedAt === 'null' || !item.imageUrl || isPlaceholderAttr) {
                         try {
                             const artHtml = await fetchHtml(item.link)
                             const $art = cheerio.load(artHtml)

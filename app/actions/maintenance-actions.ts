@@ -1,4 +1,5 @@
 'use server'
+import { revalidatePath } from 'next/cache'
 
 import { exec } from 'child_process'
 import { promisify } from 'util'
@@ -57,7 +58,14 @@ export async function createSystemBackup() {
         // 5. Cleanup temp
         fs.rmSync(tempDir, { recursive: true, force: true })
 
-        return { success: true, filename: backupName, downloadUrl: `/${backupName}` }
+        console.log(`[Backup] Created successfully in ${publicPath}: ${backupName}`)
+        revalidatePath('/settings')
+
+        return {
+            success: true,
+            filename: backupName,
+            downloadUrl: `/api/maintenance/download/${backupName}`
+        }
     } catch (error: any) {
         console.error('[Backup] Error:', error)
         return { success: false, error: error.message }
@@ -76,7 +84,7 @@ export async function getRecentBackups() {
                     name: f,
                     size: stats.size,
                     createdAt: stats.birthtime.toISOString(),
-                    url: `/${f}`
+                    url: `/api/maintenance/download/${f}`
                 }
             })
             .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
@@ -93,6 +101,7 @@ export async function deleteBackup(filename: string) {
         const filePath = path.join(publicPath, filename)
         if (fs.existsSync(filePath)) {
             fs.unlinkSync(filePath)
+            revalidatePath('/settings')
             return { success: true }
         }
         return { success: false, error: 'File not found' }

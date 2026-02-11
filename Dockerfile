@@ -46,7 +46,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN groupadd -g 1001 nodejs && useradd -u 1001 -g nodejs nextjs
 
 # Next.js standalone output
-COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 

@@ -252,31 +252,44 @@ export async function testSelectors(url: string, selectors: any) {
         const items: any[] = []
         $(selectors.container).slice(0, 3).each((_, el) => {
             const $el = $(el)
+            const isPlaceholder = (url: string | undefined) => {
+                if (!url) return true
+                return url.includes('data:image/') ||
+                    url.includes('spacer') ||
+                    url.includes('transparent') ||
+                    url.includes('placeholder') ||
+                    url.length < 5
+            }
+
             const extract = (sel: string, attr?: string) => {
                 if (!sel || sel === 'null') return 'null'
                 const $node = $el.find(sel)
                 if ($node.length === 0) return 'not found'
 
-                // If specific attribute requested
+                // Smart extraction for images
+                if (sel.includes('img') || attr === 'src') {
+                    const img = $node.is('img') ? $node : $node.find('img').first()
+                    if (img.length > 0) {
+                        const attrs = [
+                            'data-src', 'data-srcset', 'srcset', 'data-original',
+                            'data-lazy-src', 'data-lazy', 'data-fallback-src'
+                        ]
+
+                        for (const a of attrs) {
+                            const val = img.attr(a)
+                            if (val && !isPlaceholder(val)) return val.split(' ')[0]
+                        }
+
+                        const src = img.attr('src')
+                        return isPlaceholder(src) ? 'null' : src
+                    }
+                }
+
                 if (attr) {
                     const val = $node.attr(attr)
                     if (val) return val
                 }
 
-                // Smart extraction for images if it looks like an image selector
-                if (sel.includes('img') || attr === 'src') {
-                    const img = $node.is('img') ? $node : $node.find('img').first()
-                    if (img.length > 0) {
-                        return img.attr('data-src') ||
-                            img.attr('data-srcset') ||
-                            img.attr('srcset')?.split(' ')[0] ||
-                            img.attr('data-lazy-src') ||
-                            img.attr('src') ||
-                            'empty img'
-                    }
-                }
-
-                // Fallback to meta content if it's a meta tag
                 if ($node.is('meta')) return $node.attr('content') || 'empty meta'
 
                 return $node.text().trim() || 'empty text'
