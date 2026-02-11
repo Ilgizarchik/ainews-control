@@ -33,13 +33,12 @@ export async function createSystemBackup() {
         console.log('[Backup] Archiving everything (Source + DB)...')
 
         const projectRoot = process.cwd()
+        const tempBackupPath = path.join(os.tmpdir(), backupName)
 
         // Command explanation:
-        // -C ${projectRoot} : start from project root
+        // Create archive in /tmp to avoid "file changed as we read it" error
         // --exclude... : skip heavy/temp folders
-        // . : include everything else
-        // -C ${tempDir} . : also include the SQL dump from tempDir
-        await execPromise(`tar -czf "${backupPath}" \
+        await execPromise(`tar -czf "${tempBackupPath}" \
             --exclude=node_modules \
             --exclude=.next \
             --exclude=.git \
@@ -47,7 +46,10 @@ export async function createSystemBackup() {
             -C "${projectRoot}" . \
             -C "${tempDir}" .`)
 
-        // 3. Cleanup temp
+        // 3. Move archive to public destination
+        fs.renameSync(tempBackupPath, backupPath)
+
+        // 4. Cleanup temp
         fs.rmSync(tempDir, { recursive: true, force: true })
 
         console.log(`[Backup] Created successfully in ${publicPath}: ${backupName}`)
