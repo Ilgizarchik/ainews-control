@@ -353,15 +353,9 @@ Return ONLY valid JSON in this format:
         };
 
         // Update status for blocked items:
-        // User requested NOT to block completely, but just show with low score.
-        // So we keep status='found' (Pending items) even if decision is block.
-        // But we keep gate1_decision='block' so UI can show it as "Low Relevance"
-
-        /* 
         if (decision === 'block') {
-            updatePayload.status = 'blocked'; 
-        } 
-        */
+            updatePayload.status = 'blocked';
+        }
         // If sent, we keep 'found' status (or change to 'pending_approval' if you prefer, but DB enum might be strict)
 
         const { error: updateError } = await ((supabase

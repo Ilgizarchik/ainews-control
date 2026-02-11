@@ -216,7 +216,7 @@ export async function fetchContentItems(
 
     // Apply filters
     if (filter === 'pending') {
-        query = query.neq('gate1_decision', null).is('approve1_decision', null)
+        query = query.eq('gate1_decision', 'send').is('approve1_decision', null)
     } else if (filter === 'approved') {
         query = query.eq('approve1_decision', 'approved')
     } else if (filter === 'rejected') {
