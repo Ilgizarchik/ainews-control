@@ -7,8 +7,8 @@ export async function POST(req: Request) {
     try {
         const { text, instruction, apiKey, baseUrl, model, provider, proxyUrl, itemId, itemType } = await req.json();
 
-        // 0. Save Correction History
-        // Helper to validate UUID format (8-4-4-4-12 digits)
+        // 0. Сохраняем историю правок
+        // Хелпер для проверки формата UUID (8-4-4-4-12)
         const isUUID = (str: any) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/i.test(str)
 
         const validItemId = itemId && isUUID(itemId) ? itemId : null;
@@ -19,14 +19,14 @@ export async function POST(req: Request) {
             let table = itemType === 'news' ? 'news_items' : 'review_items'
 
             try {
-                // 1. Try primary table
+                // 1. Пробуем основную таблицу
                 let { data: current, error: fetchError } = await supabase
                     .from(table)
                     .select('correction_history')
                     .eq('id', validItemId)
                     .maybeSingle()
 
-                // 2. Fallback to other table if not found
+                // 2. Фолбэк на другую таблицу, если не найдено
                 if (!current && !fetchError) {
                     const fallbackTable = table === 'news_items' ? 'review_items' : 'news_items'
                     const { data: fallbackCurrent, error: fallbackError } = await supabase
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
 
                     if (fallbackCurrent) {
                         current = fallbackCurrent
-                        table = fallbackTable // Update table for subsequent update
+                        table = fallbackTable // Обновляем таблицу для последующего апдейта
                         console.log('[AI Edit API] Item found in fallback table:', table)
                     }
                 }
@@ -48,13 +48,13 @@ export async function POST(req: Request) {
 
                 console.log('[AI Edit API] Current history found:', !!current, current?.correction_history?.length, 'in table:', table)
 
-                // Only proceed if item exists
+                // Продолжаем только если элемент существует
                 if (current) {
                     const history = Array.isArray(current?.correction_history)
                         ? current.correction_history
                         : []
 
-                    // Append new instruction
+                    // Добавляем новую инструкцию
                     const safeText = text || ''
                     const newHistoryItem = {
                         date: new Date().toISOString(),
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
 
                     console.log('[AI Edit API] Saving new history:', history.length, 'items', 'to', table)
 
-                    // Update item history
+                    // Обновляем историю элемента
                     const { error: updateError } = await supabase
                         .from(table)
                         .update({ correction_history: history })
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
                         console.log('[AI Edit API] History saved successfully')
                     }
 
-                    // Only log to global table if item exists
+                    // Пишем в глобальный лог только если элемент существует
                     try {
                         const { error: globalLogError } = await supabase.from('ai_correction_logs').insert({
                             news_id: (table === 'news_items') ? validItemId : null,
@@ -101,7 +101,7 @@ export async function POST(req: Request) {
             console.warn('[AI Edit API] Skipping history save: invalid itemId', { itemId })
         }
 
-        // 1. Fetch System Prompt from DB
+        // 1. Получаем системный промпт из БД
         const { data: promptData } = await supabase
             .from('system_prompts')
             .select('content')
@@ -115,7 +115,7 @@ export async function POST(req: Request) {
 
         const fullPrompt = `${instruction}\n\nОригинальный текст:\n"${text}"`;
 
-        // 2. Prepare API Call
+        // 2. Готовим API-запрос
         const headers: Record<string, string> = {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${apiKey}`

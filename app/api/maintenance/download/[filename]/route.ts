@@ -9,7 +9,7 @@ export async function GET(
 ) {
     const { filename } = await params
 
-    // 1. Security check: User must be logged in
+    // 1. Проверка безопасности: пользователь должен быть авторизован
     const response = NextResponse.next()
     const supabase = createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -34,7 +34,7 @@ export async function GET(
         return new NextResponse('Unauthorized', { status: 401 })
     }
 
-    // 2. Prevent directory traversal
+    // 2. Предотвращаем directory traversal
     if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
         return new NextResponse('Invalid filename', { status: 400 })
     }

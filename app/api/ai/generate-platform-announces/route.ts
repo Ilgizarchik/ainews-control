@@ -6,7 +6,7 @@ import { callAI } from '@/lib/ai-service'
 type GeneratePlatformAnnouncesRequest = {
     review_id?: string
     news_id?: string
-    platforms: string[] // ['tg', 'vk', 'ok', etc.]
+    platforms: string[] // ['tg', 'vk', 'ok' и т.д.]
 }
 
 export async function POST(req: Request) {
@@ -22,8 +22,8 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'ID and platforms are required' }, { status: 400 })
         }
 
-        // 1. Get content item (User Context)
-        // 1. Get content item (User Context) - Robust check
+        // 1. Получаем элемент контента (контекст пользователя)
+        // 1. Получаем элемент контента (контекст пользователя) — с надежной проверкой
         let item: any = null
         let { data, error: fetchError } = await (supabase
             .from(tableName)
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
         if (!fetchError && data) {
             item = data
         } else {
-            // Try fallback table
+            // Пробуем таблицу-фолбэк
             const fallbackTable = tableName === 'news_items' ? 'review_items' : 'news_items'
             const { data: fallbackData, error: fallbackError } = await (supabase
                 .from(fallbackTable)
@@ -44,7 +44,7 @@ export async function POST(req: Request) {
 
             if (fallbackData && !fallbackError) {
                 item = fallbackData
-                tableName = fallbackTable // CRITICAL: Update table name for subsequent updates
+                tableName = fallbackTable // ВАЖНО: обновляем имя таблицы для дальнейших апдейтов
                 console.log(`[GenerateAnnounce] Relocated item ${contentId} in ${tableName}`)
             }
         }
@@ -55,14 +55,14 @@ export async function POST(req: Request) {
 
         const baseAnnounce = item.draft_announce || ''
         const title = item.draft_title || ''
-        // Source selection logic (REVERTED):
-        // - SITE: Always generate from the full longread article (`draft_longread`)
-        // - SOCIALS: Always generate from the short announce (`draft_announce`) as requested
+        // Логика выбора источника (ОТКАТЕНО):
+        // - SITE: всегда генерируем из полного лонгрида (`draft_longread`)
+        // - SOCIALS: всегда генерируем из короткого анонса (`draft_announce`) по запросу
         const getSourceForPlatform = (platform: string) => {
             if (platform === 'site') {
                 return item.draft_longread || item.draft_announce
             }
-            // For TG, VK, OK, etc. - use the short announce
+            // Для TG, VK, OK и т.д. — используем короткий анонс
             return item.draft_announce || item.draft_longread
         }
 
@@ -70,7 +70,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'No content to process' }, { status: 400 })
         }
 
-        // 2. Get ALL prompts to be safe (small table)
+        // 2. Берем ВСЕ промпты для надежности (таблица небольшая)
         const { data: promptsData, error: promptsError } = await (supabaseAdmin
             .from('system_prompts')
             .select('key, content, provider, model, temperature') as any)
@@ -81,13 +81,13 @@ export async function POST(req: Request) {
         }
 
 
-        // Map configs
+        // Мапим конфиги
         const promptMap = (promptsData as any[]).reduce((acc, p) => ({
             ...acc,
             [p.key.trim()]: p
         }), {} as Record<string, { content: string, provider?: string, model?: string, temperature?: number }>)
 
-        // 3. Generate announces for each platform
+        // 3. Генерируем анонсы для каждой платформы
         const results: Record<string, string> = {}
 
         for (const platform of platforms) {
@@ -96,13 +96,13 @@ export async function POST(req: Request) {
 
             if (!promptData) {
                 console.warn(`Prompt not found for platform: ${platform} (key: ${promptKey})`)
-                // Fallback: try looking for key without prefix if needed, or just log available keys
+                // Фолбэк: пробуем ключ без префикса или просто логируем доступные ключи
                 console.warn('Available keys:', Object.keys(promptMap))
                 continue
             }
 
             try {
-                // Determine source content: prefer longread for better context
+                // Определяем исходный контент: предпочитаем лонгрид для лучшего контекста
                 const sourceContent = getSourceForPlatform(platform)
 
                 if (!sourceContent) {
@@ -110,12 +110,12 @@ export async function POST(req: Request) {
                     continue
                 }
 
-                // Stage 1: Generate text
+                // Этап 1: Генерация текста
                 const config = {
                     provider: promptData.provider,
                     model: promptData.model,
                     temperature: promptData.temperature,
-                    maxTokens: platform === 'site' ? 12000 : 6000 // High limits for reasoning models
+                    maxTokens: platform === 'site' ? 12000 : 6000 // Высокие лимиты для reasoning-моделей
                 }
 
                 let generatedText = await callAI(
@@ -124,7 +124,7 @@ export async function POST(req: Request) {
                     config
                 )
 
-                // Stage 2: For Telegram, add emoji processing
+                // Этап 2: Для Telegram добавляем обработку эмодзи
                 if (platform === 'tg' && promptMap['rewrite_social_tg_emoji']) {
                     const emojiPrompt = promptMap['rewrite_social_tg_emoji']
                     const emojiConfig = {
@@ -142,7 +142,7 @@ export async function POST(req: Request) {
 
                 results[platform] = generatedText.trim()
 
-                // INCREMENTAL SAVE: Update DB immediately to handle client disconnects or timeouts
+                // ИНКРЕМЕНТАЛЬНОЕ СОХРАНЕНИЕ: обновляем БД сразу для защиты от разрывов/таймаутов клиента
                 const platformKey = platform === 'site' ? 'draft_longread_site' : `draft_announce_${platform}`
                 const { error: updateError } = await supabase
                     .from(tableName as any)
@@ -159,7 +159,7 @@ export async function POST(req: Request) {
             }
         }
 
-        // No need for bulk update at the end anymore
+        // Массовое обновление в конце больше не нужно
 
 
 

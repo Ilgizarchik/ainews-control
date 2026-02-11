@@ -31,10 +31,10 @@ interface ContentDetailDialogProps {
 }
 
 export function ContentDetailDialog({ item, open, onOpenChange, onActionComplete, onApprove, onReject }: ContentDetailDialogProps) {
-    // Track which specific action is loading: 'approve' | 'reject' | null
+    // Отслеживаем, какое действие загружается: 'approve' | 'reject' | null
     const [loadingAction, setLoadingAction] = useState<'approve' | 'reject' | null>(null)
 
-    // Scraper Preview State
+    // Состояние превью скрапера
     const [scrapedText, setScrapedText] = useState<string | null>(null)
     const [scraping, setScraping] = useState(false)
     const [showScraperPreview, setShowScraperPreview] = useState(false)
@@ -60,10 +60,10 @@ export function ContentDetailDialog({ item, open, onOpenChange, onActionComplete
         }
     }
 
-    // Keep track of toastId ref to clear it on unmount
+    // Храним toastId, чтобы очистить при размонтировании
     const toastIdRef = useRef<string | number | null>(null);
 
-    // Cleanup on unmount
+    // Очистка при размонтировании
     useEffect(() => {
         return () => {
             if (toastIdRef.current) {
@@ -83,7 +83,7 @@ export function ContentDetailDialog({ item, open, onOpenChange, onActionComplete
             return
         }
 
-        // Fallback (should not be reached if used via ContentCard)
+        // Фолбэк (не должен срабатывать при использовании через ContentCard)
         setLoadingAction('approve')
         const toastId = toast.loading('🚀 Запуск AI агентов...')
         toastIdRef.current = toastId;
@@ -118,7 +118,7 @@ export function ContentDetailDialog({ item, open, onOpenChange, onActionComplete
             return
         }
 
-        // Fallback (should not be reached if used via ContentCard)
+        // Фолбэк (не должен срабатывать при использовании через ContentCard)
         onOpenChange(false)
         try {
             const result = await rejectContentItem(item.id)
@@ -139,7 +139,7 @@ export function ContentDetailDialog({ item, open, onOpenChange, onActionComplete
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto p-0 gap-0 bg-background border-2 border-border/50 shadow-2xl rounded-3xl">
-                {/* Premium Header Image with Dark Gradient Overlay */}
+                {/* Премиум-хедер с затемненным градиентным оверлеем */}
                 <div className="relative w-full h-64 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden">
                     {item.image_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -156,7 +156,7 @@ export function ContentDetailDialog({ item, open, onOpenChange, onActionComplete
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent" />
 
-                    {/* Floating Premium Badges */}
+                    {/* Плавающие премиум-бейджи */}
                     <div className="absolute bottom-4 left-6 flex gap-2">
                         <Badge className={cn("text-white font-black text-sm px-3 py-1.5 shadow-2xl backdrop-blur-xl border-2 border-white/30 rounded-xl", getScoreColor(item.gate1_score))}>
                             <Star className="w-3.5 h-3.5 mr-1.5 fill-white drop-shadow-lg" />
@@ -169,7 +169,7 @@ export function ContentDetailDialog({ item, open, onOpenChange, onActionComplete
                 </div>
 
                 <div className="p-4 md:p-6 space-y-4 -mt-6 relative z-10">
-                    {/* Header Section */}
+                    {/* Секция заголовка */}
                     <DialogHeader className="space-y-5">
                         <DialogTitle className="text-3xl md:text-4xl font-black leading-tight tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
                             {item.title}
@@ -196,9 +196,9 @@ export function ContentDetailDialog({ item, open, onOpenChange, onActionComplete
                     </DialogHeader>
 
                     <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-6">
-                        {/* Main Content Column */}
+                        {/* Основная колонка контента */}
                         <div className="space-y-4">
-                            {/* Summary */}
+                            {/* Сводка */}
                             {item.rss_summary && (
                                 <div className="prose prose-sm dark:prose-invert max-w-none text-foreground/90 leading-relaxed bg-gradient-to-br from-muted/40 to-muted/20 p-4 rounded-2xl border-2 border-border/50 shadow-lg">
                                     <h3 className="text-sm font-black text-foreground uppercase tracking-widest mb-2 flex items-center justify-between">
@@ -219,7 +219,7 @@ export function ContentDetailDialog({ item, open, onOpenChange, onActionComplete
                                 </div>
                             )}
 
-                            {/* AI Reason */}
+                            {/* Причина от AI */}
                             {item.gate1_reason && (
                                 <div className="bg-gradient-to-br from-amber-50 via-orange-50 to-amber-50 dark:from-amber-950/30 dark:via-orange-950/30 dark:to-amber-950/30 p-4 rounded-2xl border-2 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-100 shadow-lg">
                                     <h3 className="text-xs font-black uppercase tracking-widest mb-2 text-amber-700 dark:text-amber-300 flex items-center gap-2">
@@ -230,9 +230,9 @@ export function ContentDetailDialog({ item, open, onOpenChange, onActionComplete
                             )}
                         </div>
 
-                        {/* Sidebar Column */}
+                        {/* Боковая колонка */}
                         <div className="space-y-4">
-                            {/* Tags */}
+                            {/* Теги */}
                             {item.gate1_tags && item.gate1_tags.length > 0 && (
                                 <div className="space-y-2 p-3 bg-gradient-to-br from-muted/30 to-muted/10 rounded-2xl border-2 border-border/50 shadow-md">
                                     <h4 className="text-xs font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
@@ -248,7 +248,7 @@ export function ContentDetailDialog({ item, open, onOpenChange, onActionComplete
                                 </div>
                             )}
 
-                            {/* Original Link */}
+                            {/* Исходная ссылка */}
                             <a
                                 href={ensureAbsoluteUrl(item.canonical_url, item.source_name)}
                                 target="_blank"
@@ -259,7 +259,7 @@ export function ContentDetailDialog({ item, open, onOpenChange, onActionComplete
                                 <ExternalLink className="w-4 h-4 text-muted-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-all group-hover:rotate-12" />
                             </a>
 
-                            {/* Moderator Info (If processed) */}
+                            {/* Информация модератора (если обработано) */}
                             {item.approve1_decision && (
                                 <div className="p-3 bg-gradient-to-br from-muted/40 to-muted/20 rounded-2xl border-2 border-border/50 space-y-2 shadow-md">
                                     <h4 className="text-xs font-black uppercase text-muted-foreground tracking-widest">REVIEW STATUS</h4>
@@ -281,7 +281,7 @@ export function ContentDetailDialog({ item, open, onOpenChange, onActionComplete
                     </div>
                 </div>
 
-                {/* Premium Footer Actions */}
+                {/* Премиум-футер с действиями */}
                 <div className="p-6 border-t-2 border-border bg-gradient-to-r from-muted/30 to-muted/10 flex flex-col sm:flex-row gap-4 justify-end items-center backdrop-blur-xl rounded-b-3xl">
                     {!item.approve1_decision ? (
                         <>
@@ -311,7 +311,7 @@ export function ContentDetailDialog({ item, open, onOpenChange, onActionComplete
                 </div>
             </DialogContent>
 
-            {/* Scraper Preview Dialog */}
+            {/* Диалог превью скрапера */}
             <Dialog open={showScraperPreview} onOpenChange={setShowScraperPreview}>
                 <DialogContent className="max-w-4xl h-[80vh] flex flex-col rounded-3xl overflow-hidden border-2 p-0 shadow-2xl">
                     <DialogHeader className="p-6 bg-emerald-50 border-b-2 shrink-0">

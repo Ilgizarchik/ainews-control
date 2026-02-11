@@ -15,8 +15,8 @@ export async function GET(request: NextRequest) {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
             },
-            // Some servers might have issues with TLS/certificates, but usually fetch handles standard sites well.
-            // basic cache control
+            // У некоторых серверов могут быть проблемы с TLS/сертификатами, но обычно fetch справляется.
+            // базовый контроль кеша
             next: { revalidate: 3600 }
         });
 

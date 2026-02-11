@@ -9,7 +9,7 @@ export async function regenerateNewsImage(itemId: string, itemType: 'news' | 're
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
-    // Use admin client for DB operations to ensure reliability
+    // Используем админ-клиент для операций с БД ради надежности
     const adminDb = createAdminClient()
 
     if (!user) {
@@ -19,7 +19,7 @@ export async function regenerateNewsImage(itemId: string, itemType: 'news' | 're
     try {
         const table = itemType === 'review' ? 'review_items' : 'news_items'
 
-        // 1. Fetch item data
+        // 1. Получаем данные элемента
         const { data: rawItem, error: fetchError } = await adminDb
             .from(table)
             .select('*')
@@ -29,7 +29,7 @@ export async function regenerateNewsImage(itemId: string, itemType: 'news' | 're
         if (fetchError || !rawItem) throw new Error(`${itemType} item not found`)
         const item = rawItem as any
 
-        // 2. Determine prompt
+        // 2. Определяем промпт
         const { callAI } = await import('@/lib/ai-service')
 
         const context = `Article context (short):
@@ -38,7 +38,7 @@ ${(item.draft_announce || item.draft_longread || '').substring(0, 1000)}
 Admin visual notes (optional):
 ${customPrompt || 'No specific notes.'}`
 
-        // Fetch image_prompt config
+        // Получаем конфиг image_prompt
         const { data: promptData } = await (adminDb
             .from('system_prompts')
             .select('content, provider, model, temperature')
@@ -57,14 +57,14 @@ ${customPrompt || 'No specific notes.'}`
 
         if (!prompt) throw new Error('Failed to determine image prompt')
 
-        // 3. Generate Image
+        // 3. Генерируем изображение
         const { generateImage } = await import('@/lib/ai-service')
         const imageUrl = await generateImage(prompt)
 
-        // 4. Upload to Telegram (to store persistent file_id)
+        // 4. Загружаем в Telegram (чтобы получить постоянный file_id)
         const { sendPhotoToTelegram, getDraftChatId } = await import('@/lib/telegram-service')
 
-        // Priority: 1) Existing moderation chat, 2) Global draft chat from settings
+        // Приоритет: 1) существующий чат модерации, 2) глобальный черновой чат из настроек
         const draftChatId = await getDraftChatId()
         const finalChatId = draftChatId || item.approve1_chat_id || item.approve2_chat_id
 
@@ -75,13 +75,13 @@ ${customPrompt || 'No specific notes.'}`
                 fileId = sent.file_id
             } catch (tgError) {
                 console.error('[ImageAction] Telegram upload failed, but DB will be updated with direct URL:', tgError)
-                // We proceed so at least the URL is saved in DB
+                // Продолжаем, чтобы хотя бы URL сохранился в БД
             }
         } else {
             console.warn('[ImageAction] No chat ID found for Telegram upload. Skipping.')
         }
 
-        // 5. Update Database
+        // 5. Обновляем базу
         const { error: updateError } = await adminDb
             .from(table)
             .update({
@@ -104,7 +104,7 @@ ${customPrompt || 'No specific notes.'}`
 }
 
 export async function updateItemImage(itemId: string, itemType: 'news' | 'review', fileId: string) {
-    // Use admin client for DB operations
+    // Используем админ-клиент для операций с БД
     const adminDb = createAdminClient()
     const table = itemType === 'review' ? 'review_items' : 'news_items'
 
@@ -113,7 +113,7 @@ export async function updateItemImage(itemId: string, itemType: 'news' | 'review
             .from(table)
             .update({
                 draft_image_file_id: fileId,
-                draft_image_url: null, // Clear URL to prioritize file_id from TG
+                draft_image_url: null, // Очищаем URL, чтобы приоритет был у file_id из TG
                 drafts_updated_at: new Date().toISOString()
             })
             .eq('id', itemId)

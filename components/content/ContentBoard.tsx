@@ -28,7 +28,7 @@ import { LoadingDots } from '@/components/ui/loading-dots'
 import { TutorialButton } from '../tutorial/TutorialButton'
 import { getModerationTutorialSteps } from '@/lib/tutorial/tutorial-config'
 
-// ... imports
+// ... импорты
 
 export type ContentSortOption = 'date-desc' | 'date-asc' | 'no-date'
 
@@ -74,7 +74,7 @@ export function ContentBoard({
 
     const moderationSteps = useMemo(() => getModerationTutorialSteps(onFilterChange), [onFilterChange])
 
-    // Debounce search input
+    // Дебаунс ввода поиска
     useEffect(() => {
         const timer = setTimeout(() => {
             if (localSearch !== searchQuery) {
@@ -84,12 +84,12 @@ export function ContentBoard({
         return () => clearTimeout(timer)
     }, [localSearch, onSearchChange, searchQuery])
 
-    // Sync local search with prop if it changes externally
+    // Синхронизируем локальный поиск с пропсами при внешних изменениях
     useEffect(() => {
         setLocalSearch(searchQuery)
     }, [searchQuery])
 
-    // Load available sources with counts from server (independent of pagination)
+    // Загружаем доступные источники со счетчиками с сервера (независимо от пагинации)
     useEffect(() => {
         let active = true
         getContentStatsBySource(currentFilter)
@@ -102,12 +102,12 @@ export function ContentBoard({
         return () => { active = false }
     }, [currentFilter])
 
-    // Derive unique sources for rendering: use server stats if available
+    // Формируем уникальные источники для рендера: используем статистику сервера, если есть
     const availableSources = useMemo(() => {
-        // If we have server stats, use them as primary source list
+        // Если есть серверная статистика — используем ее как основной список
         if (sourceStats.length > 0) return sourceStats
 
-        // Fallback for immediate render (MVP) - though server stats should be fast
+        // Фолбэк для быстрого рендера (MVP) — хотя статистика сервера должна быть быстрой
         const localSources = Array.from(new Set(items.map(i => i.source_name || 'unknown')))
             .sort((a, b) => a.localeCompare(b))
         return localSources.map(s => ({
@@ -125,7 +125,7 @@ export function ContentBoard({
 
     return (
         <div className="space-y-6">
-            {/* Premium Header with Gradient */}
+            {/* Премиум-хедер с градиентом */}
             <div data-tutorial="moderation-hero" className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 p-8 shadow-2xl">
                 <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDE4YzAtOS45NC04LjA2LTE4LTE4LTE4UzAgOC4wNiAwIDE4czguMDYgMTggMTggMTggMTgtOC4wNiAxOC0xOHptLTM2IDBjMC05Ljk0IDguMDYtMTggMTgtMThzMTggOC4wNiAxOCAxOC04LjA2IDE4LTE4IDE4UzAgMjcuOTQgMCAxOHoiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-30" />
                 <div className="relative z-10">
@@ -158,7 +158,7 @@ export function ContentBoard({
                 </div>
             </div>
 
-            {/* Premium Filter Pills */}
+            {/* Премиум-пилюли фильтров */}
             <div className="flex flex-col gap-4">
                 <div data-tutorial="moderation-filters" className="flex items-center overflow-x-auto pb-2 -mx-2 px-2 scrollbar-none gap-2 no-scrollbar">
                     {filterButtons.map((btn) => (
@@ -191,7 +191,7 @@ export function ContentBoard({
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                    {/* Source Filter */}
+                    {/* Фильтр источников */}
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button data-tutorial="moderation-sources" variant="outline" className="w-full sm:w-auto justify-between gap-2">
@@ -250,7 +250,7 @@ export function ContentBoard({
                         </DropdownMenuContent>
                     </DropdownMenu>
 
-                    {/* Sorting */}
+                    {/* Сортировка */}
                     <Select value={sortOption} onValueChange={(v) => onSortChange(v as ContentSortOption)}>
                         <SelectTrigger data-tutorial="moderation-sort" className="w-full sm:w-[180px]">
                             <SelectValue placeholder="Сортировка" />
@@ -292,7 +292,7 @@ export function ContentBoard({
                 </div>
             </div>
 
-            {/* Content Area */}
+            {/* Область контента */}
             <div className="relative min-h-[400px]">
                 {isRefreshing && items.length > 0 && (
                     <div className="absolute inset-x-0 top-0 flex justify-center z-50 pointer-events-none -mt-4">

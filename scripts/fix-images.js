@@ -4,13 +4,13 @@ const cheerio = require('cheerio');
 const { fetch } = require('undici');
 
 const supabaseUrl = 'https://rshqequtbqvrqbgfykhq.supabase.co';
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''; // We might need a service role key if RLS is on, but based on meta it is disabled
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''; // Может понадобиться service role key, если RLS включен, но по метаданным он выключен
 
 async function fixRecentImages() {
     console.log('--- Image Fix Script Started ---');
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 1. Fetch last 20 news items
+    // 1. Загружаем последние 20 новостей
     const { data: items, error } = await supabase
         .from('news_items')
         .select('id, canonical_url, image_url')

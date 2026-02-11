@@ -22,22 +22,22 @@ export async function createSystemBackup() {
             fs.mkdirSync(tempDir, { recursive: true })
         }
 
-        // 1. Get Supabase Connection String from environment or settings
-        // For security, we'll try to find it in settings if not in process.env
+        // 1. Получаем строку подключения Supabase из окружения или настроек
+        // В целях безопасности попробуем взять из настроек, если нет в process.env
         const supabaseUrl = 'postgresql://postgres.rshqequtbqvrqbgfykhq:ZPz-M2F-T7i-5qR@aws-1-eu-west-3.pooler.supabase.com:6543/postgres'
 
         console.log('[Backup] Starting Supabase DB dump...')
         await execPromise(`pg_dump "${supabaseUrl}" > ${path.join(tempDir, 'supabase_backup.sql')}`)
 
-        // 2. Archive everything: Project Source + DB Dumps
+        // 2. Архивируем всё: исходники проекта + дампы БД
         console.log('[Backup] Archiving everything (Source + DB)...')
 
         const projectRoot = process.cwd()
         const tempBackupPath = path.join(os.tmpdir(), backupName)
 
-        // Command explanation:
-        // Create archive in /tmp to avoid "file changed as we read it" error
-        // --exclude... : skip heavy/temp folders
+        // Пояснение к команде:
+        // Создаем архив в /tmp, чтобы избежать ошибки "file changed as we read it"
+        // --exclude... : пропускаем тяжелые/временные папки
         await execPromise(`tar -czf "${tempBackupPath}" \
             --exclude=node_modules \
             --exclude=.next \
@@ -46,10 +46,10 @@ export async function createSystemBackup() {
             -C "${projectRoot}" . \
             -C "${tempDir}" .`)
 
-        // 3. Move archive to public destination
+        // 3. Перемещаем архив в public
         fs.renameSync(tempBackupPath, backupPath)
 
-        // 4. Cleanup temp
+        // 4. Удаляем временные файлы
         fs.rmSync(tempDir, { recursive: true, force: true })
 
         console.log(`[Backup] Created successfully in ${publicPath}: ${backupName}`)

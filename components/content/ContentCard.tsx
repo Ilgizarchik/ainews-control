@@ -27,7 +27,7 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
     const [isViewed, setIsViewed] = useState(item.is_viewed ?? false)
     const [imageError, setImageError] = useState(false)
     const timersRef = useRef<NodeJS.Timeout[]>([])
-    // Sync state with props if they change to true from parent
+    // Синхронизируем состояние, если пропсы от родителя меняются на true
     useEffect(() => {
         if (item.is_viewed) {
             setIsViewed(true)
@@ -38,21 +38,21 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
         setDetailOpen(true)
 
         if (!isViewed) {
-            setIsViewed(true) // Optimistic update
+            setIsViewed(true) // Оптимистичное обновление
             markContentViewed(item.id).catch(console.error)
         }
     }
 
-    // Keep track of toastId ref to clear it on unmount
+    // Храним toastId, чтобы очистить при размонтировании
     const toastIdRef = useRef<string | number | null>(null);
 
-    // Cleanup on unmount
+    // Очистка при размонтировании
     useEffect(() => {
         return () => {
-            // Clear timers on unmount
+            // Очищаем таймеры при размонтировании
             timersRef.current.forEach(clearTimeout);
 
-            // Only dismiss if NOT animating out for approval (let the async task finish)
+            // Закрываем только если НЕТ анимации одобрения (даем async задаче завершиться)
             if (toastIdRef.current && isAnimatingOut !== 'approve') {
                 toast.dismiss(toastIdRef.current);
             }
@@ -66,7 +66,7 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
         const toastId = toast.loading('🚀 Запуск AI агентов...')
         toastIdRef.current = toastId;
 
-        // Simulation of progress steps
+        // Симуляция шагов прогресса
         const pushTimer = (msg: string, delay: number) => {
             const t = setTimeout(() => {
                 if (toastIdRef.current) {
@@ -85,14 +85,14 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
         pushTimer('📊 Почти готово, последние штрихи...', 55000);
 
         try {
-            // Optimistic move: immediately hide and notify parent to remove from "Pending"
+            // Оптимистичный ход: сразу скрываем и уведомляем родителя для удаления из "Pending"
             setIsAnimatingOut('approve')
-            // Delay parent notification slightly for animation
+            // Чуть задерживаем уведомление родителя для анимации
             setTimeout(() => onActionComplete?.(item.id, 'updated'), 500)
 
             const result = await approveContentItem(item.id)
 
-            // Clear timers
+            // Очищаем таймеры
             timersRef.current.forEach(clearTimeout)
             timersRef.current = [];
 
@@ -116,40 +116,40 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
 
     const handleReject = async (e?: React.MouseEvent) => {
         if (e) e.stopPropagation()
-        setDetailOpen(false) // Close dialog if open
-        // Optimistic UI: Animate out immediately
+        setDetailOpen(false) // Закрываем диалог, если открыт
+        // Оптимистичный UI: сразу анимируем скрытие
         setIsAnimatingOut('reject')
 
-        // Optimistic UI: Notify parent immediately after short animation
+        // Оптимистичный UI: уведомляем родителя сразу после короткой анимации
         setTimeout(() => {
             onActionComplete?.(item.id, 'updated')
             setIsAnimatingOut('rejected_hidden')
         }, 500)
 
-        // Define cleanup to restore card if cancelled
+        // Описываем откат, чтобы восстановить карточку при отмене
         const handleUndo = () => {
-            // Re-fetch parent data to bring back the item (simplest way)
-            // or we could add a special 'onActionCancelled' callback
+            // Перезагружаем данные у родителя, чтобы вернуть элемент (самый простой путь)
+            // или можно добавить специальный колбэк 'onActionCancelled'
             setIsAnimatingOut(null)
-            onActionComplete?.(item.id, 'stale') // Use 'stale' as a trigger to refresh the list
+            onActionComplete?.(item.id, 'stale') // Используем 'stale' как триггер для обновления списка
         }
 
-        // Define commit action
+        // Описываем действие коммита
         const handleCommit = async () => {
             try {
                 const result = await rejectContentItem(item.id)
                 if (!result.success) {
-                    handleUndo() // Restore on error
+                    handleUndo() // Восстанавливаем при ошибке
                     toast.error(`Ошибка при отклонении: ${result.error}`)
                 }
-                // If success, we don't need to do anything since it's already removed locally
+                // При успехе ничего не делаем — элемент уже удален локально
             } catch {
                 handleUndo()
                 toast.error('Произошла ошибка при отклонении')
             }
         }
 
-        // Show Standardized Undo Toast
+        // Показываем стандартизированный Undo Toast
         showUndoToast({
             message: "Отклонение...",
             description: "Новость будет удалена",
@@ -183,7 +183,7 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
                 )}
                 onClick={handleCardClick}
             >
-                {/* Status Indicator / NEW Dot */}
+                {/* Индикатор статуса / NEW точка */}
                 {!isViewed && (
                     <div className="absolute top-4 left-4 z-10 flex items-center gap-1.5 bg-gradient-to-r from-blue-600 to-blue-500 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg shadow-blue-500/50 animate-in fade-in zoom-in duration-300">
                         <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
@@ -191,7 +191,7 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
                     </div>
                 )}
 
-                {/* Cover Image Area */}
+                {/* Зона обложки */}
                 <div className="relative h-48 w-full overflow-hidden bg-muted">
                     {item.image_url && !imageError ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -214,7 +214,7 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
 
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-70" />
 
-                    {/* Hover Download Button */}
+                    {/* Кнопка скачивания при наведении */}
                     {item.image_url && !imageError && (
                         <div className="absolute top-4 left-4 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
                             <Button
@@ -236,7 +236,7 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
                         </div>
                     )}
 
-                    {/* Score Badge (Top Right) */}
+                    {/* Бейдж со счетом (вверху справа) */}
                     <div data-tutorial="moderation-card-score" className="absolute top-4 right-4 z-10">
                         <div className={cn(
                             "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black text-white shadow-xl backdrop-blur-md border border-white/20",
@@ -247,7 +247,7 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
                         </div>
                     </div>
 
-                    {/* Floating Source Badge (Bottom Left) */}
+                    {/* Плавающий бейдж источника (внизу слева) */}
                     <div className="absolute bottom-4 left-4 z-10 max-w-[calc(100%-2rem)]">
                         <div className="flex items-center gap-2 bg-black/80 backdrop-blur-xl px-3 py-2 rounded-xl border border-white/20 shadow-xl transition-all hover:bg-black/90 hover:scale-105 overflow-hidden">
                             <span className="font-bold text-white text-[11px] tracking-wider uppercase truncate min-w-[30px] flex-shrink-1">
@@ -267,7 +267,7 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
                 </div>
 
                 <div className="flex flex-1 flex-col p-5 gap-3">
-                    {/* Tags */}
+                    {/* Теги */}
                     {item.gate1_tags && item.gate1_tags.length > 0 && (
                         <div className="flex flex-wrap gap-2">
                             {item.gate1_tags.slice(0, 3).map((tag) => (
@@ -281,19 +281,19 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
                         </div>
                     )}
 
-                    {/* Title */}
+                    {/* Заголовок */}
                     <h3 className="font-black text-xl leading-tight text-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors line-clamp-2">
                         {item.title}
                     </h3>
 
-                    {/* Summary */}
+                    {/* Сводка */}
                     {item.rss_summary && (
                         <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">
                             {item.rss_summary}
                         </p>
                     )}
 
-                    {/* AI Reason (if present) - collapsible or subtle */}
+                    {/* Причина от AI (если есть) — компактно/сворачиваемо */}
                     {item.gate1_reason && (
                         <div data-tutorial="moderation-card-ai" className="mt-1 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 p-3 text-xs text-amber-900 dark:text-amber-200 border-2 border-amber-200 dark:border-amber-800 shadow-sm">
                             <span className="font-black block mb-1 flex items-center gap-1.5">
@@ -303,10 +303,10 @@ export function ContentCard({ item, onActionComplete }: ContentCardProps) {
                         </div>
                     )}
 
-                    {/* Actions Spacer */}
+                    {/* Отступ перед действиями */}
                     <div className="mt-auto pt-2" />
 
-                    {/* Action Buttons */}
+                    {/* Кнопки действий */}
                     {!item.approve1_decision && (
                         <div className="grid grid-cols-2 gap-3">
                             <Button

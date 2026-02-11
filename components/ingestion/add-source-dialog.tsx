@@ -12,8 +12,8 @@ import { scanUrlForSelectors, saveSource, testSelectors } from '@/app/actions/sc
 import { Badge } from '@/components/ui/badge'
 
 interface AddSourceDialogProps {
-    source?: any // Optional source for editing
-    trigger?: React.ReactNode // Custom trigger button
+    source?: any // Опциональный источник для редактирования
+    trigger?: React.ReactNode // Кастомная кнопка-триггер
     onSuccess: () => void
 }
 
@@ -22,7 +22,7 @@ export function AddSourceDialog({ source, trigger, onSuccess }: AddSourceDialogP
     const [loading, setLoading] = useState(false)
     const [scanning, setScanning] = useState(false)
 
-    // Form State - Pre-fill if editing
+    // Состояние формы — предзаполнение при редактировании
     const [name, setName] = useState(source?.name || '')
     const [url, setUrl] = useState(source?.url || '')
     const [type, setType] = useState<'rss' | 'html'>(source?.type || 'html')
@@ -30,7 +30,7 @@ export function AddSourceDialog({ source, trigger, onSuccess }: AddSourceDialogP
     const [testResult, setTestResult] = useState<any>(null)
     const [testing, setTesting] = useState(false)
 
-    // Selectors State
+    // Состояние селекторов
     const [selectors, setSelectors] = useState({
         container: source?.selectors?.container || '',
         title: source?.selectors?.title || '',
@@ -41,7 +41,7 @@ export function AddSourceDialog({ source, trigger, onSuccess }: AddSourceDialogP
         date_detail: source?.selectors?.date_detail || ''
     })
 
-    // Update state when dialog is opened (especially for edit mode)
+    // Обновляем состояние при открытии диалога (особенно в режиме редактирования)
     React.useEffect(() => {
         if (open && source) {
             setName(source.name || '')
@@ -61,7 +61,7 @@ export function AddSourceDialog({ source, trigger, onSuccess }: AddSourceDialogP
         }
     }, [open, source])
 
-    // AI Scanning Toast Logic
+    // Логика toast'ов при AI-сканировании
     React.useEffect(() => {
         if (!scanning) return;
 
@@ -87,7 +87,7 @@ export function AddSourceDialog({ source, trigger, onSuccess }: AddSourceDialogP
 
         return () => {
             clearInterval(interval);
-            // Dismiss toast on cleanup or unmount
+            // Закрываем toast при очистке или размонтировании
             toast.dismiss(toastId);
         }
     }, [scanning])
@@ -114,7 +114,7 @@ export function AddSourceDialog({ source, trigger, onSuccess }: AddSourceDialogP
                     date_detail: res.selectors.date_detail || ''
                 })
 
-                // Auto-guess name if empty
+                // Авто-подстановка имени, если поле пустое
                 if (!name) {
                     try {
                         const hostname = new URL(url).hostname.replace('www.', '')
@@ -150,13 +150,13 @@ export function AddSourceDialog({ source, trigger, onSuccess }: AddSourceDialogP
             type,
             selectors: type === 'html' ? {
                 ...selectors,
-                // Preserve legacy_parser if it exists and we haven't overwritten with new scan
+                // Сохраняем legacy_parser, если он есть и мы не перезаписали его новым сканом
                 ...(source?.selectors?.legacy_parser && !scanning && !testResult ? { legacy_parser: source.selectors.legacy_parser } : {})
             } : {},
             is_active: source ? source.is_active : true
         }
 
-        // Clean up empty strings or 'null' values from selectors to keep DB clean
+        // Удаляем пустые строки или 'null' в селекторах, чтобы БД оставалась чистой
         if (payload.selectors && typeof payload.selectors === 'object') {
             Object.keys(payload.selectors).forEach(key => {
                 if (payload.selectors[key] === '') delete payload.selectors[key]

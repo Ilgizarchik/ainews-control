@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 
 const PAGE_SIZE = 51
 
-// ... imports
+// ... импорты
 
 export default function ContentPage() {
   const [items, setItems] = useState<ContentItem[]>([])
@@ -27,7 +27,7 @@ export default function ContentPage() {
   const supabase = useMemo(() => createClient(), [])
 
   const fetchPage = async (filter: ContentFilter, sources: string[], pageIndex: number, sort: ContentSortOption, search: string) => {
-    // Server Action call
+    // Вызов Server Action
     const result = await fetchContentItems(filter, sources, pageIndex, PAGE_SIZE, sort as any, search)
 
     if (result.error) {
@@ -46,7 +46,7 @@ export default function ContentPage() {
     }
 
     try {
-      // Parallel fetch but with individual error handling or fallback
+      // Параллельная загрузка с индивидуальной обработкой ошибок/фолбэком
       const [pageResults, statsResults] = await Promise.allSettled([
         fetchPage(filter, sources, 0, sortOption, search),
         getContentStats(),
@@ -69,7 +69,7 @@ export default function ContentPage() {
 
     } catch (error: any) {
       console.error('[ContentPage] Critical error in loadData:', error)
-      // Check for Server Action ID mismatch (deployment update)
+      // Проверяем рассинхронизацию Server Action ID (после деплоя)
       if (error?.message?.includes('Server Action') && error?.message?.includes('not found')) {
         console.warn('Deployment mismatch dectected, reloading...')
         window.location.reload()
@@ -100,23 +100,23 @@ export default function ContentPage() {
   }
 
   useEffect(() => {
-    // Only use full screen loading for the very first mount
-    // Note: Search changes trigger this with a small debounce or immediately depending on UI
+    // Полноэкранную загрузку используем только при первом маунте
+    // Примечание: изменения поиска запускают это с небольшим дебаунсом или сразу, в зависимости от UI
     loadData(currentFilter, selectedSources, searchQuery, loading)
   }, [currentFilter, selectedSources, sortOption, searchQuery])
 
   const handleItemUpdated = async (id: string, outcome?: 'updated' | 'stale') => {
     if (outcome === 'stale') {
-      // If data is stale (e.g. undo action or error), we refresh the whole list
+      // Если данные устарели (например, после undo или ошибки), обновляем весь список
       await loadData(currentFilter, selectedSources, searchQuery, false)
       return
     }
 
-    // 1. Optimistic removal from local UI list
+    // 1. Оптимистично удаляем из локального списка UI
     setItems(prev => prev.filter(item => item.id !== id))
     setTotalCount(prev => Math.max(0, prev - 1))
 
-    // 2. Silently update stats in background without resetting the entire list
+    // 2. Тихо обновляем статистику в фоне без сброса всего списка
     try {
       const statsResult = await getContentStats()
       setStats(statsResult)
@@ -127,11 +127,11 @@ export default function ContentPage() {
 
   const handleFilterChange = (filter: ContentFilter) => {
     setCurrentFilter(filter)
-    // We don't clear items here to avoid white flash
+    // Не очищаем элементы здесь, чтобы избежать белой вспышки
   }
 
   if (loading) {
-    // ... existing loading UI
+    // ... существующий UI загрузки
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] animate-in fade-in duration-500">
         <div className="relative p-10 rounded-3xl bg-white/50 dark:bg-black/20 backdrop-blur-sm border border-white/20 shadow-2xl overflow-hidden">

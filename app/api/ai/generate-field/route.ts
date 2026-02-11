@@ -26,7 +26,7 @@ export async function POST(req: Request) {
         let tableName = news_id ? 'news_items' : 'review_items'
         let item: any = null
 
-        // Use Admin Client to bypass RLS and ensure we find the item
+        // Используем админ-клиент, чтобы обойти RLS и гарантированно найти элемент
         const { data: data1, error: error1 } = await supabaseAdmin
             .from(tableName as any)
             .select('*')

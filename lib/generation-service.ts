@@ -7,7 +7,7 @@ import { isMarkdown, markdownToHtml } from './markdown-utils';
 export async function processApprovedNews(newsId: string) {
     const supabase = createAdminClient();
 
-    // 1. Get news item
+    // 1. Получаем новость
     const { data: item, error: fetchError } = await (supabase
         .from('news_items')
         .select('*')
@@ -18,7 +18,7 @@ export async function processApprovedNews(newsId: string) {
         throw new Error('News item not found');
     }
 
-    // 2. Load custom selector if available for this source
+    // 2. Загружаем кастомный селектор, если он есть для этого источника
     let contentSelector: string | undefined = undefined;
     try {
         const { data: source } = await supabase
@@ -31,11 +31,11 @@ export async function processApprovedNews(newsId: string) {
             contentSelector = source.selectors.content_selector;
         }
     } catch {
-        // Silently fail if source mapping is not found or weird
+        // Тихо игнорируем, если сопоставление источника не найдено или странное
         console.warn(`[Generation] Could not find custom selector for source: ${item.source_name}`);
     }
 
-    // 2. Scrape content
+    // 2. Скрейпим контент
     let articleText = '';
     try {
         articleText = await scrapeArticleText(item.canonical_url, contentSelector);
@@ -44,7 +44,7 @@ export async function processApprovedNews(newsId: string) {
         console.warn(`[Generation] Scraping failed for ${newsId}:`, scrapeErr);
     }
 
-    // Fallback if scraping returned nothing useful
+    // Фолбэк, если скрейпинг не дал ничего полезного
     if (articleText.length < 100) {
         articleText = item.content || item.rss_summary || '';
         console.log(`[Generation] Using fallback content for ${newsId}, length: ${articleText.length}`);
@@ -52,7 +52,7 @@ export async function processApprovedNews(newsId: string) {
 
     const sourceContext = `Название: ${item.title}\n\nТекст статьи:\n${articleText}`;
 
-    // 3. Get prompts with configurations
+    // 3. Получаем промпты с конфигурацией
     const { data: prompts, error: promptsError } = await (supabase
         .from('system_prompts')
         .select('key, content, provider, model, temperature')
@@ -65,13 +65,13 @@ export async function processApprovedNews(newsId: string) {
         throw new Error(`Failed to fetch system prompts: ${promptsError?.message || 'No prompts found in DB for required keys'}`);
     }
 
-    // Map prompts to easy access objects
+    // Преобразуем промпты в удобную структуру
     const promptMap = (prompts as any[]).reduce((acc, p) => ({
         ...acc,
         [p.key]: p
     }), {} as Record<string, { content: string, provider?: string, model?: string, temperature?: number }>);
 
-    // Helper to get config
+    // Хелпер для получения конфигурации
     const getConfig = (key: string) => {
         const p = promptMap[key];
         if (p) {
@@ -81,49 +81,49 @@ export async function processApprovedNews(newsId: string) {
         return undefined;
     };
 
-    // Helper to get content
+    // Хелпер для получения контента
     const getContent = (key: string, fallback: string) => promptMap[key]?.content || fallback;
 
-    // 4. Generate content (sequential or parallel)
+    // 4. Генерируем контент (последовательно или параллельно)
 
     try {
         const { generateImage } = await import('./ai-service');
         const { sendPhotoToTelegram } = await import('./telegram-service');
 
-        // Generate Texts
+        // Генерируем тексты
         const [generatedLongread, generatedTitle] = await Promise.all([
             callAI(getContent('rewrite_longread', 'Напиши лонгрид на основе статьи.'), sourceContext, { ...getConfig('rewrite_longread'), maxTokens: 8000 }),
             callAI(getContent('rewrite_title', 'Придумай заголовок.'), sourceContext, getConfig('rewrite_title'))
         ]);
 
-        // Generate Announce
+        // Генерируем анонс
         const generatedAnnounce = await callAI(
             getContent('rewrite_announce', 'Напиши анонс для Telegram.'),
             `LONGREAD:\n${generatedLongread}`,
             getConfig('rewrite_announce')
         );
 
-        // Convert Markdown to HTML if needed (for longread)
+        // Конвертируем Markdown в HTML при необходимости (для лонгрида)
         let finalLongread = generatedLongread;
         if (isMarkdown(generatedLongread)) {
             finalLongread = markdownToHtml(generatedLongread);
         }
 
-        // Generate Image Prompt
+        // Генерируем промпт для изображения
         const generatedImagePrompt = await callAI(
             getContent('image_prompt', 'Опиши картинку для статьи.'),
             `TITLE: ${generatedTitle}\n\nLONGREAD: ${finalLongread.substring(0, 1000)}`,
             getConfig('image_prompt')
         );
 
-        // Generate Image & Upload to Telegram
+        // Генерируем изображение и загружаем в Telegram
         let imageFileId = null;
         let imageUrl = null;
         try {
             if (generatedImagePrompt) {
                 imageUrl = await generateImage(generatedImagePrompt);
 
-                // Get chat ID for uploading draft images
+                // Получаем ID чата для загрузки черновых изображений
                 const { getDraftChatId } = await import('./telegram-service');
                 const globalDraftChatId = await getDraftChatId();
                 const draftChatId = globalDraftChatId || item.approve1_chat_id;
@@ -143,13 +143,13 @@ export async function processApprovedNews(newsId: string) {
                 `Не удалось сгенерировать/загрузить изображение для новости ${newsId}: ${errorMsg}`,
                 'processApprovedNews (Image Stage)'
             );
-            // Non-blocking error for image - continue with text content
+            // Ошибка по изображению не блокирует процесс — продолжаем с текстом
         }
 
-        // Generate Social Content based on Recipes
+        // Генерируем контент для соцсетей по рецептам
         const platformAnnounces: Record<string, string> = {};
 
-        // Check auto-generate setting
+        // Проверяем настройку автогенерации
         const { data: autoGenSetting } = await supabase
             .from('project_settings')
             .select('value')
@@ -169,13 +169,13 @@ export async function processApprovedNews(newsId: string) {
                 if (recipes && recipes.length > 0) {
                     const platforms = Array.from(new Set(recipes.map((r: any) => r.platform))) as string[];
 
-                    // Get prompts
+                    // Получаем промпты
                     const promptKeys = platforms.map((p: any) => `rewrite_social_${p.toLowerCase()}`);
                     if (platforms.includes('tg')) promptKeys.push('rewrite_social_tg_emoji');
 
                     const { data: socialPrompts } = await (supabase
                         .from('system_prompts')
-                        .select('key, content, provider, model, temperature') // Get full config
+                        .select('key, content, provider, model, temperature') // Получаем полный конфиг
                         .in('key', promptKeys) as any);
 
                     const socialPromptMap = (socialPrompts as any[] || []).reduce((acc, p) => ({ ...acc, [p.key]: p }), {} as Record<string, any>);
@@ -185,7 +185,7 @@ export async function processApprovedNews(newsId: string) {
                         const promptData = socialPromptMap[promptKey];
 
                         if (promptData) {
-                            // Use generatedAnnounce as base, except 'site' uses longread
+                            // Используем generatedAnnounce как базу, а для 'site' — лонгрид
                             const base = platform === 'site' ? finalLongread : generatedAnnounce;
 
                             const config = { provider: promptData.provider, model: promptData.model, temperature: promptData.temperature };
@@ -213,7 +213,7 @@ export async function processApprovedNews(newsId: string) {
             }
         }
 
-        // 5. Update database
+        // 5. Обновляем базу
         const updatePayload: any = {
             draft_title: generatedTitle,
             draft_longread: finalLongread,
@@ -221,8 +221,8 @@ export async function processApprovedNews(newsId: string) {
             draft_image_prompt: generatedImagePrompt,
             draft_image_file_id: imageFileId,
             draft_image_url: imageUrl,
-            original_text: articleText, // <--- Preserve the original scraped text for future regeneration
-            status: 'drafts_ready', // Stage 1 completed
+            original_text: articleText, // <--- Сохраняем исходный скрейпнутый текст для будущей регенерации
+            status: 'drafts_ready', // Этап 1 завершен
             updated_at: new Date().toISOString(),
             ...platformAnnounces
         };
@@ -258,7 +258,7 @@ export async function processApprovedNews(newsId: string) {
 export async function processGate1(newsId: string) {
     const supabase = createAdminClient();
 
-    // 1. Fetch Item
+    // 1. Получаем элемент
     const { data: item, error: fetchError } = await (supabase
         .from('news_items')
         .select('*')
@@ -271,7 +271,7 @@ export async function processGate1(newsId: string) {
     }
 
 
-    // 2. Fetch System Prompt for Gate 1
+    // 2. Получаем системный промпт для Gate 1
     const { data: promptData } = await (supabase
         .from('system_prompts')
         .select('content, provider, model, temperature')
@@ -283,7 +283,7 @@ export async function processGate1(newsId: string) {
         console.warn(`[Gate1] No configuration found for key: gate_filter. Using fallback prompt & global settings.`);
     }
 
-    // Fallback prompt if not in DB
+    // Фолбэк-промпт, если его нет в БД
     const systemPrompt = promptData?.content || `
 You are an expert news editor for a hunting and outdoor portal.
 Analyze the incoming news item and decide if it is relevant for our audience (hunters, shooters, outdoor enthusiasts).
@@ -295,7 +295,7 @@ Return ONLY valid JSON in this format:
     "tags": ["tag1", "tag2"]
 }
 `;
-    // Config
+    // Конфиг
     const config: any = promptData ? {
         provider: promptData.provider,
         model: promptData.model,
@@ -305,17 +305,17 @@ Return ONLY valid JSON in this format:
         responseFormat: { type: 'json_object' }
     };
 
-    // 3. Prepare User Content
+    // 3. Готовим пользовательский контент
     const userContent = `Title: ${item.title}\nSource: ${item.source_name}\nSummary: ${item.rss_summary || 'No summary'}\nLink: ${item.canonical_url}`;
 
     try {
-        // 4. Call AI
+        // 4. Вызываем AI
         const responseText = await callAI(systemPrompt, userContent, config);
 
-        // 5. Parse JSON
+        // 5. Парсим JSON
         let result: any = {};
         try {
-            // Robust JSON extraction: find the first { and last }
+            // Устойчивое извлечение JSON: ищем первую { и последнюю }
             const startIdx = responseText.indexOf('{');
             const endIdx = responseText.lastIndexOf('}');
 
@@ -327,7 +327,7 @@ Return ONLY valid JSON in this format:
             }
         } catch (parseError) {
             console.error('Failed to parse Gate 1 AI response:', responseText, parseError);
-            // Fallback - safe to approve for manual check if JSON fails
+            // Фолбэк — безопасно отправить на ручную проверку, если JSON сломан
             result = {
                 decision: 'send',
                 score: 50,
@@ -336,14 +336,14 @@ Return ONLY valid JSON in this format:
             };
         }
 
-        // Normalize decision
+        // Нормализуем решение
         const decisionStr = (result.decision || '').toLowerCase();
         const decision = (decisionStr === 'send' || decisionStr === 'approve' || decisionStr === 'yes') ? 'send' : 'block';
 
 
-        // 6. Update DB
-        // If blocked -> status = 'blocked' (hidden from Pending usually)
-        // If send -> status = 'found' but gate1_decision is set (shows in Pending)
+        // 6. Обновляем БД
+        // Если блок -> status = 'blocked' (обычно скрыто из Pending)
+        // Если send -> status = 'found', но gate1_decision установлен (показывается в Pending)
         const updatePayload: any = {
             gate1_decision: decision,
             gate1_score: result.score || 0,
@@ -352,11 +352,11 @@ Return ONLY valid JSON in this format:
             gate1_processed_at: new Date().toISOString()
         };
 
-        // Update status for blocked items:
+        // Обновляем статус для заблокированных элементов:
         if (decision === 'block') {
             updatePayload.status = 'blocked';
         }
-        // If sent, we keep 'found' status (or change to 'pending_approval' if you prefer, but DB enum might be strict)
+        // Если отправлено, сохраняем статус 'found' (или можно 'pending_approval', но enum в БД может быть строгим)
 
         const { error: updateError } = await ((supabase
             .from('news_items') as any)

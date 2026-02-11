@@ -21,7 +21,7 @@ async function main() {
         if (p.key !== p.key.trim()) {
             const cleanKey = p.key.trim()
 
-            // Fix it
+            // Исправляем
             const { error: updateError } = await supabase
                 .from('system_prompts')
                 .update({ key: cleanKey })

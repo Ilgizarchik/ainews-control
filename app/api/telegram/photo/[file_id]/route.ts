@@ -13,7 +13,7 @@ export async function GET(
             return NextResponse.json({ error: 'file_id is required' }, { status: 400 })
         }
 
-        // Helper to get bot token (Cached)
+        // Хелпер для получения токена бота (с кешем)
         const getBotToken = unstable_cache(
             async () => {
                 const supabase = createAdminClient()
@@ -31,13 +31,13 @@ export async function GET(
                 return token as string
             },
             ['tg-bot-token'],
-            { revalidate: 3600 } // 1 hour cache
+            { revalidate: 3600 } // Кеш 1 час
         )
 
         const botToken = await getBotToken()
         if (!botToken) throw new Error('Bot token not configured')
 
-        // Helper to get file path (Cached for short time as URLs expire)
+        // Хелпер для получения пути файла (кеш на короткое время, т.к. ссылки истекают)
         const getFilePath = unstable_cache(
             async (token: string, fId: string) => {
                 const res = await fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${fId}`)
@@ -47,7 +47,7 @@ export async function GET(
                 return data.result.file_path as string
             },
             [`tg-file-path-${fileId}`],
-            { revalidate: 1800 } // 30 min cache (Telegram links live ~1h)
+            { revalidate: 1800 } // Кеш 30 мин (ссылки Telegram живут ~1ч)
         )
 
         const filePath = await getFilePath(botToken, fileId)

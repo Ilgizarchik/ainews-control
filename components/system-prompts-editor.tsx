@@ -41,7 +41,7 @@ export function SystemPromptsEditor() {
     const [savingId, setSavingId] = useState<number | null>(null)
     const [originalPrompts, setOriginalPrompts] = useState<Record<number, SystemPrompt>>({})
 
-    // Models Cache: provider -> list of models
+    // Кэш моделей: провайдер -> список моделей
     const [modelsCache, setModelsCache] = useState<Record<string, string[]>>({})
     const [fetchingModels, setFetchingModels] = useState<Record<string, boolean>>({})
     const [openCombobox, setOpenCombobox] = useState<Record<number, boolean>>({})
@@ -54,14 +54,14 @@ export function SystemPromptsEditor() {
 
             const typedData = (result.data as any[]).map(p => ({
                 ...p,
-                provider: p.provider || 'global', // Normalize null to 'global' for UI
+                provider: p.provider || 'global', // Нормализуем null в 'global' для UI
                 model: p.model || '',
                 temperature: p.temperature ?? 0.7
             }))
 
             setPrompts(typedData)
 
-            // Store original state deep copy for dirty checking
+            // Сохраняем глубокую копию исходного состояния для проверки изменений
             const originals: Record<number, SystemPrompt> = {}
             typedData.forEach(p => originals[p.id] = { ...p })
             setOriginalPrompts(originals)
@@ -211,7 +211,7 @@ export function SystemPromptsEditor() {
                                         </div>
                                     </CardHeader>
 
-                                    {/* Configuration Toolbar */}
+                                    {/* Панель конфигурации */}
                                     <div className="px-8 py-4 bg-muted/10 border-b-2 border-border/50 flex flex-col md:flex-row md:items-center gap-6">
                                         <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground/60 shrink-0">
                                             <Settings2 className="w-4 h-4" />
@@ -219,7 +219,7 @@ export function SystemPromptsEditor() {
                                         </div>
 
                                         <div className="flex flex-1 flex-wrap items-center gap-4">
-                                            {/* Provider Selector */}
+                                            {/* Выбор провайдера */}
                                             <div className="w-[180px] shrink-0">
                                                 <Select
                                                     value={provider}
@@ -238,7 +238,7 @@ export function SystemPromptsEditor() {
                                                 </Select>
                                             </div>
 
-                                            {/* Model Selector */}
+                                            {/* Выбор модели */}
                                             <div className="flex-1 min-w-[220px]">
                                                 {isGlobal ? (
                                                     <div className="h-10 px-4 rounded-xl border-2 border-dashed flex items-center gap-2 bg-muted/10 text-muted-foreground/50 text-xs font-black uppercase tracking-widest">
@@ -320,7 +320,7 @@ export function SystemPromptsEditor() {
                                                 )}
                                             </div>
 
-                                            {/* Temperature */}
+                                            {/* Температура */}
                                             <div className="w-[100px] shrink-0">
                                                 <div className="relative group/temp">
                                                     <span className="absolute left-3 top-2.5 text-[9px] font-black text-muted-foreground uppercase tracking-widest opacity-40">Temp</span>

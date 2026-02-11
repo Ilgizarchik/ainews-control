@@ -37,11 +37,11 @@ export async function approveContentItem(
     const { data: { user } } = await supabase.auth.getUser()
     const userId = user?.id || userIdArg
 
-    // Use admin client for DB operations to bypass RLS
+    // Используем админ-клиент для операций с БД, чтобы обойти RLS
     const adminDb = createAdminClient()
 
     try {
-        // 1. Mark as 'processing' (hide from Pending list, keep out of Approved list)
+        // 1. Помечаем как 'processing' (скрыть из Pending, не показывать в Approved)
         const { data, error, count } = await ((adminDb
             .from('news_items') as any)
             .update({
@@ -51,7 +51,7 @@ export async function approveContentItem(
                 status: 'approved_for_adaptation'
             }, { count: 'exact' })
             .eq('id', newsId)
-            // .is('approve1_decision', null) // Relax condition if we retry? No, stick to raw.
+            // .is('approve1_decision', null) // Ослабить условие при ретрае? Нет, оставляем как есть.
             .is('approve1_decision', null)
             .select() as any)
 
@@ -64,13 +64,13 @@ export async function approveContentItem(
             return { success: false, error: STALE_ERROR }
         }
 
-        // 2. Run Generation (Wait for completion)
+        // 2. Запускаем генерацию (ждем завершения)
         const { processApprovedNews } = await import('@/lib/generation-service')
 
         try {
             await processApprovedNews(newsId)
 
-            // 3. SUCCESS: Mark as truly approved
+            // 3. УСПЕХ: помечаем как окончательно одобренное
             await ((adminDb
                 .from('news_items') as any)
                 .update({ approve1_decision: 'approved' })
@@ -79,7 +79,7 @@ export async function approveContentItem(
         } catch (genError: any) {
             console.error(`[ContentAction] Error processing news ${newsId}:`, genError)
 
-            // 4. ERROR: Revert to Pending
+            // 4. ОШИБКА: откатываем обратно в Pending
             await ((adminDb
                 .from('news_items') as any)
                 .update({
@@ -116,7 +116,7 @@ export async function rejectContentItem(
     const { data: { user } } = await supabase.auth.getUser()
     const userId = user?.id || userIdArg
 
-    // Use admin client for DB operations to bypass RLS
+    // Используем админ-клиент для операций с БД, чтобы обойти RLS
     const adminDb = createAdminClient()
 
     try {
@@ -204,7 +204,7 @@ export async function fetchContentItems(
 ): Promise<{ data: any[], count: number, error?: any }> {
     const adminDb = createAdminClient()
 
-    // Base query
+    // Базовый запрос
     let query = adminDb.from('news_items').select(`
         id, title, source_name, canonical_url, published_at,
         rss_summary, image_url,
@@ -214,7 +214,7 @@ export async function fetchContentItems(
         status, is_viewed, created_at
     `, { count: 'exact' })
 
-    // Apply filters
+    // Применяем фильтры
     if (filter === 'pending') {
         query = query.eq('gate1_decision', 'send').is('approve1_decision', null)
     } else if (filter === 'approved') {
@@ -229,11 +229,11 @@ export async function fetchContentItems(
 
     if (search && search.trim()) {
         const s = search.trim().replace(/,/g, '\\,')
-        // Search in title, source_name, reason (partial match) and tags (exact match within array)
+        // Поиск по title, source_name, reason (частичное совпадение) и tags (точное совпадение в массиве)
         query = query.or(`title.ilike.*${s}*,source_name.ilike.*${s}*,gate1_reason.ilike.*${s}*,gate1_tags.cs.{${s}}`)
     }
 
-    // Apply sorting
+    // Применяем сортировку
     if (sort === 'no-date') {
         query = query
             .order('published_at', { ascending: false, nullsFirst: true })
@@ -245,7 +245,7 @@ export async function fetchContentItems(
             .order('created_at', { ascending: isAscending })
     }
 
-    // Pagination
+    // Пагинация
     const from = page * pageSize
     const to = from + pageSize - 1
 

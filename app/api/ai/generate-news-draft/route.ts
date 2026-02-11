@@ -4,7 +4,7 @@ import { fetch as undiciFetch, ProxyAgent } from 'undici';
 
 interface GenerateNewsDraftRequest {
     news_id: string;
-    user_chat_id: number; // For Telegram image upload
+    user_chat_id: number; // Для загрузки изображения в Telegram
 }
 
 export async function POST(req: Request) {
@@ -17,10 +17,10 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'news_id is required' }, { status: 400 });
         }
 
-        // 1. Fetch News Item
+        // 1. Получаем новость
         const { data: rawNewsItem, error: fetchError } = await supabase
             .from('news_items')
-            .select('*') // Need cleaned_text, title, maybe existing image_url
+            .select('*') // Нужны cleaned_text, title, возможно existing image_url
             .eq('id', news_id)
             .single();
 
@@ -30,7 +30,7 @@ export async function POST(req: Request) {
 
         const newsItem = rawNewsItem as any;
 
-        // 2. Fetch Prompts & AI Settings
+        // 2. Получаем промпты и настройки AI
         const [aiSettings, prompts] = await Promise.all([
             supabase.from('project_settings').select('key, value').in('key', [
                 'ai_provider', 'ai_api_key', 'ai_model', 'ai_base_url', 'ai_proxy_url'
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
             return acc;
         }, {}) ?? {};
 
-        // 3. Validation
+        // 3. Валидация
         const requiredPrompts = ['rewrite_longread', 'rewrite_announce', 'image_prompt'];
         const missing = requiredPrompts.filter(k => !promptMap[k]);
         if (missing.length > 0) {
@@ -59,7 +59,7 @@ export async function POST(req: Request) {
         const apiKey = settings.ai_api_key;
         if (!apiKey) return NextResponse.json({ error: 'AI API Key not set' }, { status: 500 });
 
-        // 4. Setup AI Helper
+        // 4. Настраиваем помощник для AI
         const baseUrl = settings.ai_base_url || 'https://api.openai.com/v1';
         const model = settings.ai_model || 'gpt-4o-mini';
         const proxyUrl = settings.ai_proxy_url;
@@ -81,7 +81,7 @@ export async function POST(req: Request) {
                     { role: 'user', content: userPrompt }
                 ],
                 temperature: 0.7,
-                max_completion_tokens: 30000 // Explicitly set for long reads/reasoning models (approx 30k output chars)
+                max_completion_tokens: 30000 // Явно задаем для лонгридов/моделей рассуждения (~30к символов)
             };
 
             const fetchOptions: any = {
@@ -98,10 +98,10 @@ export async function POST(req: Request) {
             return data.choices?.[0]?.message?.content || '';
         };
 
-        // 5. Parallel Generation
-        const cleanText = (newsItem as any).cleaned_text || (newsItem as any).summary || newsItem.title; // Fallback
+        // 5. Параллельная генерация
+        const cleanText = (newsItem as any).cleaned_text || (newsItem as any).summary || newsItem.title; // Фолбэк
 
-        // Dynamically import services
+        // Динамически импортируем сервисы
         const { generateImage } = await import('@/lib/ai-service');
         const { sendPhotoToTelegram } = await import('@/lib/telegram-service');
 
@@ -111,17 +111,17 @@ export async function POST(req: Request) {
             makeAICall(promptMap.image_prompt, `TITLE: ${newsItem.title}\nTEXT: ${cleanText}`)
         ]);
 
-        // 6. Image Generation Stage
+        // 6. Этап генерации изображения
         let finalFileId = newsItem.draft_image_file_id;
         let draftImageUrl = newsItem.draft_image_url;
 
-        // If no image exists, generate one
+        // Если изображения нет, генерируем
         if (!finalFileId && !newsItem.image_url) {
             try {
                 const generatedUrl = await generateImage(imgPromptText);
                 draftImageUrl = generatedUrl;
 
-                // Send to Telegram to get permanent File ID
+                // Отправляем в Telegram, чтобы получить постоянный File ID
                 if (user_chat_id) {
                     const sent = await sendPhotoToTelegram(user_chat_id, generatedUrl, 'News Draft Image');
                     finalFileId = sent.file_id;
@@ -130,7 +130,7 @@ export async function POST(req: Request) {
                 console.error('Image Gen Failed:', e);
             }
         } else if (newsItem.image_url && !finalFileId && user_chat_id) {
-            // If original news has image but no file_id, try to upload original
+            // Если у исходной новости есть изображение, но нет file_id, пробуем загрузить оригинал
             try {
                 const sent = await sendPhotoToTelegram(user_chat_id, newsItem.image_url, 'Original News Image');
                 finalFileId = sent.file_id;
@@ -139,7 +139,7 @@ export async function POST(req: Request) {
             }
         }
 
-        // 7. Update news_items
+        // 7. Обновляем news_items
         const updatePayload: any = {
             draft_longread: longread,
             draft_announce: announce,

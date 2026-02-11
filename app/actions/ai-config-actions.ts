@@ -6,36 +6,37 @@ const PROVIDER_URLS: Record<string, string> = {
     'openai': 'https://api.openai.com/v1',
     'anthropic': 'https://api.anthropic.com/v1',
     'openrouter': 'https://openrouter.ai/api/v1',
-    'custom': 'http://localhost:11434/v1' // Default custom, usually overridden
+    'custom': 'http://localhost:11434/v1' // Дефолтный custom, обычно переопределяется
 }
 
 export async function getModelsForProvider(provider: string) {
     if (provider === 'global') return []
 
-    // 1. Get settings securely serverside
+    // 1. Получаем настройки безопасно на сервере
     const settings = await getAISettings()
     const apiKey = settings.keys[provider] || settings.keys.default
 
-    // Determine Base URL
+    // Определяем базовый URL
     let baseUrl = settings.ai_base_url
     if (provider !== settings.ai_provider && PROVIDER_URLS[provider]) {
         baseUrl = PROVIDER_URLS[provider]
     }
-    // If provider is OpenRouter, force standard URL if base is weird
+    // Если провайдер OpenRouter, принудительно используем стандартный URL, если базовый странный
     if (provider === 'openrouter' && !baseUrl.includes('openrouter')) {
         baseUrl = 'https://openrouter.ai/api/v1'
     }
 
     if (!apiKey && provider !== 'custom') {
-        // Return empty or error? Empty is safer for UI.
+        // Возвращать пусто или ошибку? Пустой ответ безопаснее для UI.
         return []
     }
 
-    // 2. Call the existing internal API if I want to reuse valid proxy logic?
-    // Actually, calling the deployed API route (localhost:3000/api/ai/models) from Server Action is weird.
-    // Better to replicate logic or import logic.
-    // Since `api/ai/models` uses `undici` and handles proxies, let's reuse simpler version here or call the external API directly.
-    // I'll reuse the logic from `api/ai/models/route.ts` but implemented as a function here to avoid self-fetch loop issues.
+    // 2. Вызываем внутренний API, чтобы переиспользовать логику прокси?
+    // На деле вызывать развернутый API-роут (localhost:3000/api/ai/models) из Server Action странно.
+    // Лучше повторить логику или импортировать ее.
+    // Так как `api/ai/models` использует `undici` и умеет прокси, используем упрощенную версию здесь
+    // или вызываем внешний API напрямую.
+    // Повторяю логику из `api/ai/models/route.ts`, но как функцию, чтобы избежать self-fetch циклов.
 
     try {
         const { fetch: undiciFetch, ProxyAgent } = await import('undici')

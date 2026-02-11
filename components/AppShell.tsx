@@ -11,7 +11,7 @@ import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 
 
 
-// SideNav skeleton for SSR and mounting phase
+// Скелет SideNav для SSR и фазы монтирования
 const SideNavSkeleton = () => (
   <nav className="flex flex-col gap-2 p-4 w-64 border-r border-border h-full bg-card">
     <div className="flex items-center gap-3 mb-8 px-2">
@@ -38,12 +38,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
 
-  // Avoid hydration mismatch by only rendering client-specific parts after mount
+  // Избегаем рассинхронизации гидрации, рендеря клиентские части после монтирования
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  // Close sheet when route changes
+  // Закрываем шторку при смене маршрута
   useEffect(() => {
     setOpen(false)
   }, [pathname])
@@ -71,7 +71,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background" suppressHydrationWarning>
-      {/* Desktop Sidebar */}
+      {/* Десктопный сайдбар */}
       <div className="hidden md:block h-full shrink-0" suppressHydrationWarning>
         <SideNav />
       </div>
@@ -79,7 +79,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex-1 flex flex-col overflow-hidden w-full" suppressHydrationWarning>
         <header className="h-16 border-b border-border flex items-center justify-between px-4 sm:px-6 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shrink-0 z-30">
           <div className="flex items-center gap-4">
-            {/* Mobile Menu Trigger */}
+            {/* Триггер мобильного меню */}
             <Sheet open={open} onOpenChange={setOpen}>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" className="md:hidden">
@@ -95,13 +95,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Sheet>
 
             <div className="text-sm text-zinc-500 hidden sm:block">Панель управления</div>
-            {/* Mobile Title if needed */}
+            {/* Мобильный заголовок при необходимости */}
             <div className="text-sm font-semibold sm:hidden">AiNews</div>
           </div>
 
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            {/* Hide 'Logout' text on mobile, just icon */}
+            {/* Скрываем текст 'Выйти' на мобильных, оставляем только иконку */}
             <Button variant="ghost" onClick={handleLogout} className="text-zinc-500 dark:text-zinc-400 px-2 sm:px-4">
               <LogOut className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Выйти</span>
@@ -109,7 +109,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        {/* Main content with proper padding for mobile/desktop */}
+        {/* Основной контент с корректными отступами для мобилы/десктопа */}
         <main className="flex-1 overflow-auto p-4 sm:p-6 w-full">
           {children}
         </main>

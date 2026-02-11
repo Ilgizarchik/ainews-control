@@ -9,7 +9,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Missing baseUrl' }, { status: 400 });
         }
 
-        // Adjust endpoint based on provider standards
+        // Подстраиваем эндпоинт под стандарты провайдера
         const cleanBaseUrl = baseUrl.replace(/\/$/, "");
         const endpoint = `${cleanBaseUrl}/models`;
 
@@ -22,7 +22,7 @@ export async function POST(req: Request) {
         if (apiKey) {
             headers['Authorization'] = `Bearer ${apiKey}`;
 
-            // OpenRouter specific
+            // Специфично для OpenRouter
             if (provider === 'openrouter') {
                 headers['HTTP-Referer'] = 'https://ainews-control.local';
                 headers['X-Title'] = 'AiNews Control';
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
             }
         }
 
-        // Use undici fetch explicitly to ensure ProxyAgent is respected
+        // Явно используем undici fetch, чтобы ProxyAgent корректно применился
         const response = await undiciFetch(endpoint, fetchOptions);
 
         if (!response.ok) {

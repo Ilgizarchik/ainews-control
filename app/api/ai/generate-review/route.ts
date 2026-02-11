@@ -12,7 +12,7 @@ interface ReviewGenerationRequest {
     web_search?: boolean;
 }
 
-export const maxDuration = 300; // 5 minutes for Pro plan support
+export const maxDuration = 300; // 5 минут для поддержки Pro-плана
 
 export async function POST(req: Request) {
     const supabase = await createClient();
@@ -71,7 +71,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'AI API key not configured' }, { status: 500 });
         }
 
-        // Helper function for calling AI
+        // Вспомогательная функция для вызова AI
         const makeAICall = async (systemPrompt: string, userPrompt: string, useSearch: boolean = false): Promise<string> => {
             const headers: Record<string, string> = {
                 'Content-Type': 'application/json',
@@ -88,10 +88,10 @@ export async function POST(req: Request) {
                 max_completion_tokens: 30000
             };
 
-            // Inject OpenRouter Web Search plugin
+            // Подключаем плагин Web Search для OpenRouter
             let effectiveModel = model;
 
-            // For OpenRouter, ensure provider prefix exists
+            // Для OpenRouter убеждаемся, что есть префикс провайдера
             if (provider === 'openrouter' && !effectiveModel.includes('/')) {
                 effectiveModel = `openai/${effectiveModel}`;
             }
@@ -135,7 +135,7 @@ If you see data below tagged as [WEB_RESULT] or provided in context, it IS your 
                 method: 'POST',
                 headers: headers,
                 body: JSON.stringify(body),
-                signal: AbortSignal.timeout(300000) // 300 second timeout for complex generation/search
+                signal: AbortSignal.timeout(300000) // Таймаут 300 секунд для сложной генерации/поиска
             };
 
             console.log('[ReviewGen] Request Body:', JSON.stringify(body, null, 2));
@@ -163,12 +163,12 @@ If you see data below tagged as [WEB_RESULT] or provided in context, it IS your 
             makeAICall(
                 promptMap.review_longread,
                 `Title: ${title_seed}\nFacts: ${factsContext}`,
-                web_search // Enable search for longread
+                web_search // Включаем поиск для лонгрида
             ),
             makeAICall(
                 promptMap.review_title,
                 `CONTEXT:\nTitle: ${title_seed}\nFacts: ${factsContext}`,
-                web_search // Enable search for title too
+                web_search // Включаем поиск и для заголовка
             )
         ]);
 
@@ -180,7 +180,7 @@ DO NOT check facts, DO NOT search the web. This text is already verified.
 Just follow your system instructions for the announcement style.
 
 EDITORIAL_DRAFT:\n${longread}`,
-            false // No search needed for re-formatting
+            false // Поиск не нужен для переформатирования
         );
 
         // Используем переданный file_id (картинка уже загружена через /api/upload-telegram)
