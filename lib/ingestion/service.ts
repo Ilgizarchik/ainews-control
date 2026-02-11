@@ -104,10 +104,25 @@ async function parseUniversalHtml(source: IngestionSource): Promise<ParsedItem[]
 
         const isPlaceholder = (url: string | null | undefined) => {
             if (!url) return true
-            return url.includes('data:image/') ||
-                url.includes('spacer') ||
-                url.includes('transparent') ||
-                url.includes('placeholder')
+            const low = url.toLowerCase()
+            return low.includes('data:image/') ||
+                low.includes('spacer') ||
+                low.includes('transparent') ||
+                low.includes('placeholder') ||
+                low.includes('backgroundgradload') ||
+                low.includes('loading') ||
+                low.includes('pixel')
+        }
+
+        const toAbsolute = (url: string | null | undefined) => {
+            if (!url || url === 'null') return null
+            try {
+                // Remove whitespace and potential quotes
+                const cleanUrl = url.trim().replace(/^["']|["']$/g, '')
+                return new URL(cleanUrl, source.url).href
+            } catch {
+                return url
+            }
         }
 
         const extract = (selector: string | undefined, attr?: string): string | null => {
@@ -142,20 +157,16 @@ async function parseUniversalHtml(source: IngestionSource): Promise<ParsedItem[]
             return $node.text().trim() || null
         }
 
-        const link = extract(s.link, 'href')
-        if (!link) return
-
-        let fullLink = link
-        if (!link.startsWith('http')) {
-            fullLink = new URL(link, source.url).toString()
-        }
+        const rawLink = extract(s.link, 'href')
+        const fullLink = toAbsolute(rawLink)
+        if (!fullLink) return
 
         items.push({
-            title: extract(s.title),
+            title: extract(s.title) || 'Untitled',
             link: fullLink,
-            summary: extract(s.summary),
+            summary: extract(s.summary) || '',
             publishedAt: extract(s.date),
-            imageUrl: extract(s.image, 'src'),
+            imageUrl: toAbsolute(extract(s.image, 'src')),
             sourceName: source.name || new URL(source.url).hostname,
             externalId: fullLink
         })

@@ -254,11 +254,25 @@ export async function testSelectors(url: string, selectors: any) {
             const $el = $(el)
             const isPlaceholder = (url: string | undefined) => {
                 if (!url) return true
-                return url.includes('data:image/') ||
-                    url.includes('spacer') ||
-                    url.includes('transparent') ||
-                    url.includes('placeholder') ||
+                const low = url.toLowerCase()
+                return low.includes('data:image/') ||
+                    low.includes('spacer') ||
+                    low.includes('transparent') ||
+                    low.includes('placeholder') ||
+                    low.includes('backgroundgradload') ||
+                    low.includes('loading') ||
+                    low.includes('pixel') ||
                     url.length < 5
+            }
+
+            const toAbsolute = (val: string | undefined) => {
+                if (!val || val === 'null' || val === 'not found') return val
+                try {
+                    const cleanUrl = val.trim().replace(/^["']|["']$/g, '')
+                    return new URL(cleanUrl, url).href
+                } catch {
+                    return val
+                }
             }
 
             const extract = (sel: string, attr?: string) => {
@@ -297,10 +311,10 @@ export async function testSelectors(url: string, selectors: any) {
 
             items.push({
                 title: extract(selectors.title),
-                link: extract(selectors.link, 'href'),
+                link: toAbsolute(extract(selectors.link, 'href')),
                 summary: extract(selectors.summary),
                 date: extract(selectors.date),
-                image: extract(selectors.image, 'src')
+                image: toAbsolute(extract(selectors.image, 'src'))
             })
         })
 
