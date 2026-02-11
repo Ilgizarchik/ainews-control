@@ -342,7 +342,7 @@ Return ONLY valid JSON in this format:
 
 
         // 6. Обновляем БД
-        // Если блок -> status = 'blocked' (обычно скрыто из Pending)
+        // Если блок -> status = 'rejected' (обычно скрыто из Pending)
         // Если send -> status = 'found', но gate1_decision установлен (показывается в Pending)
         const updatePayload: any = {
             gate1_decision: decision,
@@ -354,7 +354,7 @@ Return ONLY valid JSON in this format:
 
         // Обновляем статус для заблокированных элементов:
         if (decision === 'block') {
-            updatePayload.status = 'blocked';
+            updatePayload.status = 'rejected';
         }
         // Если отправлено, сохраняем статус 'found' (или можно 'pending_approval', но enum в БД может быть строгим)
 
