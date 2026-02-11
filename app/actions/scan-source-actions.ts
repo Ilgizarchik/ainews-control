@@ -112,8 +112,9 @@ async function fetchHtmlWithPythonBridge(url: string): Promise<string> {
     }
 
     try {
-        console.log(`[Scan] Attempting Python Bridge for: ${url}`)
+        process.stdout.write(`[Scan] Attempting Python Bridge for: ${url}\n`)
         const bridgePath = path.join(process.cwd(), 'scraper_bridge.py')
+        process.stdout.write(`[Scan] Bridge Path: ${bridgePath}\n`)
 
         // Try python3 first (standard for Linux/Docker), then python
         let pythonCmd = 'python3'
@@ -128,18 +129,22 @@ async function fetchHtmlWithPythonBridge(url: string): Promise<string> {
             cmd += ` --proxy "${proxyConfig.url}"`
         }
 
+        process.stdout.write(`[Scan] Executing: ${cmd}\n`)
         const { stdout } = await execPromise(cmd, { timeout: 45000 })
         const jsonMatch = stdout.match(/\{[\s\S]*\}/)
-        if (!jsonMatch) throw new Error(`Could not find JSON in Python output`)
+        if (!jsonMatch) {
+            process.stdout.write(`[Scan] No JSON in Python output: ${stdout}\n`)
+            throw new Error(`Could not find JSON in Python output`)
+        }
 
         const result = JSON.parse(jsonMatch[0])
         if (result.success && result.content) {
-            console.log(`[Scan] Python Bridge Success! Size: ${result.content.length}`)
+            process.stdout.write(`[Scan] Python Bridge Success! Size: ${result.content.length}, Status: ${result.status}\n`)
             return result.content
         }
         throw new Error(result.error || 'Python bridge failed to return content')
     } catch (e: any) {
-        console.warn(`[Scan] Python Bridge failed, falling back to Node.js:`, e.message)
+        process.stdout.write(`[Scan] Python Bridge failed, falling back to Node.js. Error: ${e.message}\n`)
 
         // Fallback to native Node.js fetch
         const dispatcher = proxyConfig.enabled && proxyConfig.url ? new ProxyAgent(proxyConfig.url) : undefined
@@ -228,8 +233,10 @@ export async function scanUrlForSelectors(url: string) {
         return { success: true, selectors }
 
     } catch (e: any) {
-        console.error('Scan failed:', e)
-        return { success: false, error: e.message }
+        const errorDetail = `Scan failed for ${url}: ${e.message}`;
+        process.stdout.write(`[DEBUG] ${errorDetail}\n`);
+        console.error(errorDetail, e);
+        return { success: false, error: errorDetail }
     }
 }
 
