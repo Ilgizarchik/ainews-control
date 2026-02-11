@@ -163,6 +163,7 @@ async function fetchHtmlWithPythonBridge(url: string): Promise<string> {
 }
 
 export async function scanUrlForSelectors(url: string) {
+    process.stdout.write(`\n>>> [Server Action] scanUrlForSelectors STARTED for: ${url}\n`);
     try {
         // 1. Fetch HTML using Bridge or Node.js Fallback
         const html = await fetchHtmlWithPythonBridge(url)
