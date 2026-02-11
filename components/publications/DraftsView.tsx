@@ -289,7 +289,10 @@ export function DraftsView() {
 
             if (result.success) {
                 if (result.isScheduled) {
-                    toast.success(`Запланировано на ${format(new Date(scheduleDate!), 'dd MMM HH:mm')}`, { id: toastId })
+                    const dateStr = scheduleDate
+                        ? format(new Date(scheduleDate), 'dd.MM HH:mm', { locale: ru })
+                        : 'согласно рецептам'
+                    toast.success(`Запланировано: ${dateStr}`, { id: toastId })
                 } else {
                     toast.success('Опубликовано успешно!', { id: toastId })
                 }

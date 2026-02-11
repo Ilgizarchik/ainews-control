@@ -139,6 +139,9 @@ export async function publishItem(itemId: string, itemType: 'news' | 'review' = 
     const item = itemRaw as any;
 
     const config = await getPublisherConfig();
+    const { data: safeModeSetting } = await supabase.from('project_settings').select('value').eq('key', 'safe_publish_mode').single() as any
+    const isSafeMode = safeModeSetting?.value === 'true'
+
     const title = item.draft_title || 'No Title';
     const siteHtml = item.draft_longread_site || item.draft_longread || '<p>No Content</p>';
     const tgText = item.draft_announce_tg || item.draft_announce || siteHtml;
@@ -157,8 +160,19 @@ export async function publishItem(itemId: string, itemType: 'news' | 'review' = 
     const results: any = {};
 
     const isScheduled = !!publishAt;
-    const initialStatus = isScheduled ? 'queued' : 'processing';
-    const effectivePublishAt = publishAt || new Date().toISOString();
+    const basePublishDate = publishAt ? new Date(publishAt) : new Date();
+    let hasJobsInFuture = isScheduled;
+
+    // 1.5. Получаем активные рецепты для таймингов
+    const { data: recipes } = await supabase
+        .from('publish_recipes')
+        .select('*')
+        .eq('is_active', true);
+
+    const recipeMap: { [key: string]: any } = {};
+    recipes?.forEach((r: any) => {
+        recipeMap[r.platform.toLowerCase()] = r;
+    });
 
     // Помощник для последовательного резолва изображений по необходимости
     const resolveImageUrl = async (platform: string) => {
@@ -179,38 +193,57 @@ export async function publishItem(itemId: string, itemType: 'news' | 'review' = 
     // --- САЙТ ---
     if (config.tilda_cookies) {
         const platform = 'site';
-        const jobId = await createJob(supabase, itemType === 'news' ? itemId : null, platform, itemType === 'review' ? itemId : null, initialStatus, effectivePublishAt);
-        if (!isScheduled) {
-            try {
-                const pub = PublisherFactory.create(platform, config);
-                if (!pub) throw new Error(`${platform} publisher not configured`);
-                const context: PublishContext = {
-                    news_id: itemId,
-                    title: title,
-                    content_html: siteHtml,
-                    image_url: await resolveImageUrl(platform),
-                    config
-                };
-                const res = await pub.publish(context);
-                results[platform] = res;
-                if (res.success) {
-                    publishedUrl = res.published_url || publishedUrl;
-                    await updateJob(supabase, jobId, 'published', res.external_id);
+        const recipe = recipeMap[platform];
 
-                    // Синхронизируем стабильный URL и основную ссылку
-                    const updateData: any = { published_url: publishedUrl, status: 'published', published_at: new Date().toISOString() };
-                    const raw = res.raw_response;
-                    const tildaImg = raw?.image || raw?.thumb || raw?.post?.image || raw?.post?.thumb;
-                    if (tildaImg) updateData.draft_image_url = tildaImg;
+        let platformPublishAt = new Date(basePublishDate);
+        if (recipe && !recipe.is_main && recipe.delay_hours) {
+            platformPublishAt.setHours(platformPublishAt.getHours() + recipe.delay_hours);
+        }
 
-                    await (supabase as any).from(table).update(updateData).eq('id', itemId);
-                } else {
-                    await updateJob(supabase, jobId, 'error', undefined, res.error);
+        const isDelayed = platformPublishAt.getTime() > new Date().getTime() + 10000;
+        const initialStatus = isDelayed ? 'queued' : 'processing';
+        if (isDelayed) hasJobsInFuture = true;
+
+        const jobId = await createJob(supabase, itemType === 'news' ? itemId : null, platform, itemType === 'review' ? itemId : null, initialStatus, platformPublishAt.toISOString());
+
+        if (initialStatus === 'processing') {
+            if (isSafeMode) {
+                results[platform] = { success: true, simulated: true };
+                await updateJob(supabase, jobId, 'published', 'simulated_' + Date.now());
+            } else {
+                try {
+                    const pub = PublisherFactory.create(platform, config);
+                    if (!pub) throw new Error(`${platform} publisher not configured`);
+                    const context: PublishContext = {
+                        news_id: itemId,
+                        title: title,
+                        content_html: siteHtml,
+                        image_url: await resolveImageUrl(platform),
+                        config
+                    };
+                    const res = await pub.publish(context);
+                    results[platform] = res;
+                    if (res.success) {
+                        publishedUrl = res.published_url || publishedUrl;
+                        await updateJob(supabase, jobId, 'published', res.external_id);
+
+                        // Синхронизируем стабильный URL и основную ссылку
+                        const updateData: any = { published_url: publishedUrl, status: 'published', published_at: new Date().toISOString() };
+                        const raw = res.raw_response;
+                        const tildaImg = raw?.image || raw?.thumb || raw?.post?.image || raw?.post?.thumb;
+                        if (tildaImg) updateData.draft_image_url = tildaImg;
+
+                        await (supabase as any).from(table).update(updateData).eq('id', itemId);
+                    } else {
+                        await updateJob(supabase, jobId, 'error', undefined, res.error);
+                    }
+                } catch (e: any) {
+                    results[platform] = { success: false, error: e.message };
+                    await updateJob(supabase, jobId, 'error', undefined, e.message);
                 }
-            } catch (e: any) {
-                results[platform] = { success: false, error: e.message };
-                await updateJob(supabase, jobId, 'error', undefined, e.message);
             }
+        } else {
+            results[platform] = { success: true, status: 'scheduled' };
         }
     }
 
@@ -226,8 +259,28 @@ export async function publishItem(itemId: string, itemType: 'news' | 'review' = 
 
     for (const p of socialPlatforms) {
         if (!p.active) continue;
-        const jobId = await createJob(supabase, itemType === 'news' ? itemId : null, p.key, itemType === 'review' ? itemId : null, initialStatus, effectivePublishAt);
-        if (!isScheduled) {
+
+        const recipe = recipeMap[p.key];
+        // Если рецепт для этой платформы отключен, пропускаем (но оставляем активным если нет рецепта вообще для гибкости)
+        if (recipes && recipe && !recipe.is_active) continue;
+
+        let platformPublishAt = new Date(basePublishDate);
+        if (recipe && !recipe.is_main && recipe.delay_hours) {
+            platformPublishAt.setHours(platformPublishAt.getHours() + recipe.delay_hours);
+        }
+
+        const isDelayed = platformPublishAt.getTime() > new Date().getTime() + 10000;
+        const initialStatus = isDelayed ? 'queued' : 'processing';
+        if (isDelayed) hasJobsInFuture = true;
+
+        const jobId = await createJob(supabase, itemType === 'news' ? itemId : null, p.key, itemType === 'review' ? itemId : null, initialStatus, platformPublishAt.toISOString());
+
+        if (initialStatus === 'processing') {
+            if (isSafeMode) {
+                results[p.key] = { success: true, simulated: true };
+                await updateJob(supabase, jobId, 'published', 'simulated_' + Date.now());
+                continue;
+            }
             try {
                 const pub = PublisherFactory.create(p.key as any, config);
                 if (!pub) throw new Error(`${p.key} publisher not configured`);
@@ -254,7 +307,13 @@ export async function publishItem(itemId: string, itemType: 'news' | 'review' = 
         }
     }
 
-    return { success: true, results, publishedUrl, isScheduled };
+    // Если есть запланированные на будущее посты, помечаем элемент как одобренный к публикации
+    // В DraftsView он исчезнет, так как там фильтр по needs_review/drafts_ready
+    if (hasJobsInFuture) {
+        await supabase.from(table).update({ status: 'approved_for_publish' }).eq('id', itemId);
+    }
+
+    return { success: true, results, publishedUrl, isScheduled: hasJobsInFuture };
 }
 
 export async function publishSinglePlatform({ itemId, itemType, platform, content, bypassSafeMode = false, isTest = false }: {
