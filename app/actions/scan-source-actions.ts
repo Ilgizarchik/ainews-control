@@ -256,7 +256,29 @@ export async function testSelectors(url: string, selectors: any) {
                 if (!sel || sel === 'null') return 'null'
                 const $node = $el.find(sel)
                 if ($node.length === 0) return 'not found'
-                if (attr) return $node.attr(attr) || 'empty attr'
+
+                // If specific attribute requested
+                if (attr) {
+                    const val = $node.attr(attr)
+                    if (val) return val
+                }
+
+                // Smart extraction for images if it looks like an image selector
+                if (sel.includes('img') || attr === 'src') {
+                    const img = $node.is('img') ? $node : $node.find('img').first()
+                    if (img.length > 0) {
+                        return img.attr('data-src') ||
+                            img.attr('data-srcset') ||
+                            img.attr('srcset')?.split(' ')[0] ||
+                            img.attr('data-lazy-src') ||
+                            img.attr('src') ||
+                            'empty img'
+                    }
+                }
+
+                // Fallback to meta content if it's a meta tag
+                if ($node.is('meta')) return $node.attr('content') || 'empty meta'
+
                 return $node.text().trim() || 'empty text'
             }
 

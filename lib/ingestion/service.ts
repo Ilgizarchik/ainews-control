@@ -106,7 +106,25 @@ async function parseUniversalHtml(source: IngestionSource): Promise<ParsedItem[]
         const extract = (selector: string | undefined, attr?: string) => {
             if (!selector || selector === 'null') return null
             const $node = $el.find(selector)
+            if ($node.length === 0) return null
+
+            // Specific attribute handling
+            if (attr === 'src' || selector.includes('img')) {
+                const img = $node.is('img') ? $node : $node.find('img').first()
+                if (img.length > 0) {
+                    return img.attr('data-src') ||
+                        img.attr('data-srcset')?.split(' ')[0] ||
+                        img.attr('srcset')?.split(' ')[0] ||
+                        img.attr('data-lazy-src') ||
+                        img.attr('src') ||
+                        null
+                }
+            }
+
             if (attr) return $node.attr(attr) || null
+
+            if ($node.is('meta')) return $node.attr('content') || null
+
             return $node.text().trim() || null
         }
 
@@ -367,15 +385,16 @@ export async function runIngestion(sourceIds?: string[], client?: SupabaseClient
                     .single()
 
                 if (!existing) {
-                    // FALLBACK DATE LOGIC
-                    if (!item.publishedAt || item.publishedAt === 'null') {
-                        const selDetail = (source.selectors as any)?.date_detail
-                        const selMain = (source.selectors as any)?.date
+                    // FALLBACK IMAGE & DATE LOGIC
+                    if (!item.publishedAt || item.publishedAt === 'null' || !item.imageUrl) {
+                        try {
+                            const artHtml = await fetchHtml(item.link)
+                            const $art = cheerio.load(artHtml)
 
-                        if (selDetail || selMain) {
-                            try {
-                                const artHtml = await fetchHtml(item.link)
-                                const $art = cheerio.load(artHtml)
+                            // 1. DATE FALLBACK
+                            if (!item.publishedAt || item.publishedAt === 'null') {
+                                const selDetail = (source.selectors as any)?.date_detail
+                                const selMain = (source.selectors as any)?.date
                                 let detailDate: string | null = null
 
                                 if (selDetail) {
@@ -397,9 +416,20 @@ export async function runIngestion(sourceIds?: string[], client?: SupabaseClient
                                 if (detailDate && detailDate !== 'null') {
                                     item.publishedAt = detailDate
                                 }
-                            } catch (e) {
-                                console.warn(`[Ingestion] Failed to fetch article date:`, e)
                             }
+
+                            // 2. IMAGE FALLBACK (Check OG Tags)
+                            if (!item.imageUrl) {
+                                const ogImage = $art('meta[property="og:image"]').attr('content') ||
+                                    $art('meta[name="twitter:image"]').attr('content') ||
+                                    $art('link[rel="image_src"]').attr('href')
+
+                                if (ogImage) {
+                                    item.imageUrl = ogImage
+                                }
+                            }
+                        } catch (e) {
+                            console.warn(`[Ingestion] Failed to fetch article fallback data:`, e)
                         }
                     }
 

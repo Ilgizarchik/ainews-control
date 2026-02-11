@@ -11,7 +11,7 @@ const execPromise = promisify(exec)
 
 export async function createSystemBackup() {
     try {
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+        const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14)
         const backupName = `full_system_backup_${timestamp}.tar.gz`
         const publicPath = path.join(process.cwd(), 'public')
         const backupPath = path.join(publicPath, backupName)
