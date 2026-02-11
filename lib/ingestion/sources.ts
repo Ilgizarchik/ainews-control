@@ -6,20 +6,20 @@ export type IngestionSource = {
     type: 'rss' | 'html'
     url: string
     parser: 'generic-rss' | 'html-universal' | 'hunting-ru-news' | 'mooir-ru-news' | 'mooir-ru-prikras' | 'ohotniki-ru-search'
-    selectors?: any // JSON for universal parser
+    selectors?: any // JSON для универсального парсера
     isActive: boolean
     icon?: string
     is_custom?: boolean
 }
 
-// Hardcoded legacy sources (fallback)
+// Захардкоженные legacy-источники (фолбэк)
 export const LEGACY_SOURCES: IngestionSource[] = []
 
 export const getIngestionSources = async (): Promise<IngestionSource[]> => {
-    // 1. Fetch DB sources
-    // This function must be isomorphic (client/server compatible depending on imports)
-    // For now, let's assume we call it from Server Actions or Client Components with standard clients.
-    // We will just return LEGACY for now, but integration will happen in service.ts
-    // Actually, let's make this just a helper for types.
+    // 1. Получаем источники из БД
+    // Эта функция должна быть изоморфной (совместимой с client/server в зависимости от импортов)
+    // Пока предполагаем, что вызываем ее из Server Actions или Client Components со стандартными клиентами.
+    // Сейчас просто возвращаем LEGACY, а интеграция будет в service.ts
+    // По факту это вспомогательная функция для типов.
     return LEGACY_SOURCES
 }

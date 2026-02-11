@@ -27,7 +27,7 @@ export function useBoardJobs() {
     setError(null)
 
     try {
-      // Fetch ALL active recipes to filter the plus menu
+      // Загружаем ВСЕ активные рецепты, чтобы отфильтровать меню плюса
       const { data: recipes } = await supabase
         .from('publish_recipes')
         .select('platform, is_main')
@@ -86,7 +86,7 @@ export function useBoardJobs() {
       .update({ publish_at: newDate.toISOString(), updated_at: new Date().toISOString() })
       .eq('id', jobId)
     if (error) throw error
-    // fetchJobs will run in background since jobs.length > 0
+    // fetchJobs запустится в фоне, так как jobs.length > 0
     await fetchJobs()
   }
 

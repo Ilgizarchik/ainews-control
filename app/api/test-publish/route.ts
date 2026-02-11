@@ -3,13 +3,13 @@ import { NextResponse } from 'next/server'
 import { TelegramPublisher } from '@/lib/publishers/telegram'
 import { TildaPublisher } from '@/lib/publishers/tilda'
 
-// Force dynamic because we use DB
+// Принудительно динамический режим, так как используем БД
 export const dynamic = 'force-dynamic'
 
 export async function GET(_req: Request) {
     const supabase = await createClient()
 
-    // 1. Get Config (Simulating getPublisherConfig logic)
+    // 1. Получаем конфиг (имитируем логику getPublisherConfig)
     const { data: settingsData } = await supabase
         .from('project_settings')
         .select('*')
@@ -39,7 +39,7 @@ export async function GET(_req: Request) {
         if (row.key === 'tilda_feed_uid') config.tilda_feed_uid = row.value
     })
 
-    // Apply defaults if missing
+    // Применяем дефолты, если значений нет
     if (!config.tilda_project_id) {
         config.tilda_project_id = DEFAULTS.tilda_project_id
         debugDefaultsUsed.tilda_project_id = true
@@ -55,13 +55,13 @@ export async function GET(_req: Request) {
 
     const results: any = {}
     const testText = "ТЕСТ"
-    // Use the File ID provided by user
+    // Используем File ID, предоставленный пользователем
     const testFileId = "AgACAgQAAyEGAAStM9_eAAIFXml-QaZO9NxF0v2IhcgtMixwlGmjAALrDWsbi7T0U0Ojcq0Ny71SAQADAgADeQADOAQ"
     const testChatId = "392453315"
 
-    // 2. Resolve Image URL for Tilda from the File ID
-    // We need a real URL for Tilda. We can get it via Telegram API if we have the token.
-    let resolvedImageUrl = 'https://placehold.co/600x400?text=Test+Image' // Fallback
+    // 2. Получаем URL изображения для Tilda по File ID
+    // Нужен реальный URL для Tilda. Его можно получить через Telegram API при наличии токена.
+    let resolvedImageUrl = 'https://placehold.co/600x400?text=Test+Image' // Фолбэк
 
     try {
         if (config.telegram_bot_token) {
@@ -69,8 +69,8 @@ export async function GET(_req: Request) {
             const fileData = await fileRes.json()
 
             if (fileData.ok && fileData.result.file_path) {
-                // Construct the download URL
-                // Note: This URL exposes the bot token, but it's server-to-server for Tilda upload, so acceptable for a test.
+                // Формируем URL для скачивания
+                // Внимание: URL раскрывает токен бота, но это server-to-server для загрузки в Tilda, допустимо для теста.
                 resolvedImageUrl = `https://api.telegram.org/file/bot${config.telegram_bot_token}/${fileData.result.file_path}`
                 results.image_resolving = { success: true, url: resolvedImageUrl }
             } else {
@@ -81,19 +81,19 @@ export async function GET(_req: Request) {
         results.image_resolving = { success: false, error: e.message }
     }
 
-    // 3. Test Telegram (Directly using Publisher Class)
+    // 3. Тест Telegram (напрямую через класс Publisher)
     try {
         if (!config.telegram_bot_token) {
             results.telegram = { success: false, error: 'No bot token in config' }
         } else {
-            // Override Chat ID for test
+            // Переопределяем Chat ID для теста
             const tgPub = new TelegramPublisher(config.telegram_bot_token, testChatId)
 
             const res = await tgPub.publish({
                 news_id: 'test-news-id',
                 title: 'TEST TG',
                 content_html: testText,
-                image_url: testFileId, // Pass file_id directly for TG
+                image_url: testFileId, // Передаем file_id напрямую для TG
                 config: config
             })
             results.telegram = res
@@ -102,12 +102,12 @@ export async function GET(_req: Request) {
         results.telegram = { success: false, error: e.message }
     }
 
-    // 4. Test Tilda (Directly using Publisher Class)
+    // 4. Тест Tilda (напрямую через класс Publisher)
     try {
         if (config.tilda_cookies && config.tilda_project_id && config.tilda_feed_uid) {
             const tildaPub = new TildaPublisher(config.tilda_cookies, config.tilda_project_id, config.tilda_feed_uid)
 
-            // Verify what cookies we are actually using
+            // Проверяем, какие cookies реально используем
             results.debug_config = {
                 ...results.debug_config,
                 effective_tilda_cookie: (tildaPub as any).cookies
@@ -116,8 +116,8 @@ export async function GET(_req: Request) {
             const res = await tildaPub.publish({
                 news_id: 'test-news-id',
                 title: 'TEST TILDA',
-                content_html: `<p>${testText}</p>`, // Wrap in P for Tilda
-                image_url: resolvedImageUrl, // Pass resolved URL for Tilda
+                content_html: `<p>${testText}</p>`, // Оборачиваем в P для Tilda
+                image_url: resolvedImageUrl, // Передаем готовый URL для Tilda
                 config: config
             })
             results.tilda = res

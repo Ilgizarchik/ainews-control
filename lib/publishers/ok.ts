@@ -40,7 +40,7 @@ export class OkPublisher implements IPublisher {
             let photoToken: string | null = null;
             const proxyAgent = this.proxyUrl ? new ProxyAgent(this.proxyUrl) : undefined;
 
-            // 1. Upload Photo if exists
+            // 1. Загружаем фото, если оно есть
             if (context.image_url && context.image_url.startsWith('http')) {
                 try {
                     photoToken = await this.uploadPhoto(context.image_url, proxyAgent);
@@ -49,7 +49,7 @@ export class OkPublisher implements IPublisher {
                 }
             }
 
-            // 2. Prepare Message
+            // 2. Подготавливаем сообщение
             let message = (context.content_html || context.title || '')
                 .replace(/<br\s*\/?>/gi, '\n')
                 .replace(/<\/p>|<\/div>/gi, '\n')
@@ -64,9 +64,9 @@ export class OkPublisher implements IPublisher {
                 message = message.replace(/\[LINK\]/gi, sourceUrl);
             }
 
-            // Title is already included in generated message (content_html) via AI prompt
+            // Заголовок уже включен в сгенерированное сообщение (content_html) через AI-промпт
 
-            // 3. Prepare Attachment JSON
+            // 3. Подготавливаем JSON вложения
             const mediaList: any[] = [
                 {
                     "type": "text",
@@ -83,7 +83,7 @@ export class OkPublisher implements IPublisher {
 
             const attachment = JSON.stringify({ "media": mediaList });
 
-            // 4. Post to Group
+            // 4. Публикуем в группе
             const params: Record<string, string> = {
                 "application_key": this.applicationKey,
                 "attachment": attachment,
@@ -127,7 +127,7 @@ export class OkPublisher implements IPublisher {
 
     private async uploadPhoto(imageUrl: string, proxyAgent?: any): Promise<string> {
         console.log(`[OK] Starting photo upload for: ${imageUrl}`);
-        // A. Get Upload URL
+        // A. Получаем URL для загрузки
         const params: Record<string, string> = {
             "application_key": this.applicationKey,
             "format": "json",
@@ -158,7 +158,7 @@ export class OkPublisher implements IPublisher {
         const photoId = serverData.photo_ids[0];
         console.log(`[OK] Got upload URL: ${uploadUrl}`);
 
-        // B. Download Image (Try without proxy first, as CDN is usually global)
+        // B. Скачиваем изображение (сначала без прокси, т.к. CDN обычно глобальный)
         let imgRes;
         try {
             imgRes = await fetch(imageUrl, {
@@ -185,7 +185,7 @@ export class OkPublisher implements IPublisher {
         const form = new FormData();
         form.append('pic1', blob, 'image.jpg');
 
-        // C. Upload
+        // C. Загружаем
         console.log(`[OK] Uploading to OK server...`);
         const uploadRes = await fetch(uploadUrl, {
             method: 'POST',
@@ -198,8 +198,8 @@ export class OkPublisher implements IPublisher {
         const uploadData = await uploadRes.json();
         console.log(`[OK] Upload result: ${JSON.stringify(uploadData)}`);
 
-        // D. Commit (optional in some APIs, but often needed)
-        // For photosV2.getUploadUrl, the result of POST is already the tokens we need.
+        // D. Commit (в некоторых API опционально, но часто нужно)
+        // Для photosV2.getUploadUrl результат POST уже содержит нужные токены.
         if (!uploadData.photos || !uploadData.photos[photoId] || !uploadData.photos[photoId].token) {
             throw new Error(`OK Upload failed: ${JSON.stringify(uploadData)}`);
         }

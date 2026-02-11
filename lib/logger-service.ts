@@ -4,7 +4,7 @@ export async function logErrorToTelegram(error: unknown, context: string) {
     try {
         const supabase = createAdminClient()
 
-        // Fetch bot token
+        // Получаем токен бота
         const { data: settings } = await supabase
             .from('project_settings')
             .select('key, value')
@@ -16,7 +16,7 @@ export async function logErrorToTelegram(error: unknown, context: string) {
             settings?.find(s => s.key === 'tg_bot')?.value
         let chatId = settings?.find(s => s.key === 'telegram_error_chat_id')?.value
 
-        // If specific error chat is not set, fallback to approve chat
+        // Если чат для ошибок не задан, фолбэк на чат approve
         if (!chatId) {
             const { data: chat } = await supabase
                 .from('telegram_chats')

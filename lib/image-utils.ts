@@ -15,7 +15,7 @@ export async function downloadImageAsJpg(imageUrl: string, filename: string) {
         const ctx = canvas.getContext('2d')
         if (!ctx) throw new Error('Не удалось создать холст')
 
-        // Fill white background for JPG
+        // Заполняем белым фоном для JPG
         ctx.fillStyle = '#ffffff'
         ctx.fillRect(0, 0, canvas.width, canvas.height)
         ctx.drawImage(img, 0, 0)

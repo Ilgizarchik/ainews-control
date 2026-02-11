@@ -8,7 +8,7 @@ import { TwitterPublisher } from './twitter';
 import { OkPublisher } from './ok'
 
 export type PublisherConfig = {
-    // API Keys (from settings)
+    // API-ключи (из настроек)
     telegram_bot_token?: string
     tilda_cookies?: string
     tilda_project_id?: string
@@ -31,12 +31,12 @@ export type PublisherConfig = {
     th_access_token?: string
     th_user_id?: string
 
-    // Twitter (Scraper)
+    // Twitter (скрейпер)
     twitter_auth_token?: string
-    // Global Proxy
+    // Глобальный прокси
     ai_proxy_url?: string
     ai_proxy_enabled?: boolean
-    // Routing/Chat IDs
+    // Маршрутизация/ID чатов
     telegram_channel_id?: string
     telegram_disable_link_preview?: boolean
 }

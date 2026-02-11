@@ -150,7 +150,7 @@ const getSocialConfig = (key: string) => {
   }
 }
 
-// --- Sortable Item Component ---
+// --- Компонент сортируемого элемента ---
 interface PromptCardProps {
   prompt: any
   editedContent: string
@@ -180,19 +180,19 @@ function SortablePromptCard({ prompt, editedContent, isEdited, isSaving, onSave,
 
   const { icon: Icon, color, bg, borderColor, textColor } = getSocialConfig(prompt.key)
 
-  // Auto-resize textarea with jumping prevention
+  // Авто-ресайз textarea с предотвращением "скачка"
   React.useEffect(() => {
     const textarea = textareaRef.current
     if (textarea) {
-      // Temporarily disable body scroll to prevent "jumping" in some browsers (like Yandex/Chrome)
-      // while recalculating layout
+      // Временно отключаем прокрутку body, чтобы избежать "скачка" в некоторых браузерах (Yandex/Chrome)
+      // во время пересчета раскладки
       const originalOverflow = document.body.style.overflow
       const scrollY = window.scrollY
 
       textarea.style.height = 'auto'
       textarea.style.height = `${textarea.scrollHeight}px`
 
-      // Ensure we stay at the same position
+      // Гарантируем, что остаемся на той же позиции
       window.scrollTo(0, scrollY)
       document.body.style.overflow = originalOverflow
     }
@@ -207,7 +207,7 @@ function SortablePromptCard({ prompt, editedContent, isEdited, isSaving, onSave,
     >
       <div className="flex items-center justify-between px-6 py-4 border-b-2 border-border/60 bg-gradient-to-r from-muted/50 to-muted/30">
         <div className="flex items-center gap-3">
-          {/* Drag Handle */}
+          {/* Ручка перетаскивания */}
           <div
             {...attributes}
             {...listeners}
@@ -333,7 +333,7 @@ function PromptsContent() {
 
 
 
-  // Categorize prompts
+  // Категоризация промптов
   const systemPrompts = useMemo(() => prompts.filter(p => p.category === 'system' || !p.category), [prompts])
   const newsPrompts = useMemo(() => prompts.filter(p => p.category === 'news'), [prompts])
   const reviewsPrompts = useMemo(() => prompts.filter(p => p.category === 'reviews'), [prompts])

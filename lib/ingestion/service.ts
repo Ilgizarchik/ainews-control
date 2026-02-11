@@ -12,18 +12,18 @@ import path from 'path'
 
 const execPromise = promisify(exec)
 
-// Types for parsed items
+// Типы для распарсенных элементов
 export type ParsedItem = {
     title: string | null
     link: string
     summary: string | null
-    publishedAt: string | null // ISO String
+    publishedAt: string | null // ISO-строка
     imageUrl: string | null
     sourceName: string
     externalId?: string
 }
 
-// Helper for proxy
+// Помощник для прокси
 async function getProxyConfig() {
     try {
         const supabase = await createClient()
@@ -43,11 +43,11 @@ async function getProxyConfig() {
     return null
 }
 
-// Helper to fetch valid HTML with Python Bridge Protection Bypass
+// Помощник для получения валидного HTML с обходом защиты через Python Bridge
 async function fetchHtml(url: string): Promise<string> {
     const proxyConfig = await getProxyConfig()
 
-    // 1. Try Python Bridge (Stronger protection bypass)
+    // 1. Пробуем Python Bridge (более сильный обход защиты)
     try {
         console.log(`[Ingestion] Attempting Python Bridge for: ${url}`)
         const bridgePath = path.join(process.cwd(), 'scraper_bridge.py')
@@ -69,7 +69,7 @@ async function fetchHtml(url: string): Promise<string> {
         console.warn(`[Ingestion] Python Bridge failed for ${url}, falling back:`, e.message)
     }
 
-    // 2. Fallback to Node.js native fetch with modern headers
+    // 2. Фолбэк на нативный Node.js fetch с современными заголовками
     const dispatcher = proxyConfig?.enabled && proxyConfig?.url ? new ProxyAgent(proxyConfig.url) : undefined
     const res = await undiciFetch(url, {
         dispatcher: dispatcher as any,
@@ -86,7 +86,7 @@ async function fetchHtml(url: string): Promise<string> {
 }
 
 // ------------------------------------------------------------------
-// Parsers
+// Парсеры
 // ------------------------------------------------------------------
 
 async function parseUniversalHtml(source: IngestionSource): Promise<ParsedItem[]> {
@@ -117,7 +117,7 @@ async function parseUniversalHtml(source: IngestionSource): Promise<ParsedItem[]
         const toAbsolute = (url: string | null | undefined) => {
             if (!url || url === 'null') return null
             try {
-                // Remove whitespace and potential quotes
+                // Убираем пробелы и возможные кавычки
                 const cleanUrl = url.trim().replace(/^["']|["']$/g, '')
                 return new URL(cleanUrl, source.url).href
             } catch {
@@ -130,7 +130,7 @@ async function parseUniversalHtml(source: IngestionSource): Promise<ParsedItem[]
             const $node = $el.find(selector)
             if ($node.length === 0) return null
 
-            // Specific attribute handling for images
+            // Специальная обработка атрибутов для изображений
             if (attr === 'src' || selector.includes('img')) {
                 const img = $node.is('img') ? $node : $node.find('img').first()
                 if (img.length > 0) {
@@ -146,7 +146,7 @@ async function parseUniversalHtml(source: IngestionSource): Promise<ParsedItem[]
 
                     const src = img.attr('src')
                     if (!isPlaceholder(src)) return src as string
-                    return null // Return null to trigger deep fallback
+                    return null // Возвращаем null, чтобы включить глубокий фолбэк
                 }
             }
 
@@ -324,7 +324,7 @@ async function parseOhotnikiSearch(source: IngestionSource): Promise<ParsedItem[
 }
 
 // ------------------------------------------------------------------
-// Main Ingestion Logic
+// Основная логика ingestion
 // ------------------------------------------------------------------
 
 export async function runIngestion(sourceIds?: string[], client?: SupabaseClient<Database>) {
@@ -410,18 +410,26 @@ export async function runIngestion(sourceIds?: string[], client?: SupabaseClient
                     .single()
 
                 if (!existing) {
-                    // FALLBACK IMAGE & DATE LOGIC
-                    const isPlaceholderAttr = item.imageUrl?.includes('data:image/') ||
-                        item.imageUrl?.includes('spacer') ||
-                        item.imageUrl?.includes('transparent') ||
-                        (item.imageUrl?.length || 0) < 10;
+                    // ФОЛБЭК ЛОГИКА ДЛЯ ИЗОБРАЖЕНИЙ И ДАТ
+                    const isPlace = (u: string | null | undefined): boolean => {
+                        if (!u) return true
+                        const low = u.toLowerCase()
+                        return low.includes('data:image/') ||
+                            low.includes('spacer') ||
+                            low.includes('transparent') ||
+                            low.includes('placeholder') ||
+                            low.includes('backgroundgradload') ||
+                            low.includes('loading') ||
+                            low.includes('pixel') ||
+                            u.length < 10
+                    }
 
-                    if (!item.publishedAt || item.publishedAt === 'null' || !item.imageUrl || isPlaceholderAttr) {
+                    if (!item.publishedAt || item.publishedAt === 'null' || isPlace(item.imageUrl)) {
                         try {
                             const artHtml = await fetchHtml(item.link)
                             const $art = cheerio.load(artHtml)
 
-                            // 1. DATE FALLBACK
+                            // 1. ФОЛБЭК ДЛЯ ДАТЫ
                             if (!item.publishedAt || item.publishedAt === 'null') {
                                 const selDetail = (source.selectors as any)?.date_detail
                                 const selMain = (source.selectors as any)?.date
@@ -448,15 +456,13 @@ export async function runIngestion(sourceIds?: string[], client?: SupabaseClient
                                 }
                             }
 
-                            // 2. IMAGE FALLBACK (Check OG Tags)
-                            if (!item.imageUrl) {
-                                const ogImage = $art('meta[property="og:image"]').attr('content') ||
-                                    $art('meta[name="twitter:image"]').attr('content') ||
-                                    $art('link[rel="image_src"]').attr('href')
+                            // 2. ФОЛБЭК ДЛЯ ИЗОБРАЖЕНИЙ (проверяем OG-теги)
+                            const ogImage = $art('meta[property="og:image"]').attr('content') ||
+                                $art('meta[name="twitter:image"]').attr('content') ||
+                                $art('link[rel="image_src"]').attr('href')
 
-                                if (ogImage) {
-                                    item.imageUrl = ogImage
-                                }
+                            if (ogImage) {
+                                item.imageUrl = ogImage
                             }
                         } catch (e) {
                             console.warn(`[Ingestion] Failed to fetch article fallback data:`, e)

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { getSystemPrompts, updateSystemPrompt } from '@/app/actions/prompt-actions'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -36,7 +36,6 @@ const PROVIDERS = [
 ]
 
 export function SystemPromptsEditor() {
-    const supabase = createClient()
     const [prompts, setPrompts] = useState<SystemPrompt[]>([])
     const [loading, setLoading] = useState(true)
     const [savingId, setSavingId] = useState<number | null>(null)
@@ -50,15 +49,10 @@ export function SystemPromptsEditor() {
     const fetchPrompts = useCallback(async () => {
         setLoading(true)
         try {
-            const { data, error } = await (supabase
-                .from('system_prompts') as any)
-                .select('*')
-                .order('category', { ascending: true })
-                .order('key', { ascending: true })
+            const result = await getSystemPrompts()
+            if (!result.success) throw new Error(result.error)
 
-            if (error) throw error
-
-            const typedData = (data as any[]).map(p => ({
+            const typedData = (result.data as any[]).map(p => ({
                 ...p,
                 provider: p.provider || 'global', // Normalize null to 'global' for UI
                 model: p.model || '',
@@ -78,7 +72,7 @@ export function SystemPromptsEditor() {
         } finally {
             setLoading(false)
         }
-    }, [supabase])
+    }, [])
 
     useEffect(() => {
         fetchPrompts()
@@ -94,7 +88,6 @@ export function SystemPromptsEditor() {
             if (models && models.length > 0) {
                 setModelsCache(prev => ({ ...prev, [provider]: models }))
             } else {
-                // toast.warning(`No models found for ${provider}`)
                 setModelsCache(prev => ({ ...prev, [provider]: [] }))
             }
         } catch (e) {
@@ -106,12 +99,10 @@ export function SystemPromptsEditor() {
     }
 
     const handleUpdate = (id: number, field: keyof SystemPrompt, value: any) => {
-        // If provider changed, fetch models and reset current model
         if (field === 'provider') {
             if (value !== 'global' && value !== 'custom') {
                 fetchModels(value)
             }
-            // Reset model when provider changes to prevent invalid model for provider
             setPrompts(prev => prev.map(p => p.id === id ? { ...p, provider: value, model: '' } : p))
         } else {
             setPrompts(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p))
@@ -132,22 +123,16 @@ export function SystemPromptsEditor() {
     const handleSave = async (prompt: SystemPrompt) => {
         setSavingId(prompt.id)
         try {
-            // Prepared payload
             const payload = {
                 content: prompt.content,
-                provider: prompt.provider === 'global' ? null : prompt.provider, // Convert 'global' back to null
-                model: prompt.provider === 'global' ? null : prompt.model, // Clear model if global
+                provider: prompt.provider === 'global' ? null : prompt.provider,
+                model: prompt.provider === 'global' ? null : prompt.model,
                 temperature: prompt.temperature
             }
 
-            const { error } = await (supabase
-                .from('system_prompts') as any)
-                .update(payload)
-                .eq('id', prompt.id)
+            const result = await updateSystemPrompt(prompt.id, payload)
+            if (!result.success) throw new Error(result.error)
 
-            if (error) throw error
-
-            // Update original state to match current
             setOriginalPrompts(prev => ({ ...prev, [prompt.id]: { ...prompt } }))
             toast.success(`Промпт "${prompt.key}" обновлен`)
         } catch (e: any) {

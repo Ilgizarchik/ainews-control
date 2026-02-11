@@ -5,7 +5,7 @@ async function cleanup() {
     console.log('🚀 Starting database image cleanup...');
     const supabase = createAdminClient();
 
-    // Find news items with large base64 images
+    // Ищем новости с большими base64-изображениями
     const { data: items, error } = await supabase
         .from('news_items')
         .select('id, title, draft_image_url, draft_image_file_id')
@@ -29,16 +29,16 @@ async function cleanup() {
     for (const item of base64Items) {
         console.log(`Processing: ${item.title || item.id}`);
         try {
-            // 1. Send to Telegram
+            // 1. Отправляем в Telegram
             const { file_id } = await sendPhotoToTelegram(chatId, item.draft_image_url, `Cleanup migration: ${item.title}`);
             console.log(`✅ Uploaded to TG. File ID: ${file_id}`);
 
-            // 2. Update DB
+            // 2. Обновляем БД
             const { error: updateError } = await supabase
                 .from('news_items')
                 .update({
                     draft_image_file_id: file_id,
-                    draft_image_url: null, // Clear the heavy base64
+                    draft_image_url: null, // Убираем тяжелый base64
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', item.id);

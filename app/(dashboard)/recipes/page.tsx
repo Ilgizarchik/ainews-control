@@ -84,7 +84,7 @@ const getPlatformConfig = (platformCode: string) => {
         colorClass: 'text-blue-500',
         bgClass: 'bg-blue-50',
         label: 'Telegram',
-        barColor: '#3B82F6' // blue-500
+        barColor: '#3B82F6' // синий-500
       }
     case 'vk':
       return {
@@ -135,7 +135,7 @@ const getPlatformConfig = (platformCode: string) => {
         colorClass: 'text-emerald-500',
         bgClass: 'bg-emerald-50',
         label: 'Вебсайт',
-        barColor: '#10B981' // emerald-500
+        barColor: '#10B981' // изумруд-500
       }
     default:
       return {
@@ -143,7 +143,7 @@ const getPlatformConfig = (platformCode: string) => {
         colorClass: 'text-zinc-500',
         bgClass: 'bg-zinc-50',
         label: platformCode,
-        barColor: '#71717A' // zinc-500
+        barColor: '#71717A' // цинк-500
       }
   }
 }
@@ -163,7 +163,7 @@ export default function RecipesPage() {
   )
 
   const fetchRecipes = useCallback(async () => {
-    // 1. Fetch recipes
+    // 1. Загружаем рецепты
     const { data: recipesData, error } = await supabase.from('publish_recipes').select('*')
     if (error) {
       toast.error('Failed to load recipes')
@@ -171,7 +171,7 @@ export default function RecipesPage() {
       return
     }
 
-    // 2. Fetch order
+    // 2. Загружаем порядок
     const { data: settingsData } = await supabase
       .from('project_settings')
       .select('value')
@@ -243,7 +243,7 @@ export default function RecipesPage() {
 
         const newItems = arrayMove(items, oldIndex, newIndex)
 
-        // Save new order
+        // Сохраняем новый порядок
         const newOrderIds = newItems.map(i => String(i.id))
 
         supabase
@@ -384,9 +384,9 @@ function RecipeRow({
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pl-3">
 
-        {/* 1. Инфо о платформе + Drag Handle */}
+        {/* 1. Инфо о платформе + ручка перетаскивания */}
         <div className="flex items-center gap-3 min-w-[200px]">
-          {/* Drag Handle */}
+          {/* Ручка перетаскивания */}
           <div
             {...dragHandle}
             data-tutorial={isFirst ? "recipes-row-handle" : undefined}
@@ -397,7 +397,7 @@ function RecipeRow({
 
           <div
             className={`p-2.5 rounded-lg ${bgClass}`}
-            style={customStyle ? { backgroundColor: `${customStyle.color}1A` } : undefined} // 10% opacity fallback
+            style={customStyle ? { backgroundColor: `${customStyle.color}1A` } : undefined} // Фолбэк на 10% непрозрачности
           >
             <Icon
               className={`w-5 h-5 ${colorClass}`}

@@ -14,11 +14,11 @@ export class TelegramPublisher implements IPublisher {
     async publish(context: PublishContext): Promise<PublishResult> {
         try {
             if (!this.botToken) throw new Error("Telegram Bot Token is missing");
-            // If chatId is not provided in context, use the one from constructor
+            // Если chatId не задан в context, используем значение из конструктора
             const targetChatId = context.config?.telegram_channel_id || this.chatId;
             if (!targetChatId) throw new Error("Telegram Chat ID is missing");
 
-            // Convert BBCode if present to HTML suitable for Telegram
+            // Конвертируем BBCode в HTML, пригодный для Telegram
             const finalHtml = convertBbcodeToHtml(context.content_html);
             const titleHtml = convertBbcodeToHtml(context.title);
 
@@ -38,18 +38,18 @@ export class TelegramPublisher implements IPublisher {
                 }
             }
 
-            // Link Preview Options from config
+            // Настройки превью ссылок из конфига
             const disableLinkPreview = context.config?.telegram_disable_link_preview === true;
             const linkPreviewOptions = { is_disabled: disableLinkPreview };
 
-            // 1. Send Photo
+            // 1. Отправляем фото
             if (context.image_url) {
                 const caption = textWithLink;
                 const isTooLongForCaption = caption.length > 900;
 
                 if (isTooLongForCaption) {
-                    // Method A: Long post > 1024 chars
-                    // Send photo first (no caption or just title)
+                    // Метод A: длинный пост > 1024 символов
+                    // Сначала отправляем фото (без подписи или только заголовок)
                     const photoRes = await fetch(`https://api.telegram.org/bot${this.botToken}/sendPhoto`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -59,7 +59,7 @@ export class TelegramPublisher implements IPublisher {
                         })
                     });
 
-                    // Then send full text as separate message
+                    // Затем отправляем полный текст отдельным сообщением
                     const textRes = await fetch(`https://api.telegram.org/bot${this.botToken}/sendMessage`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -82,7 +82,7 @@ export class TelegramPublisher implements IPublisher {
                         return { success: false, error: textData.description || "Telegram API Error (text part)" };
                     }
                 } else {
-                    // Method B: Normal post <= 1024 chars
+                    // Метод B: обычный пост <= 1024 символов
                     const url = `https://api.telegram.org/bot${this.botToken}/sendPhoto`;
                     const res = await fetch(url, {
                         method: 'POST',
@@ -104,7 +104,7 @@ export class TelegramPublisher implements IPublisher {
                             raw_response: data
                         };
                     }
-                    // If photo failed for some reason (invalid URL etc), fallback to text
+                    // Если фото не удалось отправить (неверный URL и т.п.), фолбэк на текст
                     console.error("TG Photo failed, retrying text only", data);
                 }
             }

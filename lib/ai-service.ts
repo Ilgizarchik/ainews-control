@@ -30,12 +30,12 @@ export async function getAISettings(): Promise<AISettings> {
             'ai_provider', 'ai_model', 'ai_base_url', 'ai_proxy_url', 'ai_proxy_enabled',
             'ai_image_provider', 'ai_image_model',
             'ai_key_openai', 'ai_key_openrouter', 'ai_key_anthropic', 'ai_key_custom',
-            'ai_api_key' // Fallback
+            'ai_api_key' // Фолбэк
         ]);
 
     console.log('[getAISettings] Query result:', { error, dataLength: data?.length });
 
-    // If DB connection fails, use env vars as fallback
+    // Если подключение к БД не удалось, используем env как фолбэк
     if (error) {
         console.error('[getAISettings] Supabase error, using ENV fallback:', error);
         const envProvider = process.env.AI_PROVIDER || 'openrouter';
@@ -77,7 +77,7 @@ export async function getAISettings(): Promise<AISettings> {
             openrouter: map.ai_key_openrouter || (map.ai_provider === 'openrouter' ? map.ai_api_key : ''),
             anthropic: map.ai_key_anthropic || (map.ai_provider === 'anthropic' ? map.ai_api_key : ''),
             custom: map.ai_key_custom || (map.ai_provider === 'custom' ? map.ai_api_key : ''),
-            // Generic fallback
+            // Общий фолбэк
             default: map.ai_api_key || ''
         }
     };
@@ -95,19 +95,19 @@ export type AIConfigOverride = {
 export async function callAI(systemPrompt: string, userPrompt: string, config?: AIConfigOverride): Promise<string> {
     const settings = await getAISettings();
 
-    // 1. Determine Provider and Model
+    // 1. Определяем провайдера и модель
     let provider = config?.provider || settings.ai_provider;
-    // Normalized 'global' to default
+    // Нормализуем 'global' в дефолт
     if (provider === 'global') provider = settings.ai_provider;
 
     const model = config?.model || settings.ai_model;
     const temperature = config?.temperature ?? 0.7;
     const maxTokens = config?.maxTokens ?? 4000;
 
-    // 2. Determine Key
+    // 2. Определяем ключ
     let apiKey = settings.keys[provider] || settings.keys.default;
 
-    // 3. Determine URL
+    // 3. Определяем URL
     let baseUrl = settings.ai_base_url;
     if (provider !== settings.ai_provider && PROVIDER_BASE_URLS[provider]) {
         baseUrl = PROVIDER_BASE_URLS[provider];
@@ -127,10 +127,10 @@ export async function callAI(systemPrompt: string, userPrompt: string, config?: 
         headers['X-Title'] = 'AiNews Control Center';
     }
 
-    // Anthropic API specific headers if using direct API
+    // Специфичные заголовки Anthropic API при прямом использовании
     if (provider === 'anthropic') {
         headers['x-api-key'] = apiKey;
-        headers['anthropic-version'] = '2023-06-01'; // Ensure version
+        headers['anthropic-version'] = '2023-06-01'; // Фиксируем версию
     }
 
     const body: any = {
@@ -192,7 +192,7 @@ If you see data below tagged as [WEB_RESULT] or provided in context, it IS your 
         method: 'POST',
         headers: headers,
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(300000) // 300 second timeout
+        signal: AbortSignal.timeout(300000) // Таймаут 300 секунд
     };
 
     console.log('[AI] Request Body:', JSON.stringify(body, null, 2));
@@ -230,7 +230,7 @@ If you see data below tagged as [WEB_RESULT] or provided in context, it IS your 
         if (finishReason === 'length') {
             const msg = `AI generation truncated (max tokens hit). Usage: ${JSON.stringify(usage)}. Please simplify prompt or increase limit.`;
             console.warn(`[AI] ${msg}`);
-            // Throwing error so UI shows the problem instead of partial text
+            // Бросаем ошибку, чтобы UI показал проблему, а не частичный текст
             throw new Error(msg);
         }
 
@@ -245,29 +245,29 @@ If you see data below tagged as [WEB_RESULT] or provided in context, it IS your 
 
         if (error.name === 'AbortError' || error.name === 'TimeoutError') {
             // ...
-            // preserve existing error handling
+            // сохраняем существующую обработку ошибок
             const timeoutMsg = `AI request timeout (${provider}/${model}) after 150 seconds${proxyMsg}`;
             console.error(`[AI] ${timeoutMsg}`);
             await logErrorToTelegram(timeoutMsg, `callAI (${model})`);
             throw new Error(timeoutMsg);
         }
 
-        // Re-throw our new specific error
+        // Пробрасываем нашу новую специфическую ошибку
         if (error.message.includes('AI generation hit max_tokens')) throw error;
 
-        // Enhance connection errors
+        // Уточняем ошибки соединения
         if (error.cause?.code === 'ECONNRESET' || error.message.includes('ECONNRESET')) {
             console.error(`[AI] Connection Reset${proxyMsg}. If you are in a restricted region, ensure Proxy is ENABLED and WORKING.`);
         }
 
-        throw error; // Re-throw other errors
+        throw error; // Пробрасываем прочие ошибки
     }
 }
 
 export async function generateImage(prompt: string): Promise<string> {
     const settings = await getAISettings();
 
-    // Determine specific image provider and model
+    // Определяем провайдера и модель для изображений
     const provider = (settings.ai_image_provider && settings.ai_image_provider !== 'global')
         ? settings.ai_image_provider
         : settings.ai_provider;
@@ -301,7 +301,7 @@ export async function generateImage(prompt: string): Promise<string> {
             method: 'POST',
             headers: headers,
             body: JSON.stringify(body),
-            signal: AbortSignal.timeout(150000) // 150 second timeout for image generation
+            signal: AbortSignal.timeout(150000) // Таймаут 150 секунд для генерации изображений
         };
 
         if (settings.ai_proxy_url && settings.ai_proxy_enabled) {
@@ -334,7 +334,7 @@ export async function generateImage(prompt: string): Promise<string> {
         return dataUrl;
     }
 
-    // Fallback for OpenAI / DALL-E logic
+    // Фолбэк для логики OpenAI / DALL·E
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`
@@ -363,11 +363,11 @@ export async function generateImage(prompt: string): Promise<string> {
         }
     }
 
-    // Heuristic for Image URL
+    // Эвристика для URL изображения
     let url = 'https://api.openai.com/v1/images/generations';
     if (provider !== 'openai') {
-        // Try to construct standard image endpoint from base URL
-        // If the user provided a custom base URL expecting standard OpenAI /images/generations support
+        // Пытаемся сформировать стандартный image-эндпоинт из base URL
+        // если пользователь указал кастомный base URL со стандартной поддержкой /images/generations
         url = settings.ai_base_url.replace('/chat/completions', '').replace(/\/v\d+$/, '') + '/v1/images/generations';
     }
 

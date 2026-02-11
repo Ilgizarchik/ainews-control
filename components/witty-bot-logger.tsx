@@ -6,7 +6,7 @@ import { Bot, X, Terminal, Activity, Sparkles, CheckCircle, AlertTriangle, Coffe
 import { cn } from '@/lib/utils'
 import { AnimatePresence, motion } from 'framer-motion'
 
-// Context for global access if needed
+// Контекст для глобального доступа при необходимости
 export const WittyLoggerContext = React.createContext<{
     log: (msg: string, type?: 'info' | 'success' | 'wait' | 'error') => void
 }>({ log: () => { } })
@@ -81,7 +81,7 @@ export function WittyBotLogger() {
     const logsEndRef = useRef<HTMLDivElement>(null)
     const supabase = createClient()
 
-    // Sound effect (optional, maybe too annoying)
+    // Звуковой эффект (опционально, может быть слишком навязчивым)
     // const playSound = () => { ... }
 
     const sleepTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -92,8 +92,8 @@ export function WittyBotLogger() {
         }
         sleepTimerRef.current = setTimeout(() => {
             setIsSleepy(true)
-            // addLog(getRandomPhrase('idle'), 'info') // Optional: final message before sleep
-        }, 15000) // Sleep after 15s of inactivity
+            // addLog(getRandomPhrase('idle'), 'info') // Опционально: финальное сообщение перед сном
+        }, 15000) // Сон после 15 секунд бездействия
     }, [])
 
     const addLog = useCallback((text: string, type: LogMessage['type'] = 'info') => {
@@ -106,22 +106,22 @@ export function WittyBotLogger() {
                 type,
                 timestamp: Date.now()
             }]
-            // Keep last 50 logs
+            // Храним последние 50 логов
             return next.slice(-50)
         })
 
-        // Reset to sleepy after timeout
+        // Возвращаемся в режим сна по таймауту
         resetSleepTimer()
     }, [resetSleepTimer])
 
-    // Scroll to bottom
+    // Прокрутка вниз
     useEffect(() => {
         if (logsEndRef.current) {
             logsEndRef.current.scrollIntoView({ behavior: 'smooth' })
         }
     }, [messages])
 
-    // Subscription
+    // Подписка
     useEffect(() => {
         const channel = supabase
             .channel('witty-logger')
@@ -131,29 +131,29 @@ export function WittyBotLogger() {
                 (payload) => {
                     const { eventType, new: newRecord, old: oldRecord } = payload as any
 
-                    // INSERT -> Found
+                    // INSERT -> Найдено
                     if (eventType === 'INSERT') {
                         addLog(`${getRandomPhrase('found_item')} (${newRecord.title?.substring(0, 30)}...)`, 'info')
                     }
 
-                    // UPDATE -> Status Changes
+                    // UPDATE -> Изменения статуса
                     if (eventType === 'UPDATE') {
                         const status = newRecord.status
                         const oldStatus = oldRecord.status
 
-                        // Gate 1 Decision
+                        // Решение Gate 1
                         if (newRecord.gate1_decision === 'block' && oldRecord.gate1_decision !== 'block') {
                             addLog(getRandomPhrase('gate1_block'), 'error')
                         } else if (newRecord.gate1_decision === 'send' && oldRecord.gate1_decision !== 'send') {
                             addLog(`${getRandomPhrase('gate1_pass')} (Score: ${newRecord.gate1_score})`, 'success')
                         }
 
-                        // Generation
+                        // Генерация
                         if (status === 'approved_for_adaptation' && oldStatus !== 'approved_for_adaptation') {
                             addLog(getRandomPhrase('generating'), 'thinking')
                         }
 
-                        // Image Generation (heuristic based on fields)
+                        // Генерация изображения (эвристика по полям)
                         if (newRecord.draft_image_prompt && !oldRecord.draft_image_prompt) {
                             addLog(getRandomPhrase('image_gen'), 'info')
                         }
@@ -162,7 +162,7 @@ export function WittyBotLogger() {
             )
             .subscribe()
 
-        // Listen for direct broadcast events from backend (Ingestion Service)
+        // Слушаем прямые broadcast-события с бэкенда (Ingestion Service)
         const broadcastChannel = supabase
             .channel('ingestion-updates')
             .on(
@@ -184,7 +184,7 @@ export function WittyBotLogger() {
         }
     }, [addLog, supabase])
 
-    // Custom Event Listener for internal app events
+    // Слушатель пользовательских событий для внутренних событий приложения
     useEffect(() => {
         const handleCustomLog = (e: CustomEvent<any>) => {
             const { text, type } = e.detail
@@ -221,7 +221,7 @@ export function WittyBotLogger() {
             isSleepy ? "translate-y-[calc(100%-60px)] opacity-50 hover:opacity-100 hover:translate-y-0" : "translate-y-0 opacity-100"
         )}>
             <div className="bg-zinc-950/90 backdrop-blur-md border border-white/10 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[400px]">
-                {/* Header */}
+                {/* Заголовок */}
                 <div className="h-10 bg-gradient-to-r from-indigo-900/50 to-purple-900/50 border-b border-white/10 flex items-center justify-between px-3 cursor-pointer" onClick={() => setIsSleepy(!isSleepy)}>
                     <div className="flex items-center gap-2">
                         <Bot className={cn("w-4 h-4 text-indigo-400", !isSleepy && "animate-bounce")} />
@@ -248,7 +248,7 @@ export function WittyBotLogger() {
                     </div>
                 </div>
 
-                {/* Body */}
+                {/* Тело */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent bg-black/50">
                     <AnimatePresence initial={false}>
                         {messages.length === 0 && (

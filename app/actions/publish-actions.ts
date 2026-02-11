@@ -30,7 +30,7 @@ async function getPublisherConfig(projectKey: string = 'ainews'): Promise<Publis
 
     const config: PublisherConfig = {}
 
-    // 2. Map basic settings
+    // 2. Мапим базовые настройки
     data.forEach((row: any) => {
         if (row.key === 'telegram_bot_token') config.telegram_bot_token = row.value
         if (row.key === 'tilda_cookies') config.tilda_cookies = row.value
@@ -51,13 +51,13 @@ async function getPublisherConfig(projectKey: string = 'ainews'): Promise<Publis
         if (row.key === 'ai_proxy_url') config.ai_proxy_url = row.value
         if (row.key === 'ai_proxy_enabled') config.ai_proxy_enabled = row.value === 'true'
         if (row.key === 'telegram_disable_link_preview') config.telegram_disable_link_preview = row.value === 'true'
-        // Priority to UI set key
+        // Приоритет ключа, заданного в UI
         if (row.key === 'publish_chat_id' || row.key === 'telegram_channel_id') {
             config.telegram_channel_id = row.value
         }
     })
 
-    // 3. Fallback to telegram_chats table ONLY if not set in project_settings
+    // 3. Фолбэк на таблицу telegram_chats ТОЛЬКО если не задано в project_settings
     if (!config.telegram_channel_id) {
         const { data: chats } = await supabase
             .from('telegram_chats')
@@ -75,7 +75,7 @@ async function getPublisherConfig(projectKey: string = 'ainews'): Promise<Publis
     return config;
 }
 
-// Helper to create a job log
+// Вспомогательная функция для создания лога задания
 async function createJob(supabase: any, newsId: string | null, platform: string, reviewId: string | null, status: 'processing' | 'queued' = 'processing', publishAt: string = new Date().toISOString()) {
     const { data, error } = await supabase.from('publish_jobs').insert({
         news_id: newsId || null,
@@ -120,7 +120,7 @@ async function updateJob(supabase: any, jobId: string, status: 'published' | 'er
 export async function publishItem(itemId: string, itemType: 'news' | 'review' = 'news', publishAt?: string) {
     const supabase = await createClient()
 
-    // 1. Fetch Item
+    // 1. Получаем элемент
     const table = itemType === 'news' ? 'news_items' : 'review_items';
     const { data: itemRaw, error } = await supabase
         .from(table)
@@ -148,7 +148,7 @@ export async function publishItem(itemId: string, itemType: 'news' | 'review' = 
     const thText = item.draft_announce_threads || item.draft_announce || siteHtml;
     const twitterText = item.draft_announce_x || item.draft_announce || siteHtml;
 
-    // Smart Image Prep
+    // Умная подготовка изображения
     let effectiveImageUrl = item.draft_image_url || item.image_url;
     const isStable = (url: string) => !!(url && url.startsWith('http') && !url.includes('telegram.org'));
     const currentIsStable = isStable(item.draft_image_url) || isStable(item.image_url);
@@ -160,7 +160,7 @@ export async function publishItem(itemId: string, itemType: 'news' | 'review' = 
     const initialStatus = isScheduled ? 'queued' : 'processing';
     const effectivePublishAt = publishAt || new Date().toISOString();
 
-    // Helper for sequential resolution of images only when needed
+    // Помощник для последовательного резолва изображений по необходимости
     const resolveImageUrl = async (platform: string) => {
         if (currentIsStable) return effectiveImageUrl;
         if (item.draft_image_file_id && config.telegram_bot_token) {
@@ -176,7 +176,7 @@ export async function publishItem(itemId: string, itemType: 'news' | 'review' = 
         return effectiveImageUrl;
     }
 
-    // --- SITE ---
+    // --- САЙТ ---
     if (config.tilda_cookies) {
         const platform = 'site';
         const jobId = await createJob(supabase, itemType === 'news' ? itemId : null, platform, itemType === 'review' ? itemId : null, initialStatus, effectivePublishAt);
@@ -197,7 +197,7 @@ export async function publishItem(itemId: string, itemType: 'news' | 'review' = 
                     publishedUrl = res.published_url || publishedUrl;
                     await updateJob(supabase, jobId, 'published', res.external_id);
 
-                    // Sync back stable URL and main link
+                    // Синхронизируем стабильный URL и основную ссылку
                     const updateData: any = { published_url: publishedUrl, status: 'published', published_at: new Date().toISOString() };
                     const raw = res.raw_response;
                     const tildaImg = raw?.image || raw?.thumb || raw?.post?.image || raw?.post?.thumb;
@@ -214,7 +214,7 @@ export async function publishItem(itemId: string, itemType: 'news' | 'review' = 
         }
     }
 
-    // --- OTHER PLATFORMS (Loop) ---
+    // --- ДРУГИЕ ПЛАТФОРМЫ (ЦИКЛ) ---
     const socialPlatforms = [
         { key: 'tg', text: tgText, active: !!(config.telegram_bot_token && config.telegram_channel_id) },
         { key: 'vk', text: vkText, active: !!(config.vk_access_token && config.vk_owner_id) },
@@ -282,7 +282,7 @@ export async function publishSinglePlatform({ itemId, itemType, platform, conten
 
         let effectiveImageUrl = item?.draft_image_url || item?.image_url;
 
-        // --- STABLE IMAGE CHECK ---
+        // --- ПРОВЕРКА СТАБИЛЬНОГО ИЗОБРАЖЕНИЯ ---
         const isStable = (url: string) => !!(url && url.startsWith('http') && !url.includes('telegram.org'));
         const currentIsStable = isStable(item?.draft_image_url) || isStable(item?.image_url);
 
@@ -339,7 +339,7 @@ export async function publishSinglePlatform({ itemId, itemType, platform, conten
 
             // Обновление логов джобы только для реальной публикации
             if (!isTest) {
-                // Sync Job with correct URL and ID
+                // Синхронизируем задание с корректными URL и ID
                 const { data: existingJobs } = await supabase.from('publish_jobs').select('id').eq(itemType === 'news' ? 'news_id' : 'review_id', itemId).eq('platform', platform).order('created_at', { ascending: false }).limit(1) as any
                 const jobId = existingJobs?.[0]?.id
                 const now = new Date().toISOString()
@@ -373,10 +373,10 @@ export async function publishSinglePlatform({ itemId, itemType, platform, conten
 }
 
 /**
- * @deprecated This function is no longer called automatically.
- * Jobs remain in the queue even if their platform recipes are disabled,
- * allowing manual management of the publication queue.
- * Can be used manually if cleanup is needed.
+ * @deprecated Эта функция больше не вызывается автоматически.
+ * Задания остаются в очереди, даже если рецепты платформ отключены,
+ * что позволяет вручную управлять очередью публикаций.
+ * Можно запускать вручную при необходимости очистки.
  */
 export async function cleanupDisabledPlatforms() {
     try {

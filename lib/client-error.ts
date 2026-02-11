@@ -18,7 +18,7 @@ export function reportClientError(payload: ClientErrorPayload) {
     try {
         window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: payload }))
     } catch {
-        // Ignore: error reporting must never throw
+        // Игнорируем: отправка ошибок не должна падать
     }
 }
 

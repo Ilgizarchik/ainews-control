@@ -10,12 +10,12 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'No file provided' }, { status: 400 })
         }
 
-        // Initialize Supabase admin client to fetch secrets
+        // Инициализируем админ-клиент Supabase для получения секретов
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
         const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
         const supabase = createClient(supabaseUrl, supabaseKey)
 
-        // Fetch token from database
+        // Получаем токен из базы
         const { data: settings, error: settingsError } = await supabase
             .from('project_settings')
             .select('key, value')
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
             }, { status: 500 })
         }
 
-        // Forward to Telegram
+        // Отправляем в Telegram
         const tgFormData = new FormData()
         tgFormData.append('chat_id', chatId)
         tgFormData.append('photo', file)
@@ -52,10 +52,10 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Telegram upload failed', details: data }, { status: 502 })
         }
 
-        // Get the largest photo file_id
+        // Берем file_id самой большой фотографии
         const photos = data.result.photo
-        // Telegram returns an array of photo sizes. The last one is the largest.
-        // Example: [{file_id: 'small', ...}, {file_id: 'medium', ...}, {file_id: 'large', ...}]
+        // Telegram возвращает массив размеров фото. Последний — самый большой.
+        // Пример: [{file_id: 'small', ...}, {file_id: 'medium', ...}, {file_id: 'large', ...}]
         const bestPhoto = photos[photos.length - 1]
 
         return NextResponse.json({ file_id: bestPhoto.file_id })

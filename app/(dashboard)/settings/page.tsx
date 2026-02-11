@@ -13,7 +13,7 @@ import { SystemPromptsEditor } from '@/components/system-prompts-editor'
 import { AiCorrectionLogs } from '@/components/settings/ai-correction-logs'
 import { reportClientError } from '@/lib/client-error'
 
-// Split components
+// Разнесенные компоненты
 import { AIConfigTab } from '@/components/settings/ai-config-tab'
 import { DataIngestionTab } from '@/components/settings/data-ingestion-tab'
 import { IntegrationsTab } from '@/components/settings/integrations-tab'
@@ -64,14 +64,14 @@ export default function SettingsPage() {
     const [fetchingModels, setFetchingModels] = useState(false)
     const [fetchingThreadsId, setFetchingThreadsId] = useState(false)
 
-    // Visibility toggles for keys
+    // Переключатели видимости для ключей
     const [showKeys, setShowKeys] = useState<Record<string, boolean>>({})
 
-    // Dynamic list of models fetched from API
+    // Динамический список моделей, получаемый из API
     const [availableModels, setAvailableModels] = useState<string[]>([])
     const [availableImageModels, setAvailableImageModels] = useState<string[]>([])
 
-    // Global Defaults Configuration
+    // Конфигурация глобальных значений по умолчанию
     const [config, setConfig] = useState<AIConfig>({
         provider: 'openrouter',
         model: 'anthropic/claude-3.5-sonnet',
@@ -83,7 +83,7 @@ export default function SettingsPage() {
         autoGenerateSocial: false
     })
 
-    // Key Vault
+    // Хранилище ключей
     const [apiKeys, setApiKeys] = useState<ApiKeys>({
         openrouter: '',
         openai: '',
@@ -141,7 +141,7 @@ export default function SettingsPage() {
                 return acc
             }, {})
 
-            // 1. Keys
+            // 1. Ключи
             setApiKeys(prev => {
                 const next = { ...prev }
                 Object.keys(next).forEach(k => {
@@ -152,7 +152,7 @@ export default function SettingsPage() {
                 return next
             })
 
-            // 2. AI Config
+            // 2. Конфиг AI
             setConfig(prev => {
                 const next = { ...prev }
                 if (settingsMap.ai_provider) next.provider = settingsMap.ai_provider
@@ -172,7 +172,7 @@ export default function SettingsPage() {
                 return next
             })
 
-            // 3. Ingestion
+            // 3. Сбор данных (ingestion)
             if (settingsMap.ingestion_config) {
                 try {
                     setIngestionConfig(JSON.parse(settingsMap.ingestion_config))
@@ -186,7 +186,7 @@ export default function SettingsPage() {
             if (settingsMap.auto_ingestion) setAutoIngestion(settingsMap.auto_ingestion === 'true')
             if (settingsMap.safe_publish_mode) setSafePublishMode(settingsMap.safe_publish_mode === 'true')
 
-            // 4. Sources
+            // 4. Источники
             const dbData = await getDbSources()
             if (Array.isArray(dbData)) {
                 setDbSources(dbData)

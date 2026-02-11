@@ -8,7 +8,7 @@ export async function getSystemPrompt(key: string) {
     console.log(`[Prompts] Fetching prompt for key: ${key}`)
 
     try {
-        // Use .like to handle potential whitespace issues we saw earlier
+        // Используем .like, чтобы учесть возможные пробелы в ключах
         const { data, error } = await supabaseAdmin
             .from('system_prompts')
             .select('content, key')
@@ -35,7 +35,7 @@ export async function getSystemPrompt(key: string) {
 export async function updateSystemPrompt(key: string, content: string) {
     const supabaseAdmin = createAdminClient()
 
-    // 1. Fetch exact key first (to handle the whitespace issue correctly on update)
+    // 1. Сначала берем точный ключ (чтобы корректно обработать пробелы при обновлении)
     const { data: existing } = await supabaseAdmin
         .from('system_prompts')
         .select('key')

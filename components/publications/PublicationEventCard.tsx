@@ -21,7 +21,7 @@ export function PublicationEventCard({ event }: { event: any }) {
     const strongBorder = color.replace('text-', 'border-')
     const strongBg = color.replace('text-', 'bg-')
 
-    // Use realStart passed from parent if available, otherwise just use event start
+    // Используем realStart от родителя, если доступен, иначе берем event start
     const date = event.resource?.realStart ? event.resource.realStart : new Date(event.publish_date || event.start)
     const isPublished = event.status === 'published'
 
@@ -50,8 +50,8 @@ export function PublicationEventCard({ event }: { event: any }) {
             const range = selection.getRangeAt(0)
             const rect = range.getBoundingClientRect()
             setWandPos({
-                top: rect.top - 40, // 40px above selection
-                left: rect.left + (rect.width / 2) - 16 // Centered
+                top: rect.top - 40, // 40px выше выделения
+                left: rect.left + (rect.width / 2) - 16 // По центру
             })
             setShowWand(true)
         } else {
@@ -59,11 +59,11 @@ export function PublicationEventCard({ event }: { event: any }) {
         }
     }
 
-    // Determine Content ID and Type
+    // Определяем ID и тип контента
     const newsId = event.resource?.newsId || event.news_item_id
     const reviewId = event.resource?.reviewId || event.review_item_id
 
-    // If no specific ID found, fallback to event.id but only if it matches UUID format (rough check) or rely on parent context
+    // Если конкретный ID не найден, фолбэк на event.id (только если похож на UUID) или доверяем контексту родителя
     const contentId = newsId || reviewId || event.id
     const itemType = reviewId ? 'review' : 'news'
 
@@ -71,8 +71,8 @@ export function PublicationEventCard({ event }: { event: any }) {
         try {
             const table = itemType === 'news' ? 'news_items' : 'review_items'
 
-            // For reviews, the displayed title is typically 'draft_title'. 'title_seed' is just the usage input.
-            // We should update 'draft_title' to reflect the change in the UI and final output.
+            // Для обзоров отображаемый заголовок обычно в 'draft_title'. 'title_seed' — это лишь исходный ввод.
+            // Обновляем 'draft_title', чтобы изменения отразились в UI и финальном выводе.
             const updatePayload = itemType === 'review' ? { draft_title: newText } : { title: newText }
 
             const { error } = await supabase
@@ -94,7 +94,7 @@ export function PublicationEventCard({ event }: { event: any }) {
     return (
         <>
             <HoverCard openDelay={200}>
-                {/* ... existing trigger code ... */}
+                {/* ... существующий код триггера ... */}
                 <HoverCardTrigger asChild>
                     <button
                         className={`
@@ -175,7 +175,7 @@ export function PublicationEventCard({ event }: { event: any }) {
                 </HoverCardPrimitive.Portal>
             </HoverCard>
 
-            {/* Floating Magic Wand Button */}
+            {/* Плавающая кнопка волшебной палочки */}
             {showWand && (
                 <div
                     className="fixed z-[10000] animate-in zoom-in slide-in-from-bottom-2 duration-300"

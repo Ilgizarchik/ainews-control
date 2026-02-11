@@ -3,7 +3,7 @@ import { ProxyAgent } from 'undici';
 
 export class VkPublisher implements IPublisher {
     private accessToken: string;
-    private ownerId: number; // can be negative (group) or positive (user)
+    private ownerId: number; // может быть отрицательным (группа) или положительным (пользователь)
     private version = '5.131';
     private proxyUrl?: string;
 
@@ -23,7 +23,7 @@ export class VkPublisher implements IPublisher {
             let attachments: string[] = [];
             const proxyAgent = this.proxyUrl ? new ProxyAgent(this.proxyUrl) : undefined;
 
-            // 1. Upload Image if exists
+            // 1. Загружаем изображение, если оно есть
             if (context.image_url && (context.image_url.startsWith('http') || context.image_url.includes('telegram.org'))) {
                 try {
                     const photoAttachment = await this.uploadPhoto(context.image_url, proxyAgent);
@@ -37,7 +37,7 @@ export class VkPublisher implements IPublisher {
                 }
             }
 
-            // 2. Prepare Message
+            // 2. Подготавливаем сообщение
             let message = (context.content_html || context.title || '')
                 .replace(/<br\s*\/?>/gi, '\n')
                 .replace(/<\/p>|<\/div>/gi, '\n')
@@ -54,9 +54,9 @@ export class VkPublisher implements IPublisher {
                 message = message + "\n\n" + sourceUrl;
             }
 
-            // Title is already included in generated message (content_html) via AI prompt
+            // Заголовок уже включен в сгенерированное сообщение (content_html) через AI-промпт
 
-            // 3. Post to Wall
+            // 3. Публикуем на стене
             const postId = await this.postToWall(message, attachments, proxyAgent);
 
             return {
@@ -118,7 +118,7 @@ export class VkPublisher implements IPublisher {
         const uploadUrl = serverRes.upload_url;
         console.log(`[VK] Got upload server: ${uploadUrl}`);
 
-        // B. Download Image (Try without proxy first, as CDN is usually global)
+        // B. Скачиваем изображение (сначала без прокси, т.к. CDN обычно глобальный)
         let imgRes;
         try {
             imgRes = await fetch(imageUrl, {
@@ -145,7 +145,7 @@ export class VkPublisher implements IPublisher {
         const form = new FormData();
         form.append('photo', blob, 'image.jpg');
 
-        // C. Upload (Must use proxy if API is blocked)
+        // C. Загружаем (нужен прокси, если API заблокирован)
         console.log(`[VK] Uploading to VK server...`);
         const uploadPostRes = await fetch(uploadUrl, {
             method: 'POST',
@@ -162,7 +162,7 @@ export class VkPublisher implements IPublisher {
             throw new Error("VK server rejected the photo (empty photo field in response)");
         }
 
-        // D. Save
+        // D. Сохраняем
         const saveRes = await this.callApi('photos.saveWallPhoto', {
             group_id: groupId || undefined,
             photo: uploadData.photo,

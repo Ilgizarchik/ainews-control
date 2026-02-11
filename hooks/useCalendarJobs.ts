@@ -4,7 +4,7 @@ import { Database } from '@/types/database.types'
 import { toast } from 'sonner'
 
 type JobWithNews = Database['public']['Tables']['publish_jobs']['Row'] & {
-  review_id?: string | null // Manually added until types are regenerated
+  review_id?: string | null // Временно добавлено вручную до регенерации типов
   news_items: {
     title: string
     draft_title: string | null

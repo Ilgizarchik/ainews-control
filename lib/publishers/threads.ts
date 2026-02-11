@@ -29,8 +29,8 @@ export class ThreadsPublisher implements IPublisher {
             .replace(/<\/p>|<\/div>/gi, '\n')
             .replace(/<li>/gi, '\n- ')
             .replace(/<[^>]*>/g, '')
-            .replace(/[ \t]+/g, ' ') // Collapse multiple spaces but NOT newlines
-            .replace(/\n\s*\n/g, '\n\n') // Collapse multiple newlines
+            .replace(/[ \t]+/g, ' ') // Схлопываем пробелы, но не переводы строк
+            .replace(/\n\s*\n/g, '\n\n') // Схлопываем повторяющиеся переводы строк
             .trim();
     }
 
@@ -48,7 +48,7 @@ export class ThreadsPublisher implements IPublisher {
                 proxyAgent = new ProxyAgent(aiProxyUrl);
             }
 
-            // 1. Resolve User ID
+            // 1. Определяем User ID
             if (!uId) {
                 const meRes = await fetch(`https://graph.threads.net/v1.0/me?fields=id&access_token=${token}`, {
                     // @ts-ignore

@@ -12,13 +12,13 @@ const config = [
             'react-hooks': reactHooks
         },
         rules: {
-            // This rule is too strict for common "mounted" patterns in Next.js client components.
+            // Это правило слишком строго для типичных паттернов "mounted" в клиентских компонентах Next.js.
             'react-hooks/set-state-in-effect': 'off',
 
-            // Avoids false positives for inline "skeleton" components used only for rendering.
+            // Избегаем ложных срабатываний для встроенных "skeleton"-компонентов, используемых только для рендера.
             'react-hooks/static-components': 'off',
 
-            // Keep as a warning (doesn't fail CI) since it's often acceptable in UI copy.
+            // Оставляем предупреждение (не валит CI), так как это часто допустимо в UI-текстах.
             'react/no-unescaped-entities': 'warn'
         }
     },
