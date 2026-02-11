@@ -20,12 +20,16 @@ RUN npm run build
 FROM node:20-bookworm-slim AS runner
 WORKDIR /app
 
-# Install Python and dependencies in the runner stage
-RUN apt-get update && apt-get install -y \
+# Install PostgreSQL client 17 for Supabase compatibility (fixes version mismatch)
+RUN apt-get update && apt-get install -y curl ca-certificates gnupg \
+    && install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/keyrings/postgresql.gpg \
+    && echo "deb [signed-by=/etc/apt/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt/ bookworm-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     python3-venv \
-    postgresql-client \
+    postgresql-client-18 \
     # Needed for some python wheels if they need building
     build-essential \
     && rm -rf /var/lib/apt/lists/*
