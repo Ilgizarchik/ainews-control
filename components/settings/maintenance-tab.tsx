@@ -89,9 +89,8 @@ export function MaintenanceTab() {
                                 <p className="font-bold text-amber-900 dark:text-amber-200 mb-1">Что входит в бэкап?</p>
                                 <ul className="list-disc list-inside text-amber-800 dark:text-amber-300 space-y-1 opacity-80">
                                     <li>Полный дамп базы Supabase</li>
-                                    <li>Данные автоматизации n8n</li>
                                     <li>Конфигурационные файлы (.env)</li>
-                                    <li>Исходный код дашборда</li>
+                                    <li>Исходный код проекта</li>
                                 </ul>
                             </div>
                         </div>

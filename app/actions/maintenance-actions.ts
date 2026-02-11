@@ -29,33 +29,25 @@ export async function createSystemBackup() {
         console.log('[Backup] Starting Supabase DB dump...')
         await execPromise(`pg_dump "${supabaseUrl}" > ${path.join(tempDir, 'supabase_backup.sql')}`)
 
-        // 2. Dump local n8n database (if accessible via network)
-        // Note: This assumes the container name/host is 'postgres' as per docker-compose
-        try {
-            console.log('[Backup] Starting n8n DB dump...')
-            const n8nDbPass = process.env.N8N_DB_PASSWORD || ''
-            await execPromise(`PGPASSWORD="${n8nDbPass}" pg_dump -h postgres -U n8n n8n > ${path.join(tempDir, 'n8n_backup.sql')}`)
-        } catch (e) {
-            console.warn('[Backup] Failed to dump n8n DB (maybe not accessible):', e)
-        }
+        // 2. Archive everything: Project Source + DB Dumps
+        console.log('[Backup] Archiving everything (Source + DB)...')
 
-        // 3. Copy important configs if we can find them
-        // In the runner stage, we have .env, server.js, etc.
-        const filesToCopy = ['.env', 'package.json']
-        for (const file of filesToCopy) {
-            const filePath = path.join(process.cwd(), file)
-            if (fs.existsSync(filePath)) {
-                fs.copyFileSync(filePath, path.join(tempDir, file))
-            }
-        }
+        const projectRoot = process.cwd()
 
-        // 4. Archive everything
-        console.log('[Backup] Archiving files...')
-        // We include the current source code (excluding node_modules and .next for size)
-        // But since we are in standalone mode, /app is already clean.
-        await execPromise(`tar -czf "${backupPath}" -C "${tempDir}" .`)
+        // Command explanation:
+        // -C ${projectRoot} : start from project root
+        // --exclude... : skip heavy/temp folders
+        // . : include everything else
+        // -C ${tempDir} . : also include the SQL dump from tempDir
+        await execPromise(`tar -czf "${backupPath}" \
+            --exclude=node_modules \
+            --exclude=.next \
+            --exclude=.git \
+            --exclude="public/full_system_backup_*.tar.gz" \
+            -C "${projectRoot}" . \
+            -C "${tempDir}" .`)
 
-        // 5. Cleanup temp
+        // 3. Cleanup temp
         fs.rmSync(tempDir, { recursive: true, force: true })
 
         console.log(`[Backup] Created successfully in ${publicPath}: ${backupName}`)
