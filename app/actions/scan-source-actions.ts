@@ -114,7 +114,16 @@ async function fetchHtmlWithPythonBridge(url: string): Promise<string> {
     try {
         console.log(`[Scan] Attempting Python Bridge for: ${url}`)
         const bridgePath = path.join(process.cwd(), 'scraper_bridge.py')
-        let cmd = `python "${bridgePath}" --url "${url}" --html`
+
+        // Try python3 first (standard for Linux/Docker), then python
+        let pythonCmd = 'python3'
+        try {
+            await execPromise('python3 --version')
+        } catch {
+            pythonCmd = 'python'
+        }
+
+        let cmd = `${pythonCmd} "${bridgePath}" --url "${url}" --html`
         if (proxyConfig?.enabled && proxyConfig?.url) {
             cmd += ` --proxy "${proxyConfig.url}"`
         }
