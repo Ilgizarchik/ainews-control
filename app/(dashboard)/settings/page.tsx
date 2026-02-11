@@ -17,6 +17,7 @@ import { reportClientError } from '@/lib/client-error'
 import { AIConfigTab } from '@/components/settings/ai-config-tab'
 import { DataIngestionTab } from '@/components/settings/data-ingestion-tab'
 import { IntegrationsTab } from '@/components/settings/integrations-tab'
+import { MaintenanceTab } from '@/components/settings/maintenance-tab'
 import type { AIConfig, ApiKeys, IngestSchedule } from '@/components/settings/types'
 
 const PROVIDERS = [
@@ -333,6 +334,7 @@ export default function SettingsPage() {
                     <TabsTrigger data-tutorial="settings-tab-integrations" value="integrations" className="flex-1 py-4 px-8 rounded-xl font-black uppercase tracking-widest text-[10px] data-[state=active]:bg-background data-[state=active]:shadow-lg data-[state=active]:border-2 data-[state=active]:border-primary/20 transition-all">Соцсети и API</TabsTrigger>
                     <TabsTrigger data-tutorial="settings-tab-prompts" value="prompts" className="flex-1 py-4 px-8 rounded-xl font-black uppercase tracking-widest text-[10px] data-[state=active]:bg-background data-[state=active]:shadow-lg data-[state=active]:border-2 data-[state=active]:border-primary/20 transition-all">Промпты</TabsTrigger>
                     <TabsTrigger data-tutorial="settings-tab-logs" value="logs" className="flex-1 py-4 px-8 rounded-xl font-black uppercase tracking-widest text-[10px] data-[state=active]:bg-background data-[state=active]:shadow-lg data-[state=active]:border-2 data-[state=active]:border-primary/20 transition-all">Логи ИИ</TabsTrigger>
+                    <TabsTrigger value="maintenance" className="flex-1 py-4 px-8 rounded-xl font-black uppercase tracking-widest text-[10px] data-[state=active]:bg-background data-[state=active]:shadow-lg data-[state=active]:border-2 data-[state=active]:border-primary/20 transition-all">Обслуживание</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="ai">
@@ -399,6 +401,10 @@ export default function SettingsPage() {
 
                 <TabsContent value="logs" className="mt-8 space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
                     <AiCorrectionLogs />
+                </TabsContent>
+
+                <TabsContent value="maintenance" className="mt-8">
+                    <MaintenanceTab />
                 </TabsContent>
             </Tabs>
         </div>

@@ -25,6 +25,7 @@ RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     python3-venv \
+    postgresql-client \
     # Needed for some python wheels if they need building
     build-essential \
     && rm -rf /var/lib/apt/lists/*
