@@ -1,5 +1,6 @@
 "use client"
 
+import Image from 'next/image'
 import { useState, useMemo, useEffect } from "react"
 import { CustomCalendar as CalendarComponent } from "@/components/ui/calendar"
 import { format } from "date-fns"
@@ -71,7 +72,7 @@ export function BoardView() {
 
     useEffect(() => {
         fetchJobs(true) // Initial load
-    }, []) // Run once
+    }, [fetchJobs])
 
     // Editor states
     const [editingJob, setEditingJob] = useState<JobWithNews | null>(null)
@@ -609,10 +610,12 @@ function NewsGroupCard({ group, activePlatforms, onEdit, onOpenEditor, onAddJob 
             {/* Image Preview */}
             {group.draft_image_file_id && (
                 <div className="relative w-full h-40 overflow-hidden shrink-0 bg-muted/20">
-                    <img
+                    <Image
                         src={`/api/telegram/photo/${group.draft_image_file_id}`}
                         alt=""
-                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                        fill
+                        sizes="(max-width: 1024px) 100vw, 320px"
+                        className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-60" />
 
@@ -719,7 +722,7 @@ function NewsGroupCard({ group, activePlatforms, onEdit, onOpenEditor, onAddJob 
 
 function PlatformTimeChip({ job, onClick }: { job: JobWithNews, onClick: () => void }) {
     const config = getPlatformConfig(job.platform || 'site')
-    const { icon: Icon, color, label, bgColor, borderColor } = config
+    const { icon: Icon, color, label } = config
 
     const isPublished = job.status === 'published'
     const isError = job.status === 'error'

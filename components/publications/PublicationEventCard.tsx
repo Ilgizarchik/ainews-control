@@ -16,14 +16,35 @@ export function PublicationEventCard({ event }: { event: any }) {
     const config = getPlatformConfig(event.platform)
     const { icon: Icon, label, color, bgColor } = config
 
-    // Генерируем стили на основе конфигурации
-    // Используем основной цвет текста для создания ярких границ и фонов
-    const strongBorder = color.replace('text-', 'border-')
+    // Используем основной цвет платформы для верхней полоски в превью
     const strongBg = color.replace('text-', 'bg-')
 
     // Используем realStart от родителя, если доступен, иначе берем event start
     const date = event.resource?.realStart ? event.resource.realStart : new Date(event.publish_date || event.start)
-    const isPublished = event.status === 'published'
+    const status = String(event.status || '').toLowerCase()
+    const statusLabel =
+        status === 'queued' ? 'Запланировано'
+            : status === 'cancelled' ? 'Отменено'
+                : status === 'published' ? 'Опубликовано'
+                    : status === 'processing' ? 'В процессе'
+                        : status === 'error' ? 'Ошибка'
+                            : event.status || 'Статус'
+
+    const statusChipClass =
+        status === 'queued' ? 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30'
+            : status === 'cancelled' ? 'bg-zinc-500/15 text-zinc-700 dark:text-zinc-300 border-zinc-500/30'
+                : status === 'published' ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                    : status === 'processing' ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30'
+                        : status === 'error' ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30'
+                            : 'bg-muted text-muted-foreground border-border'
+
+    const cardStatusClass =
+        status === 'queued' ? 'bg-sky-500/10 border-sky-400/40'
+            : status === 'cancelled' ? 'bg-zinc-500/10 border-zinc-400/35'
+                : status === 'published' ? 'bg-emerald-500/10 border-emerald-400/40'
+                    : status === 'processing' ? 'bg-amber-500/10 border-amber-400/40'
+                        : status === 'error' ? 'bg-rose-500/10 border-rose-400/40'
+                            : 'bg-white border-zinc-200'
 
     const { resolvedTheme } = useTheme()
     const [mounted, setMounted] = useState(false)
@@ -44,7 +65,7 @@ export function PublicationEventCard({ event }: { event: any }) {
     const [editorOpen, setEditorOpen] = useState(false)
     const supabase = createClient()
 
-    const handleMouseUp = (e: React.MouseEvent) => {
+    const handleMouseUp = () => {
         const selection = window.getSelection()
         if (selection && selection.toString().trim().length > 0) {
             const range = selection.getRangeAt(0)
@@ -101,9 +122,8 @@ export function PublicationEventCard({ event }: { event: any }) {
                             w-full text-left mb-0.5 last:mb-0
                             group flex items-center gap-1.5 p-1 rounded-md border-l-[3px]
                             transition-all hover:brightness-95 hover:translate-x-0.5
-                            bg-white border-zinc-200 shadow-sm
-                            ${strongBorder} 
-                            ${isPublished ? 'opacity-60 grayscale-[0.3]' : 'opacity-100'}
+                            shadow-sm
+                            ${cardStatusClass}
                         `}
                     >
                         <div className="p-0.5 rounded bg-zinc-50/50 shrink-0">
@@ -116,7 +136,7 @@ export function PublicationEventCard({ event }: { event: any }) {
                                     {format(date, 'HH:mm')}
                                 </span>
                             </div>
-                            <span className="text-[10px] font-medium text-zinc-700 line-clamp-3 pr-1 leading-tight -mt-0.5 break-words whitespace-normal">
+                            <span className="text-[10px] font-medium text-zinc-700 dark:text-zinc-200 line-clamp-3 pr-1 leading-tight -mt-0.5 break-words whitespace-normal">
                                 {text}
                             </span>
                         </div>
@@ -152,11 +172,14 @@ export function PublicationEventCard({ event }: { event: any }) {
                                         </span>
                                     </div>
 
-                                    {isPublished ? (
+                                    {status === 'published' ? (
                                         <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
                                     ) : (
                                         <Clock className="w-4 h-4 text-amber-500 shrink-0" />
                                     )}
+                                </div>
+                                <div className={`inline-flex w-fit items-center rounded-md border px-2 py-1 text-[11px] font-semibold ${statusChipClass}`}>
+                                    {statusLabel}
                                 </div>
 
                                 <div className="relative border-t border-border/50 pt-2 mt-1" onMouseUp={handleMouseUp}>

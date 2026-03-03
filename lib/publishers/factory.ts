@@ -1,4 +1,4 @@
-import { IPublisher, PublishContext, PublishResult } from './types'
+import { IPublisher } from './types'
 import { TelegramPublisher } from './telegram'
 import { VkPublisher } from './vk'
 import { TildaPublisher } from './tilda'

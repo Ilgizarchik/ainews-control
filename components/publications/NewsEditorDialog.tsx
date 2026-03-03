@@ -96,6 +96,19 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
 
     const supabase = useMemo(() => createClient(), [])
 
+    const toPlainText = useCallback((value?: string) => {
+        if (!value) return ''
+        return value
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<\/p>/gi, '\n\n')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/&nbsp;/gi, ' ')
+            .replace(/[ \t]+\n/g, '\n')
+            .replace(/\n{3,}/g, '\n\n')
+            .replace(/[ \t]{2,}/g, ' ')
+            .trim()
+    }, [])
+
     const fetchContentData = useCallback(async () => {
         setLoading(true)
         try {
@@ -284,13 +297,26 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
     const handleGenerateField = async (field: 'draft_title' | 'draft_announce' | 'draft_longread') => {
         setGeneratingField(field)
         try {
+            const plainTitle = toPlainText(data.draft_title)
+            const plainAnnounce = toPlainText(data.draft_announce)
+            const plainLongread = toPlainText(data.draft_longread)
+
+            const extraContextCandidates = field === 'draft_title'
+                ? [plainAnnounce, plainLongread, plainTitle]
+                : field === 'draft_announce'
+                    ? [plainLongread, plainAnnounce, plainTitle]
+                    : [plainLongread, plainAnnounce, plainTitle]
+
+            const extraContext = extraContextCandidates.find(Boolean) || undefined
+
             const response = await fetch('/api/ai/generate-field', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     news_id: contentType === 'news' ? contentId : undefined,
                     review_id: contentType === 'review' ? contentId : undefined,
-                    field
+                    field,
+                    extraContext
                 })
             })
             const result = await response.json()
@@ -353,7 +379,7 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
             } else {
                 toast.error('Промпт не найден')
             }
-        } catch (e) {
+        } catch {
             toast.error('Ошибка загрузки промпта')
         } finally {
             setLoadingPrompt(false)

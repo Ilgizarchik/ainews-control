@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
@@ -10,7 +10,6 @@ import { cn } from '@/lib/utils'
 import { getPlatformConfig, PLATFORM_CONFIG } from '@/lib/platform-config'
 import { NewsEditorDialog } from './NewsEditorDialog'
 import { SocialPostEditorDialog } from './SocialPostEditorDialog'
-import { JobWithNews } from '@/hooks/useBoardJobs'
 import {
     Tooltip,
     TooltipContent,
@@ -75,6 +74,18 @@ const LOADING_MESSAGES = [
     "Запускаю двигатели креативности... 🚀"
 ]
 
+const REVIEW_DRAFT_FIELDS = `
+    id, created_at, status, title_seed, draft_title, draft_image_file_id,
+    draft_announce, draft_longread_site,
+    draft_announce_tg, draft_announce_vk, draft_announce_ok, draft_announce_fb, draft_announce_x, draft_announce_threads
+`
+
+const NEWS_DRAFT_FIELDS = `
+    id, title, created_at, approve1_decided_at, status, draft_title, draft_image_file_id,
+    draft_announce, draft_longread_site,
+    draft_announce_tg, draft_announce_vk, draft_announce_ok, draft_announce_fb, draft_announce_x, draft_announce_threads
+`
+
 export function DraftsView() {
     const [drafts, setDrafts] = useState<DraftItem[]>([])
     const [loading, setLoading] = useState(true)
@@ -88,6 +99,7 @@ export function DraftsView() {
     } | null>(null)
     const [publishConfirmDraft, setPublishConfirmDraft] = useState<DraftItem | null>(null)
     const [activePlatforms, setActivePlatforms] = useState<string[]>(['site']) // 'site' is always active by default
+    const refreshDebounceRef = useRef<NodeJS.Timeout | null>(null)
 
     // Инициализируем клиент вне тела ререндера, если это возможно, или через useMemo
     const supabase = useMemo(() => createClient(), [])
@@ -125,81 +137,82 @@ export function DraftsView() {
 
         if (isInitial) setLoading(true)
         else setRefreshing(true)
+
         let reviewData: any[] = []
         let newsData: any[] = []
 
-        // 1. Fetch review_items. Use * to be resilient against missing columns in the DB.
         try {
-            const { data, error } = await supabase
-                .from('review_items')
-                .select('*')
-                .in('status', ['needs_review', 'drafts_ready'])
-                .order('created_at', { ascending: false })
+            // Two independent Supabase calls; run in parallel to reduce load time.
+            const [reviewRes, newsRes] = await Promise.all([
+                supabase
+                    .from('review_items')
+                    .select(REVIEW_DRAFT_FIELDS)
+                    .in('status', ['needs_review', 'drafts_ready'])
+                    .order('created_at', { ascending: false }),
+                supabase
+                    .from('news_items')
+                    .select(NEWS_DRAFT_FIELDS)
+                    .eq('status', 'drafts_ready')
+                    .order('created_at', { ascending: false }),
+            ])
 
-            if (error) {
-                console.error('[Drafts] Review items fetch error:', error.message || error)
-                reviewData = []
+            if (reviewRes.error) {
+                console.error('[Drafts] Review items fetch error:', reviewRes.error.message || reviewRes.error)
             } else {
-                reviewData = (data as any) || []
+                reviewData = (reviewRes.data as any) || []
+            }
+
+            if (newsRes.error) {
+                console.error('[Drafts] News items fetch error:', newsRes.error.message || newsRes.error)
+                toast.error(`Ошибка загрузки: ${newsRes.error.message}`)
+            } else {
+                newsData = (newsRes.data as any) || []
             }
         } catch (e: any) {
-            console.error('[Drafts] Review items exception (Network?):', e.message || e);
-            reviewData = [];
-        }
-
-        // 2. Fetch news_items
-        try {
-            const { data, error } = await supabase
-                .from('news_items')
-                .select('*')
-                .eq('status', 'drafts_ready')
-                .order('created_at', { ascending: false })
-
-            if (error) {
-                console.error('[Drafts] News items fetch error:', error.message || error)
-                newsData = []
-            } else {
-                newsData = (data as any) || []
-            }
-        } catch (e: any) {
-            const isNetworkError = e.message?.includes('Failed to fetch') || e.name === 'TypeError';
-            console.error('[Drafts] News items exception:', e.message || e);
+            const isNetworkError = e.message?.includes('Failed to fetch') || e.name === 'TypeError'
+            console.error('[Drafts] Exception while fetching drafts:', e.message || e)
 
             if (isNetworkError) {
-                toast.error('Ошибка сети: не удалось подключиться к базе данных. Проверьте интернет или VPN.');
+                toast.error('Ошибка сети: не удалось подключиться к базе данных. Проверьте интернет или VPN.')
             } else {
-                toast.error(`Ошибка загрузки: ${e.message || 'Unknown error'}`);
+                toast.error(`Ошибка загрузки: ${e.message || 'Unknown error'}`)
             }
-            newsData = [];
+        } finally {
+            // Combine and sort even on partial failures, so UI keeps available data.
+            const combined = [
+                ...reviewData.map(item => ({
+                    ...item,
+                    display_date: item.created_at
+                })),
+                ...newsData.map(item => ({
+                    ...item,
+                    title_seed: item.title,
+                    is_news_item: true,
+                    display_date: item.approve1_decided_at || item.created_at
+                }))
+            ]
+
+            combined.sort((a, b) => {
+                const dateA = new Date(a.display_date || 0).getTime()
+                const dateB = new Date(b.display_date || 0).getTime()
+                return dateB - dateA
+            })
+
+            setDrafts(combined as any[])
+            setLoading(false)
+            setRefreshing(false)
         }
-
-        // 3. Combine and sort
-        const combined = [
-            ...reviewData.map(item => ({
-                ...item,
-                display_date: item.created_at
-            })),
-            ...newsData.map(item => ({
-                ...item,
-                title_seed: item.title,
-                is_news_item: true,
-                display_date: item.approve1_decided_at || item.created_at
-            }))
-        ]
-
-        combined.sort((a, b) => {
-            const dateA = new Date(a.display_date || 0).getTime()
-            const dateB = new Date(b.display_date || 0).getTime()
-            return dateB - dateA
-        })
-
-        setDrafts(combined as any[])
-        setLoading(false)
-        setRefreshing(false)
     }, [supabase])
 
+    const scheduleDraftsRefresh = useCallback(() => {
+        if (refreshDebounceRef.current) clearTimeout(refreshDebounceRef.current)
+        refreshDebounceRef.current = setTimeout(() => {
+            fetchDrafts()
+        }, 500)
+    }, [fetchDrafts])
+
     const handlePlatformClick = useCallback((draft: DraftItem, platform: string) => {
-        // Для website берем draft_longread_site или draft_longread
+        // Для website берем draft_longread_site, иначе fallback на общий анонс
         let platformContent = ''
 
         if (platform === 'site') {
@@ -207,7 +220,7 @@ export function DraftsView() {
             if (siteDraft !== null && siteDraft !== undefined && siteDraft !== '') {
                 platformContent = siteDraft
             } else {
-                platformContent = (draft as any).draft_longread || (draft as any).draft_announce || ''
+                platformContent = (draft as any).draft_announce || ''
             }
         } else {
             platformContent = (draft as any)[`draft_announce_${platform}`] || ''
@@ -326,8 +339,12 @@ export function DraftsView() {
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'news_items' },
-                () => {
-                    fetchDrafts()
+                (payload: any) => {
+                    const newStatus = payload?.new?.status
+                    const oldStatus = payload?.old?.status
+                    if (newStatus === 'drafts_ready' || oldStatus === 'drafts_ready') {
+                        scheduleDraftsRefresh()
+                    }
                 }
             )
             .subscribe()
@@ -343,17 +360,18 @@ export function DraftsView() {
                     const status = payload.new?.status
                     const oldStatus = payload.old?.status
                     if (['needs_review', 'drafts_ready'].includes(status) || ['needs_review', 'drafts_ready'].includes(oldStatus)) {
-                        fetchDrafts()
+                        scheduleDraftsRefresh()
                     }
                 }
             )
             .subscribe()
 
         return () => {
+            if (refreshDebounceRef.current) clearTimeout(refreshDebounceRef.current)
             supabase.removeChannel(newsSubscription)
             supabase.removeChannel(reviewSubscription)
         }
-    }, [supabase, fetchActivePlatforms, fetchDrafts])
+    }, [supabase, fetchActivePlatforms, fetchDrafts, scheduleDraftsRefresh])
 
 
     if (loading && drafts.length === 0) {

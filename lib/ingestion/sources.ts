@@ -1,5 +1,3 @@
-import { createClient } from "@/lib/supabase/client"
-
 export type IngestionSource = {
     id: string
     name: string

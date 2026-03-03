@@ -1,12 +1,10 @@
 ﻿'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ContentItem, ContentFilter, ContentStats } from '@/types/content'
 import { ContentBoard, ContentSortOption } from '@/components/content/ContentBoard'
 import { LoadingDots } from '@/components/ui/loading-dots'
-import { createClient } from '@/lib/supabase/client'
 import { getContentStats, fetchContentItems } from '@/app/actions/content-actions'
-import { toast } from 'sonner'
 
 const PAGE_SIZE = 51
 
@@ -24,9 +22,9 @@ export default function ContentPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [page, setPage] = useState(0)
   const [totalCount, setTotalCount] = useState(0)
-  const supabase = useMemo(() => createClient(), [])
+  const hasLoadedOnceRef = useRef(false)
 
-  const fetchPage = async (filter: ContentFilter, sources: string[], pageIndex: number, sort: ContentSortOption, search: string) => {
+  const fetchPage = useCallback(async (filter: ContentFilter, sources: string[], pageIndex: number, sort: ContentSortOption, search: string) => {
     // Вызов Server Action
     const result = await fetchContentItems(filter, sources, pageIndex, PAGE_SIZE, sort as any, search)
 
@@ -36,9 +34,9 @@ export default function ContentPage() {
     }
 
     return { data: (result.data || []) as ContentItem[], count: result.count || 0 }
-  }
+  }, [])
 
-  const loadData = async (filter: ContentFilter, sources: string[], search: string, isInitial: boolean) => {
+  const loadData = useCallback(async (filter: ContentFilter, sources: string[], search: string, isInitial: boolean) => {
     if (isInitial) {
       setLoading(true)
     } else {
@@ -78,7 +76,7 @@ export default function ContentPage() {
       setLoading(false)
       setRefreshing(false)
     }
-  }
+  }, [fetchPage, sortOption])
 
   const loadMore = async () => {
     if (loadingMore) return
@@ -102,8 +100,10 @@ export default function ContentPage() {
   useEffect(() => {
     // Полноэкранную загрузку используем только при первом маунте
     // Примечание: изменения поиска запускают это с небольшим дебаунсом или сразу, в зависимости от UI
-    loadData(currentFilter, selectedSources, searchQuery, loading)
-  }, [currentFilter, selectedSources, sortOption, searchQuery])
+    const isInitialLoad = !hasLoadedOnceRef.current
+    hasLoadedOnceRef.current = true
+    loadData(currentFilter, selectedSources, searchQuery, isInitialLoad)
+  }, [currentFilter, selectedSources, sortOption, searchQuery, loadData])
 
   const handleItemUpdated = async (id: string, outcome?: 'updated' | 'stale') => {
     if (outcome === 'stale') {

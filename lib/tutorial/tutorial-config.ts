@@ -614,7 +614,7 @@ export function resetTutorial() {
  * Шаги туториала для страницы модерации (динамические)
  */
 export const getModerationTutorialSteps = (
-  onFilterChange: (filter: any) => void
+  _onFilterChange: (filter: any) => void
 ): DriveStep[] => [
     {
       popover: {
@@ -765,7 +765,7 @@ export const getModerationTutorialSteps = (
  * Шаги туториала для страницы промптов (динамические)
  */
 export const getPromptsTutorialSteps = (
-  onTabChange: (tab: string) => void
+  _onTabChange: (tab: string) => void
 ): DriveStep[] => [
     {
       popover: {

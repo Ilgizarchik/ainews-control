@@ -224,7 +224,7 @@ export function ScheduleTab({ contentId, contentType, onScheduled }: ScheduleTab
             {recipes.length === 0 && (
                 <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-lg p-4">
                     <p className="text-sm text-amber-800 dark:text-amber-200">
-                        ⚠️ Нет активных рецептов публикации. Настройте их в разделе &quot;Рецепты&quot;.
+                        ⚠️ Нет активной медиа-сетки публикации. Настройте её в разделе &quot;Медиа-сетка&quot;.
                     </p>
                 </div>
             )}

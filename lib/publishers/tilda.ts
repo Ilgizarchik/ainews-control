@@ -1,5 +1,4 @@
 import { IPublisher, PublishContext, PublishResult } from './types'
-import * as cheerio from 'cheerio'
 // Removed 'form-data' import to use native FormData
 
 export class TildaPublisher implements IPublisher {
@@ -126,8 +125,6 @@ export class TildaPublisher implements IPublisher {
         if (html.includes('Недостаточно данных')) {
             throw new Error(`Tilda returned specific error: "Недостаточно данных". URL was: ${url}`);
         }
-
-        const $ = cheerio.load(html);
 
         const publickeyMatch = html.match(/publickey\s*[:=]\s*["']([^"']+)["']/i) || html.match(/name=["']publickey["']\s+value=["']([^"']+)["']/i);
         const uploadkeyMatch = html.match(/uploadkey\s*[:=]\s*["']([^"']+)["']/i) || html.match(/name=["']uploadkey["']\s+value=["']([^"']+)["']/i);
@@ -312,7 +309,7 @@ export class TildaPublisher implements IPublisher {
             if (data.error) {
                 return { success: false, error: `Step 2 Error: ${data.error}`, raw_response: data };
             }
-        } catch (e) {
+        } catch {
             return { success: false, error: "Invalid JSON from Tilda (Step 2)", raw_response: respText };
         }
 
@@ -321,7 +318,7 @@ export class TildaPublisher implements IPublisher {
         paramsActive.append('postuid', postuid);
         paramsActive.append('action', 'posts_Active');
 
-        const resActive = await fetch('https://feeds.tilda.ru/submit/', {
+        await fetch('https://feeds.tilda.ru/submit/', {
             method: 'POST',
             headers: {
                 ...this.getCommonHeaders(),

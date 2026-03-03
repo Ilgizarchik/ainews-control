@@ -3,7 +3,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ContentStats, ContentFilter } from '@/types/content'
-import type { Database } from '@/types/database.types'
 import type { ContentActionResult } from '@/types/content-actions'
 
 const STALE_ERROR = { code: 'STALE_DATA', message: 'Already processed' } as const
@@ -212,7 +211,7 @@ export async function fetchContentItems(
         approve1_decision, approve1_decided_at, approve1_decided_by,
         sent_to_approve1_at, approve1_message_id, approve1_chat_id,
         status, is_viewed, created_at
-    `, { count: 'exact' })
+    `, { count: 'planned' })
 
     // Применяем фильтры
     if (filter === 'pending') {

@@ -5,7 +5,7 @@ import { ContentCard } from './ContentCard'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Search, Filter, Loader2, Calendar, Newspaper } from 'lucide-react'
+import { Search, Filter, Loader2, Calendar } from 'lucide-react'
 import { useState, useMemo, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import {

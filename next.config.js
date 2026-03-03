@@ -1,4 +1,10 @@
 /** @type {import('next').NextConfig} */
+const path = require('path');
+
+// Safety guard: if an external shell sets insecure TLS mode, restore secure default.
+if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0') {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '1';
+}
 
 // Валидация переменных окружения при старте
 const requiredEnv = [
@@ -39,6 +45,9 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,
+  turbopack: {
+    root: path.resolve(__dirname),
+  },
   images: {
     formats: ['image/avif', 'image/webp'],
     remotePatterns: [

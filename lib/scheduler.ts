@@ -20,7 +20,7 @@ export async function checkAndRunScheduleCore() {
     let schedule
     try {
         schedule = JSON.parse((settings as any).value)
-    } catch (e) {
+    } catch {
         return { triggered: false, reason: 'invalid-config' }
     }
 

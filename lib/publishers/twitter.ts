@@ -85,7 +85,6 @@ export class TwitterPublisher implements IPublisher {
             // 1. Настройка прокси
 
             // 2. Подготовка контента
-            const title = (job.title || '').trim();
             const rawContent = job.content_html || (job as any).text || '';
             let rawBody = this.stripHtml(rawContent);
             const url = (job.source_url || '').trim();
@@ -106,7 +105,7 @@ export class TwitterPublisher implements IPublisher {
                 if (tweetId) {
                     return { success: true, external_id: tweetId, published_url: `https://x.com/i/web/status/${tweetId}` };
                 }
-            } catch (libErr: any) {
+            } catch {
                 console.warn('[Twitter] Library failed or returned error, trying Manual Fallback...');
             }
 

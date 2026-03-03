@@ -40,7 +40,7 @@ export function CreatePostDialog({ open, onOpenChange, onSuccess }: CreatePostDi
         try {
             const data = await getSystemPrompt(key)
             setPromptContent(data?.content || '')
-        } catch (e) {
+        } catch {
             toast.error('Ошибка загрузки промпта')
         } finally {
             setLoadingPrompt(false)

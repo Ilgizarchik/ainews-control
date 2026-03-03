@@ -20,7 +20,6 @@ export class TelegramPublisher implements IPublisher {
 
             // Конвертируем BBCode в HTML, пригодный для Telegram
             const finalHtml = convertBbcodeToHtml(context.content_html);
-            const titleHtml = convertBbcodeToHtml(context.title);
 
             // 1. Плейсхолдер [LINK] (наивысший приоритет)
             let textWithLink = finalHtml;
@@ -50,7 +49,7 @@ export class TelegramPublisher implements IPublisher {
                 if (isTooLongForCaption) {
                     // Метод A: длинный пост > 1024 символов
                     // Сначала отправляем фото (без подписи или только заголовок)
-                    const photoRes = await fetch(`https://api.telegram.org/bot${this.botToken}/sendPhoto`, {
+                    await fetch(`https://api.telegram.org/bot${this.botToken}/sendPhoto`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({

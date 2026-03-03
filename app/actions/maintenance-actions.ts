@@ -6,7 +6,6 @@ import { promisify } from 'util'
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
-import { createAdminClient } from '@/lib/supabase/admin'
 
 const execPromise = promisify(exec)
 

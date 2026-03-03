@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -9,6 +9,8 @@ import { Wand2, Loader2, Check, RefreshCw, History as HistoryIcon } from 'lucide
 import { toast } from '@/components/ui/premium-toasts'
 import { createClient } from '@/lib/supabase/client'
 import { VoiceInput } from '@/components/ui/voice-input'
+
+const EDIT_REQUEST_TIMEOUT_MS = 90_000
 
 interface MagicTextEditorProps {
     isOpen: boolean
@@ -30,6 +32,26 @@ export function MagicTextEditor({ isOpen, onOpenChange, originalText, onSave, it
     const [historyLoading, setHistoryLoading] = useState(false)
     const timersRef = useRef<NodeJS.Timeout[]>([])
     const toastIdRef = useRef<string | number | null>(null)
+    const requestAbortRef = useRef<AbortController | null>(null)
+
+    const clearProgressTimers = useCallback(() => {
+        timersRef.current.forEach(clearTimeout)
+        timersRef.current = []
+    }, [])
+
+    const dismissActiveToast = useCallback(() => {
+        if (toastIdRef.current) {
+            toast.dismiss(toastIdRef.current)
+            toastIdRef.current = null
+        }
+    }, [])
+
+    const abortInFlightRequest = useCallback((reason: string) => {
+        if (requestAbortRef.current && !requestAbortRef.current.signal.aborted) {
+            requestAbortRef.current.abort(reason)
+        }
+        requestAbortRef.current = null
+    }, [])
 
     // Use the shared client
     const supabaseClient = useMemo(() => createClient(), [])
@@ -55,10 +77,19 @@ export function MagicTextEditor({ isOpen, onOpenChange, originalText, onSave, it
     // Cleanup effect
     useEffect(() => {
         return () => {
-            timersRef.current.forEach(clearTimeout)
-            if (toastIdRef.current) toast.dismiss(toastIdRef.current)
+            clearProgressTimers()
+            abortInFlightRequest('unmount')
+            dismissActiveToast()
         }
-    }, [])
+    }, [abortInFlightRequest, clearProgressTimers, dismissActiveToast])
+
+    useEffect(() => {
+        if (isOpen) return
+        clearProgressTimers()
+        abortInFlightRequest('dialog_closed')
+        dismissActiveToast()
+        setLoading(false)
+    }, [abortInFlightRequest, clearProgressTimers, dismissActiveToast, isOpen])
 
 
     const handleGenerate = async () => {
@@ -66,6 +97,9 @@ export function MagicTextEditor({ isOpen, onOpenChange, originalText, onSave, it
             toast.error('Введите инструкцию')
             return
         }
+
+        clearProgressTimers()
+        abortInFlightRequest('new_request')
 
         setLoading(true)
         const toastId = toast.loading('🚀 Запускаю AI редактор...')
@@ -79,6 +113,10 @@ export function MagicTextEditor({ isOpen, onOpenChange, originalText, onSave, it
         pushTimer('🧠 Анализирую контекст...', 1000)
         pushTimer('✍️ Переписываю текст...', 2500)
         pushTimer('✨ Навожу лоск...', 4500)
+
+        const controller = new AbortController()
+        requestAbortRef.current = controller
+        const timeoutId = setTimeout(() => controller.abort('timeout'), EDIT_REQUEST_TIMEOUT_MS)
 
         try {
             if (typeof supabaseClient.from !== 'function') {
@@ -104,6 +142,7 @@ export function MagicTextEditor({ isOpen, onOpenChange, originalText, onSave, it
             const res = await fetch('/api/ai/edit', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                signal: controller.signal,
                 body: JSON.stringify({
                     text: originalText,
                     instruction,
@@ -119,7 +158,7 @@ export function MagicTextEditor({ isOpen, onOpenChange, originalText, onSave, it
             }
 
             const data = await res.json()
-            timersRef.current.forEach(clearTimeout)
+            clearProgressTimers()
             toast.success('Готово!', { id: toastId })
             toastIdRef.current = null
             setGeneratedText(data.result)
@@ -135,11 +174,27 @@ export function MagicTextEditor({ isOpen, onOpenChange, originalText, onSave, it
                 onHistoryUpdate?.(newHistoryItem)
             }
         } catch (e: any) {
-            timersRef.current.forEach(clearTimeout)
+            clearProgressTimers()
             console.error('Magic Edit Error:', e)
-            toast.error(`Error: ${e.message}`, { id: toastId })
+
+            const abortReason = controller.signal.aborted ? controller.signal.reason : null
+            if (abortReason === 'dialog_closed' || abortReason === 'new_request' || abortReason === 'unmount') {
+                toast.dismiss(toastId)
+                toastIdRef.current = null
+                return
+            }
+
+            const message = abortReason === 'timeout'
+                ? `AI редактор не ответил за ${Math.round(EDIT_REQUEST_TIMEOUT_MS / 1000)} секунд. Попробуйте снова.`
+                : `Error: ${e.message}`
+
+            toast.error(message, { id: toastId })
             toastIdRef.current = null
         } finally {
+            clearTimeout(timeoutId)
+            if (requestAbortRef.current === controller) {
+                requestAbortRef.current = null
+            }
             setLoading(false)
         }
     }

@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { callAI } from '@/lib/ai-service'
 
@@ -16,6 +15,19 @@ export async function POST(req: Request) {
     try {
         const { review_id, news_id, field, extraContext }: GenerateFieldRequest = await req.json()
         const contentId = review_id || news_id
+        const asText = (value: any) => {
+            if (typeof value !== 'string') return ''
+            return value
+                .replace(/<br\s*\/?>/gi, '\n')
+                .replace(/<\/p>/gi, '\n\n')
+                .replace(/<[^>]+>/g, ' ')
+                .replace(/&nbsp;/gi, ' ')
+                .replace(/[ \t]+\n/g, '\n')
+                .replace(/\n{3,}/g, '\n\n')
+                .replace(/[ \t]{2,}/g, ' ')
+                .trim()
+        }
+        const pickFirstNonEmpty = (...values: any[]) => values.map(asText).find(Boolean) || ''
 
         console.log(`[GenerateField] Received request for field: ${field}, contentId: ${contentId}`)
 
@@ -93,16 +105,38 @@ export async function POST(req: Request) {
                 }
             }
 
-            userContent = originalText || item.rss_summary || item.title || ''
+            userContent = pickFirstNonEmpty(
+                originalText,
+                item.draft_longread,
+                item.draft_announce,
+                item.rss_summary,
+                item.title
+            )
         } else if (field === 'draft_title') {
             promptKey = `${prefix}_title`
-            userContent = item.draft_announce || item.draft_longread || item.original_text || item.rss_summary || item.title || ''
+            userContent = pickFirstNonEmpty(
+                item.draft_announce,
+                item.draft_longread,
+                item.draft_title,
+                item.original_text,
+                item.cleaned_text,
+                item.rss_summary,
+                item.title
+            )
         } else if (field === 'draft_announce') {
             promptKey = `${prefix}_announce`
-            userContent = item.draft_longread || item.original_text || item.rss_summary || ''
+            userContent = pickFirstNonEmpty(
+                item.draft_longread,
+                item.draft_announce,
+                item.original_text,
+                item.cleaned_text,
+                item.rss_summary,
+                item.title
+            )
         }
 
-        if (extraContext) userContent = extraContext;
+        const normalizedExtraContext = asText(extraContext)
+        if (normalizedExtraContext) userContent = normalizedExtraContext;
 
         console.log(`[GenerateField] Using promptKey: ${promptKey}, userContent length: ${userContent?.length || 0}`)
 

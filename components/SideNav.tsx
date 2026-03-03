@@ -1,5 +1,6 @@
 'use client'
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { Calendar, FileText, Terminal, Settings, ChevronDown, ChevronRight, BookOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -14,10 +15,10 @@ type NavItem = {
 }
 
 const items: NavItem[] = [
-  { title: 'Публикации', href: '/publications', icon: Calendar },
-  { title: 'Контент', href: '/content', icon: FileText },
+  { title: 'Контент-план', href: '/publications', icon: Calendar },
+  { title: 'Мониторинг контента', href: '/content', icon: FileText },
+  { title: 'Медиа-сетка', href: '/recipes', icon: BookOpen },
   { title: 'Промпты', href: '/prompts', icon: Terminal },
-  { title: 'Рецепты', href: '/recipes', icon: BookOpen },
   { title: 'Настройки', href: '/settings', icon: Settings },
 ]
 
@@ -42,7 +43,7 @@ export function SideNav() {
         className="flex items-center gap-3 mb-8 px-2 transition-opacity hover:opacity-80"
       >
         <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-border bg-muted">
-          <img src="/logo.png" alt="AiNews Control" className="h-full w-full object-cover" />
+          <Image src="/logo.png" alt="AiNews Control" fill sizes="40px" className="object-cover" />
         </div>
         <div className="flex flex-col">
           <span className="font-bold text-base leading-tight text-foreground tracking-tight">AiNews</span>

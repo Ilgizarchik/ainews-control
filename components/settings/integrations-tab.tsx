@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { Send, RefreshCw, Save, Info, ExternalLink, AlertCircle } from 'lucide-react'
+import { Send, RefreshCw, Save, Info, ExternalLink } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import type { ApiKeys } from '@/components/settings/types'
 

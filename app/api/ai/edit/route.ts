@@ -29,7 +29,7 @@ export async function POST(req: Request) {
                 // 2. Фолбэк на другую таблицу, если не найдено
                 if (!current && !fetchError) {
                     const fallbackTable = table === 'news_items' ? 'review_items' : 'news_items'
-                    const { data: fallbackCurrent, error: fallbackError } = await supabase
+                    const { data: fallbackCurrent, error: _fallbackError } = await supabase
                         .from(fallbackTable)
                         .select('correction_history')
                         .eq('id', validItemId)

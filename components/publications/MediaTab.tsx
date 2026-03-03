@@ -141,7 +141,7 @@ export function MediaTab({ contentId, contentType, initialImageUrl, onUpdated, t
         try {
             await downloadImageAsJpg(imageUrl, `ainews_${contentId}_${new Date().getTime()}.jpg`)
             toast.success('Изображение сохранено (JPG)', { id: toastId })
-        } catch (error: any) {
+        } catch {
             toast.error('Ошибка при скачивании', { id: toastId })
         }
     }

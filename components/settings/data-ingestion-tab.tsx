@@ -119,7 +119,7 @@ export function DataIngestionTab({
                 toast.error(errorMsg, { id: activeToastId })
                 dispatchLog(errorMsg, "error")
             }
-        } catch (e: any) {
+        } catch {
             if (intervalRef.current) clearInterval(intervalRef.current)
             toast.error('Критическая ошибка запуска', { id: activeToastId })
             dispatchLog('Критическая ошибка запуска', "error")

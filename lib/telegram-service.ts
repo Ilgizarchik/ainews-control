@@ -24,7 +24,7 @@ const getBotToken = async () => {
                 ['tg-bot-token'],
                 { revalidate: 3600 }
             )();
-        } catch (e) {
+        } catch {
             // Fallback to direct fetch if cache fails (e.g. standalone script)
             return await fetchBotToken();
         }

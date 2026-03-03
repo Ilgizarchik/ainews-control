@@ -166,7 +166,7 @@ export class OkPublisher implements IPublisher {
                 signal: AbortSignal.timeout(15000),
                 headers: { 'User-Agent': 'Mozilla/5.0' }
             });
-        } catch (e) {
+        } catch {
             console.log(`[OK] Download without proxy failed, trying with proxy...`);
             imgRes = await fetch(imageUrl, {
                 // @ts-ignore

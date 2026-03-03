@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { Calendar, dateFnsLocalizer, Event as RBCEvent } from 'react-big-calendar'
 import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop'
 import { addDays, addMonths, addWeeks, endOfMonth, format, getDay, parse, startOfMonth, startOfWeek, subDays, subMonths, subWeeks } from 'date-fns'
@@ -60,12 +60,13 @@ export function CalendarViewBig() {
         removeNewsOptimistically,
         updateJobOptimistically,
         refreshing,
-        loading
+        loading: _loading
     } = useCalendarJobs()
     const [recipes, setRecipes] = useState<Recipe[]>([])
     const [currentDate, setCurrentDate] = useState(new Date())
     const [viewType, setViewType] = useState('month')
     const [editingJob, setEditingJob] = useState<JobWithNews | null>(null)
+    const isInitialFetchRef = useRef(true)
 
     useEffect(() => {
         const supabase = createClient()
@@ -90,8 +91,8 @@ export function CalendarViewBig() {
     useEffect(() => {
         const start = subDays(startOfMonth(currentDate), 7)
         const end = addDays(endOfMonth(currentDate), 7)
-        // Use full screen-loading only if we have no jobs at all
-        fetchJobs(start, end, jobs.length === 0)
+        fetchJobs(start, end, isInitialFetchRef.current)
+        isInitialFetchRef.current = false
     }, [currentDate, fetchJobs])
 
     const events: CalendarEvent[] = useMemo(() => {

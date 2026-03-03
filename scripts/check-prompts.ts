@@ -16,8 +16,7 @@ async function main() {
         return
     }
 
-    data.forEach(p => {
-    })
+    console.log(`Loaded prompts: ${data.length}`)
 }
 
 main()

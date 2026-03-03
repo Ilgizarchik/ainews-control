@@ -62,7 +62,6 @@ export class ThreadsPublisher implements IPublisher {
 
             const rawContent = job.content_html || (job as any).text || '';
             let text = this.stripHtml(rawContent);
-            const sourceUrl = job.source_url || '';
 
             if (text.includes('[LINK]')) {
                 text = text.replace(/\[LINK\]/gi, job.source_url || '');
