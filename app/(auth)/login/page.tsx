@@ -16,30 +16,50 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (loading) return
     setLoading(true)
+    let didNavigate = false
 
     try {
       const formData = new FormData()
       formData.append('email', email)
       formData.append('password', password)
 
-      const result = await loginAction(formData)
+      const result = await Promise.race([
+        loginAction(formData),
+        new Promise<{ error: string }>((resolve) =>
+          setTimeout(
+            () =>
+              resolve({
+                error: 'Login timed out. Check server and Supabase auth configuration.',
+              }),
+            15000
+          )
+        ),
+      ])
+
       if (result && 'error' in result && result.error) {
         toast.error('Login failed', { description: result.error })
-        setLoading(false)
         return
       }
 
       if (result && 'success' in result && result.success) {
         toast.success('Welcome back!')
         // Рефреш страницы чтобы быть уверенным в куках перед переходом
+        didNavigate = true
         router.push('/publications')
         router.refresh()
+        return
       }
+
+      toast.error('Login failed', { description: 'Unexpected auth response' })
     } catch (err: any) {
       console.error('Login handle error:', err)
       toast.error('An unexpected error occurred')
-      setLoading(false)
+    } finally {
+      if (!didNavigate) {
+        setLoading(false)
+      }
     }
   }
 
