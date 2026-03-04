@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import fs from 'fs'
 import path from 'path'
-
-const BACKUP_BUCKET = process.env.BACKUP_STORAGE_BUCKET || 'system-backups'
+import { getBackupAbsolutePath, isValidBackupFilename } from '@/lib/backup-storage'
 
 export async function GET(
     _request: NextRequest,
@@ -20,21 +18,13 @@ export async function GET(
             return new NextResponse('Unauthorized', { status: 401 })
         }
 
-        if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+        if (!isValidBackupFilename(filename)) {
             return new NextResponse('Invalid filename', { status: 400 })
         }
 
-        const adminDb = createAdminClient()
-        const { data: fileBlob, error } = await adminDb.storage.from(BACKUP_BUCKET).download(filename)
-
-        if (error || !fileBlob) {
-            // Backward compatibility for legacy local backups in /public
-            const localPath = path.join(process.cwd(), 'public', filename)
-            if (!fs.existsSync(localPath)) {
-                return new NextResponse('File not found', { status: 404 })
-            }
-
-            const buffer = fs.readFileSync(localPath)
+        const localBackupPath = getBackupAbsolutePath(filename)
+        if (fs.existsSync(localBackupPath)) {
+            const buffer = fs.readFileSync(localBackupPath)
             return new NextResponse(buffer, {
                 headers: {
                     'Content-Disposition': `attachment; filename="${filename}"`,
@@ -43,13 +33,17 @@ export async function GET(
             })
         }
 
-        const buffer = Buffer.from(await fileBlob.arrayBuffer())
-        const contentType = fileBlob.type || 'application/gzip'
+        // Backward compatibility for legacy backups in /public
+        const legacyPublicPath = path.join(process.cwd(), 'public', filename)
+        if (!fs.existsSync(legacyPublicPath)) {
+            return new NextResponse('File not found', { status: 404 })
+        }
 
+        const buffer = fs.readFileSync(legacyPublicPath)
         return new NextResponse(buffer, {
             headers: {
                 'Content-Disposition': `attachment; filename="${filename}"`,
-                'Content-Type': contentType,
+                'Content-Type': 'application/gzip',
             },
         })
     } catch (error: any) {

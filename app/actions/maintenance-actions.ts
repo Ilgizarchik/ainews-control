@@ -7,15 +7,15 @@ import path from 'path'
 import fs from 'fs'
 import os from 'os'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import {
+    ensureBackupLocalDir,
+    getBackupAbsolutePath,
+    getBackupLocalDir,
+    getLocalBackups,
+    isValidBackupFilename,
+} from '@/lib/backup-storage'
 
 const execPromise = promisify(exec)
-const BACKUP_BUCKET = process.env.BACKUP_STORAGE_BUCKET || 'system-backups'
-const BACKUP_BUCKET_FILE_SIZE_LIMIT = process.env.BACKUP_BUCKET_FILE_SIZE_LIMIT
-const MAX_BACKUPS_IN_RESPONSE = Math.min(
-    Math.max(Number(process.env.BACKUP_LIST_MAX || '100') || 100, 10),
-    500
-)
 
 async function requireAuthorizedUser() {
     const sessionClient = await createClient()
@@ -23,51 +23,18 @@ async function requireAuthorizedUser() {
     if (error || !user) throw new Error('Unauthorized')
 }
 
-async function ensureBackupBucket(adminDb: ReturnType<typeof createAdminClient>) {
-    const { error: bucketError } = await adminDb.storage.getBucket(BACKUP_BUCKET)
-    if (!bucketError) return
-
-    if (!/not found|does not exist/i.test(bucketError.message || '')) {
-        throw bucketError
-    }
-
-    const createPayload: { public: boolean; fileSizeLimit?: string } = {
-        public: false,
-    }
-    if (BACKUP_BUCKET_FILE_SIZE_LIMIT) {
-        createPayload.fileSizeLimit = BACKUP_BUCKET_FILE_SIZE_LIMIT
-    }
-
-    let { error: createError } = await adminDb.storage.createBucket(BACKUP_BUCKET, createPayload)
-
-    // Fallback: some projects reject explicit size limits on bucket creation.
-    if (
-        createError &&
-        createPayload.fileSizeLimit &&
-        /maximum allowed size/i.test(createError.message || '')
-    ) {
-        const retry = await adminDb.storage.createBucket(BACKUP_BUCKET, { public: false })
-        createError = retry.error
-    }
-
-    if (createError && !/already exists/i.test(createError.message || '')) {
-        throw createError
-    }
-}
-
 export async function createSystemBackup() {
     let tempDir = ''
     let tempBackupPath = ''
     try {
         await requireAuthorizedUser()
-
-        const adminDb = createAdminClient()
-        await ensureBackupBucket(adminDb)
+        const backupDir = ensureBackupLocalDir()
 
         const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14)
         const backupName = `full_system_backup_${timestamp}.tar.gz`
         tempDir = path.join(os.tmpdir(), `backup_${timestamp}`)
         tempBackupPath = path.join(os.tmpdir(), backupName)
+        const finalBackupPath = getBackupAbsolutePath(backupName)
         const sqlDumpPath = path.join(tempDir, 'supabase_backup.sql')
 
         if (!fs.existsSync(tempDir)) {
@@ -88,30 +55,36 @@ export async function createSystemBackup() {
         console.log('[Backup] Archiving everything (Source + DB)...')
 
         const projectRoot = process.cwd()
-        await execPromise(`tar -czf "${tempBackupPath}" \
-            --exclude=node_modules \
-            --exclude=.next \
-            --exclude=.git \
-            --exclude=.venv \
-            --exclude=logs \
-            --exclude=public/full_system_backup_*.tar.gz \
-            -C "${projectRoot}" . \
-            -C "${tempDir}" supabase_backup.sql`)
+        const backupDirRelativeToProject = path
+            .relative(projectRoot, backupDir)
+            .replaceAll('\\', '/')
+        const backupDirInsideProject =
+            backupDirRelativeToProject &&
+            backupDirRelativeToProject !== '.' &&
+            !backupDirRelativeToProject.startsWith('..')
 
-        // 3. Загружаем архив в Supabase Storage
-        const backupBuffer = fs.readFileSync(tempBackupPath)
-        const { error: uploadError } = await adminDb.storage
-            .from(BACKUP_BUCKET)
-            .upload(backupName, backupBuffer, {
-                upsert: true,
-                contentType: 'application/gzip'
-            })
+        const tarParts = [
+            `tar -czf "${tempBackupPath}"`,
+            '--exclude=node_modules',
+            '--exclude=.next',
+            '--exclude=.git',
+            '--exclude=.venv',
+            '--exclude=logs',
+            '--exclude=public/full_system_backup_*.tar.gz',
+        ]
 
-        if (uploadError) {
-            throw uploadError
+        if (backupDirInsideProject) {
+            tarParts.push(`--exclude="${backupDirRelativeToProject}"`)
+            tarParts.push(`--exclude="${backupDirRelativeToProject}/*"`)
         }
 
-        console.log(`[Backup] Created and uploaded to bucket ${BACKUP_BUCKET}: ${backupName}`)
+        tarParts.push(`-C "${projectRoot}" .`)
+        tarParts.push(`-C "${tempDir}" supabase_backup.sql`)
+        await execPromise(tarParts.join(' '))
+
+        fs.copyFileSync(tempBackupPath, finalBackupPath)
+
+        console.log(`[Backup] Created locally: ${finalBackupPath}`)
         revalidatePath('/settings')
 
         return {
@@ -135,53 +108,7 @@ export async function createSystemBackup() {
 export async function getRecentBackups() {
     try {
         await requireAuthorizedUser()
-
-        const adminDb = createAdminClient()
-        await ensureBackupBucket(adminDb)
-
-        const { data: files, error } = await adminDb.storage
-            .from(BACKUP_BUCKET)
-            .list('', { limit: 200, sortBy: { column: 'created_at', order: 'desc' } })
-
-        if (error) {
-            throw error
-        }
-
-        const storageBackups = (files || [])
-            .filter(f => f.name.startsWith('full_system_backup_') && f.name.endsWith('.tar.gz'))
-            .map(f => ({
-                name: f.name,
-                size: Number((f.metadata as any)?.size || 0),
-                createdAt: (f as any).created_at || (f as any).updated_at || new Date(0).toISOString(),
-                url: `/api/maintenance/download/${encodeURIComponent(f.name)}`
-            }))
-            .slice(0, MAX_BACKUPS_IN_RESPONSE * 2)
-
-        // Backward compatibility: include old local backups from /public
-        const publicPath = path.join(process.cwd(), 'public')
-        const localBackups = fs.existsSync(publicPath)
-            ? fs.readdirSync(publicPath)
-                .filter(f => f.startsWith('full_system_backup_') && f.endsWith('.tar.gz'))
-                .sort((a, b) => b.localeCompare(a))
-                .slice(0, MAX_BACKUPS_IN_RESPONSE * 2)
-                .map(f => {
-                    const stats = fs.statSync(path.join(publicPath, f))
-                    return {
-                        name: f,
-                        size: stats.size,
-                        createdAt: stats.birthtime.toISOString(),
-                        url: `/api/maintenance/download/${encodeURIComponent(f)}`
-                    }
-                })
-            : []
-
-        const mergedByName = new Map<string, { name: string; size: number; createdAt: string; url: string }>()
-        localBackups.forEach(item => mergedByName.set(item.name, item))
-        storageBackups.forEach(item => mergedByName.set(item.name, item))
-
-        const backups = Array.from(mergedByName.values())
-            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-            .slice(0, MAX_BACKUPS_IN_RESPONSE)
+        const backups = getLocalBackups()
 
         return { success: true, backups }
     } catch (error: any) {
@@ -193,26 +120,26 @@ export async function deleteBackup(filename: string) {
     try {
         await requireAuthorizedUser()
 
-        const adminDb = createAdminClient()
-        await ensureBackupBucket(adminDb)
-
-        if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+        if (!isValidBackupFilename(filename)) {
             return { success: false, error: 'Invalid filename' }
         }
 
-        const { error } = await adminDb.storage.from(BACKUP_BUCKET).remove([filename])
-        // Storage remove can fail for legacy local-only backups; keep going.
-        if (error && !/not found/i.test(error.message || '')) {
-            return { success: false, error: error.message }
+        const localPath = path.join(getBackupLocalDir(), filename)
+        if (fs.existsSync(localPath)) {
+            fs.unlinkSync(localPath)
+            revalidatePath('/settings')
+            return { success: true }
         }
 
-        const legacyPath = path.join(process.cwd(), 'public', filename)
-        if (fs.existsSync(legacyPath)) {
-            fs.unlinkSync(legacyPath)
+        // Backward compatibility for legacy local backups in /public
+        const legacyPublicPath = path.join(process.cwd(), 'public', filename)
+        if (fs.existsSync(legacyPublicPath)) {
+            fs.unlinkSync(legacyPublicPath)
+            revalidatePath('/settings')
+            return { success: true }
         }
 
-        revalidatePath('/settings')
-        return { success: true }
+        return { success: false, error: 'Backup not found' }
     } catch (error: any) {
         return { success: false, error: error.message }
     }
