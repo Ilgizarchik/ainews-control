@@ -52,51 +52,36 @@ export function useBoardJobs() {
     setError(null)
 
     try {
-      // Recipes and jobs are independent; fetch in parallel to reduce page load latency.
-      const [recipesResult, jobsResult] = await Promise.all([
-        supabase
-          .from('publish_recipes')
-          .select('platform, is_main')
-          .eq('is_active', true),
-        supabase
-          .from('publish_jobs')
-          .select(`
-            id, news_id, review_id, platform, status, publish_at, created_at, updated_at,
-            social_content, published_url, retry_count, error_message, external_id, published_at_actual,
-            news_items (
-              id, title, draft_title, draft_image_file_id, gate1_tags, draft_longread_site,
-              draft_announce_tg, draft_announce_vk, draft_announce_ok, draft_announce_fb, draft_announce_x, draft_announce_threads
-            ),
-            review_items (
-              id, title_seed, draft_title, draft_image_file_id, draft_longread_site,
-              draft_announce_tg, draft_announce_vk, draft_announce_ok, draft_announce_fb, draft_announce_x, draft_announce_threads
-            )
-          `)
-          .order('publish_at', { ascending: true }),
-      ])
+      const response = await fetch('/api/publications/board-jobs', {
+        method: 'GET',
+        cache: 'no-store',
+        headers: { Accept: 'application/json' },
+      })
+      const result = await response.json()
 
-      if (recipesResult.error) {
-        console.warn('[useBoardJobs] Failed to fetch active platforms:', recipesResult.error)
-      } else if (recipesResult.data) {
-        const platforms = recipesResult.data.map((r: any) => r.platform.toLowerCase())
-        if (!platforms.includes('site')) platforms.push('site')
-        setActivePlatforms(platforms)
-
-        const main = (recipesResult.data as any[]).find((r: any) => r.is_main)?.platform
-        if (main) setMainPlatform(main)
+      if (!response.ok || !result?.success) {
+        const message = result?.error || `HTTP ${response.status}`
+        setError(message)
+        toast.error(`Не удалось загрузить задачи: ${message}`)
+        return
       }
 
-      if (jobsResult.error) {
-        setError(jobsResult.error.message || 'Ошибка загрузки данных')
-        toast.error(`Не удалось загрузить задачи: ${jobsResult.error.message}`)
-      } else {
-        const normalizedJobs = ((jobsResult.data || []) as RawBoardJob[]).map((job) => ({
-          ...job,
-          news_items: normalizeRelation(job.news_items),
-          review_items: normalizeRelation(job.review_items),
-        }))
-        setJobs(normalizedJobs)
-      }
+      const recipes = (result.recipes || []) as any[]
+      const jobsData = (result.jobs || []) as RawBoardJob[]
+
+      const platforms = recipes.map((r: any) => String(r.platform || '').toLowerCase()).filter(Boolean)
+      if (!platforms.includes('site')) platforms.push('site')
+      setActivePlatforms(platforms)
+
+      const main = recipes.find((r: any) => r.is_main)?.platform
+      if (main) setMainPlatform(main)
+
+      const normalizedJobs = jobsData.map((job) => ({
+        ...job,
+        news_items: normalizeRelation(job.news_items),
+        review_items: normalizeRelation(job.review_items),
+      }))
+      setJobs(normalizedJobs)
     } catch (e: any) {
       const msg = e?.message || 'Ошибка загрузки данных'
       setError(msg)

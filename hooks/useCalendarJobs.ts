@@ -27,21 +27,27 @@ export function useCalendarJobs() {
     if (isInitial) setLoading(true)
     else setRefreshing(true)
 
-    const { data, error } = await supabase
-      .from('publish_jobs')
-      .select(`
-        *,
-        news_items (title, draft_title, canonical_url, image_url),
-        review_items (title_seed, draft_title)
-      `)
-      .gte('publish_at', start.toISOString())
-      .lt('publish_at', end.toISOString())
+    try {
+      const params = new URLSearchParams({
+        start: start.toISOString(),
+        end: end.toISOString(),
+      })
+      const response = await fetch(`/api/publications/calendar-jobs?${params.toString()}`, {
+        method: 'GET',
+        cache: 'no-store',
+        headers: { Accept: 'application/json' },
+      })
+      const result = await response.json()
 
-    if (error) {
+      if (!response.ok || !result?.success) {
+        const message = result?.error || `HTTP ${response.status}`
+        toast.error(`Не удалось загрузить задачи публикации: ${message}`)
+      } else {
+        setJobs((result.jobs || []) as JobWithNews[])
+      }
+    } catch (error: any) {
       console.error('Error fetching jobs:', error)
       toast.error(`Не удалось загрузить задачи публикации: ${(error as any).message || 'Ошибка'}`)
-    } else {
-      setJobs(data as JobWithNews[])
     }
     setLoading(false)
     setRefreshing(false)
