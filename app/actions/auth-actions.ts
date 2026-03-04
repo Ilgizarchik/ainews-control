@@ -9,14 +9,18 @@ export async function login(formData: FormData) {
     const password = formData.get('password') as string
     const supabase = await createClient()
 
+    console.log(`[AUTH] Attempting login for ${email}`)
     const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
     })
 
     if (error) {
+        console.log(`[AUTH] Login failed for ${email}: ${error.message}`)
         return { error: error.message }
     }
+
+    console.log(`[AUTH] Login success for ${email}, redirecting...`)
 
     revalidatePath('/', 'layout')
     redirect('/publications')
