@@ -8,7 +8,7 @@ export type BackupItem = {
   url: string
 }
 
-const BACKUP_PREFIX = 'full_system_backup_'
+const BACKUP_PREFIXES = ['full_system_backup_', 'full_project_backup_']
 const BACKUP_SUFFIX = '.tar.gz'
 
 export const MAX_BACKUPS_IN_RESPONSE = Math.min(
@@ -31,7 +31,10 @@ export function ensureBackupLocalDir() {
 }
 
 export function isBackupFilename(filename: string) {
-  return filename.startsWith(BACKUP_PREFIX) && filename.endsWith(BACKUP_SUFFIX)
+  return (
+    filename.endsWith(BACKUP_SUFFIX) &&
+    BACKUP_PREFIXES.some((prefix) => filename.startsWith(prefix))
+  )
 }
 
 export function isValidBackupFilename(filename: string) {
@@ -45,8 +48,9 @@ export function getBackupAbsolutePath(filename: string) {
   return path.join(getBackupLocalDir(), filename)
 }
 
-export function getLocalBackups() {
-  const backupDir = ensureBackupLocalDir()
+function scanBackupDir(backupDir: string) {
+  if (!fs.existsSync(backupDir)) return [] as BackupItem[]
+
   const matchedNames: string[] = []
   const dir = fs.opendirSync(backupDir)
 
@@ -77,3 +81,15 @@ export function getLocalBackups() {
     })
 }
 
+export function getLocalBackups() {
+  const primaryBackups = scanBackupDir(ensureBackupLocalDir())
+  const legacyPublicBackups = scanBackupDir(path.join(process.cwd(), 'public'))
+
+  const mergedByName = new Map<string, BackupItem>()
+  legacyPublicBackups.forEach((item) => mergedByName.set(item.name, item))
+  primaryBackups.forEach((item) => mergedByName.set(item.name, item))
+
+  return Array.from(mergedByName.values())
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, MAX_BACKUPS_IN_RESPONSE)
+}
