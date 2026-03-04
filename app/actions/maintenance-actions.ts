@@ -11,6 +11,10 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 const execPromise = promisify(exec)
 const BACKUP_BUCKET = process.env.BACKUP_STORAGE_BUCKET || 'system-backups'
+const MAX_BACKUPS_IN_RESPONSE = Math.min(
+    Math.max(Number(process.env.BACKUP_LIST_MAX || '100') || 100, 10),
+    500
+)
 
 async function requireAuthorizedUser() {
     const sessionClient = await createClient()
@@ -132,12 +136,15 @@ export async function getRecentBackups() {
                 createdAt: (f as any).created_at || (f as any).updated_at || new Date(0).toISOString(),
                 url: `/api/maintenance/download/${encodeURIComponent(f.name)}`
             }))
+            .slice(0, MAX_BACKUPS_IN_RESPONSE * 2)
 
         // Backward compatibility: include old local backups from /public
         const publicPath = path.join(process.cwd(), 'public')
         const localBackups = fs.existsSync(publicPath)
             ? fs.readdirSync(publicPath)
                 .filter(f => f.startsWith('full_system_backup_') && f.endsWith('.tar.gz'))
+                .sort((a, b) => b.localeCompare(a))
+                .slice(0, MAX_BACKUPS_IN_RESPONSE * 2)
                 .map(f => {
                     const stats = fs.statSync(path.join(publicPath, f))
                     return {
@@ -155,6 +162,7 @@ export async function getRecentBackups() {
 
         const backups = Array.from(mergedByName.values())
             .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            .slice(0, MAX_BACKUPS_IN_RESPONSE)
 
         return { success: true, backups }
     } catch (error: any) {
