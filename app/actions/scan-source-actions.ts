@@ -407,48 +407,65 @@ export async function testSelectors(url: string, selectors: any) {
 }
 
 export async function saveSource(source: any) {
-    await requireAuthorizedUser()
-    const supabase = createAdminClient()
-    const { error } = await supabase
-        .from('ingestion_sources')
-        .upsert(source, { onConflict: 'id' } as any)
+    try {
+        await requireAuthorizedUser()
+        const supabase = createAdminClient()
+        const { error } = await supabase
+            .from('ingestion_sources')
+            .upsert(source, { onConflict: 'id' } as any)
 
-    if (error) return { success: false, error: error.message }
-    return { success: true }
+        if (error) return { success: false, error: error.message }
+        return { success: true }
+    } catch (e: any) {
+        return { success: false, error: e?.message || 'Unauthorized' }
+    }
 }
 
 export async function getDbSources() {
-    await requireAuthorizedUser()
-    const supabase = createAdminClient()
-    const { data, error } = await supabase
-        .from('ingestion_sources')
-        .select('*')
-        .order('created_at', { ascending: false })
+    try {
+        await requireAuthorizedUser()
+        const supabase = createAdminClient()
+        const { data, error } = await supabase
+            .from('ingestion_sources')
+            .select('*')
+            .order('created_at', { ascending: false })
 
-    if (error) return []
-    return data
+        if (error) return []
+        return data
+    } catch {
+        // Avoid crashing settings page render on expired/missing session.
+        return []
+    }
 }
 
 export async function deleteSource(id: string) {
-    await requireAuthorizedUser()
-    const supabase = createAdminClient()
-    const { error } = await supabase
-        .from('ingestion_sources')
-        .delete()
-        .eq('id', id)
+    try {
+        await requireAuthorizedUser()
+        const supabase = createAdminClient()
+        const { error } = await supabase
+            .from('ingestion_sources')
+            .delete()
+            .eq('id', id)
 
-    if (error) return { success: false, error: error.message }
-    return { success: true }
+        if (error) return { success: false, error: error.message }
+        return { success: true }
+    } catch (e: any) {
+        return { success: false, error: e?.message || 'Unauthorized' }
+    }
 }
 
 export async function toggleSourceActive(id: string, state: boolean) {
-    await requireAuthorizedUser()
-    const supabase = createAdminClient()
-    const { error } = await supabase
-        .from('ingestion_sources')
-        .update({ is_active: state })
-        .eq('id', id)
+    try {
+        await requireAuthorizedUser()
+        const supabase = createAdminClient()
+        const { error } = await supabase
+            .from('ingestion_sources')
+            .update({ is_active: state })
+            .eq('id', id)
 
-    if (error) return { success: false, error: error.message }
-    return { success: true }
+        if (error) return { success: false, error: error.message }
+        return { success: true }
+    } catch (e: any) {
+        return { success: false, error: e?.message || 'Unauthorized' }
+    }
 }
