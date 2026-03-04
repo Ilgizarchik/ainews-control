@@ -24,15 +24,12 @@ export default function LoginPage() {
       formData.append('password', password)
 
       const result = await loginAction(formData)
-      if (result?.error) {
+      if (result && 'error' in result && result.error) {
         toast.error('Login failed', { description: result.error })
         setLoading(false)
       }
     } catch (err: any) {
-      // Это нормальное поведение для Next.js redirect в серверных экшенах
-      if (err.message === 'NEXT_REDIRECT' || (err.digest && err.digest.includes('NEXT_REDIRECT'))) {
-        return
-      }
+      console.error('Login handle error:', err)
       toast.error('An unexpected error occurred')
       setLoading(false)
     }

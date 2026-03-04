@@ -28,18 +28,21 @@ export async function proxy(request: NextRequest) {
   // ВАЖНО: getUser() обновляет токен сессии. Не убирать.
   const { data: { user }, error: authError } = await supabase.auth.getUser()
 
+  // console.log(`[PROXY] Method: ${request.method}, Path: ${request.nextUrl.pathname}, User: ${user?.email || 'none'}`)
   console.log(`[PROXY] Path: ${request.nextUrl.pathname}, User: ${user?.email || 'none'}, Error: ${authError?.message || 'none'}`)
 
   const isLoginPage = request.nextUrl.pathname.startsWith('/login')
   const isAuthRoute = request.nextUrl.pathname.startsWith('/auth')
   const isApiCron = request.nextUrl.pathname.startsWith('/api/cron/')
 
-  // Редирект на логин если нет сессии
+  // ВРЕМЕННО ОТКЛЮЧАЕМ РЕДИРЕКТ ДЛЯ ТЕСТА
+  /*
   if (!user && !isLoginPage && !isAuthRoute && !isApiCron) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
+  */
 
   // Редирект с логина если уже залогинен
   if (user && isLoginPage) {
