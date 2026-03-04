@@ -6,8 +6,8 @@ import { PublishContext } from "@/lib/publishers/types"
 
 async function createAuthedClient() {
     const supabase = await createClient()
-    const { data: { user }, error } = await supabase.auth.getUser()
-    if (error || !user) {
+    const { data: { session }, error } = await supabase.auth.getSession()
+    if (error || !session?.user) {
         throw new Error('Unauthorized')
     }
     return supabase

@@ -14,11 +14,11 @@ const execPromise = promisify(exec)
 
 async function requireAuthorizedUser() {
     const sessionClient = await createClient()
-    const { data: { user }, error } = await sessionClient.auth.getUser()
-    if (error || !user) {
+    const { data: { session }, error } = await sessionClient.auth.getSession()
+    if (error || !session?.user) {
         throw new Error('Unauthorized')
     }
-    return user
+    return session.user
 }
 
 // Помощник для работы с выбранным AI-провайдером

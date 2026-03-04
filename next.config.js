@@ -47,6 +47,11 @@ const nextConfig = {
   compress: true,
   turbopack: {
     root: path.resolve(__dirname),
+    resolveAlias: {
+      // Принудительно резолвим tailwindcss из папки проекта (устраняет OOM из-за package.json на Desktop)
+      'tailwindcss': path.resolve(__dirname, 'node_modules/tailwindcss'),
+      '@tailwindcss/postcss': path.resolve(__dirname, 'node_modules/@tailwindcss/postcss'),
+    },
   },
   images: {
     formats: ['image/avif', 'image/webp'],

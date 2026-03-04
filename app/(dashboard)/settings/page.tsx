@@ -1,17 +1,16 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { toast } from 'sonner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { TutorialButton } from '@/components/tutorial/TutorialButton'
 import { getSettingsTutorialSteps } from '@/lib/tutorial/tutorial-config'
-import { useMemo } from 'react'
 import { LEGACY_SOURCES } from '@/lib/ingestion/sources'
 import { getDbSources } from '@/app/actions/scan-source-actions'
 import { SystemPromptsEditor } from '@/components/system-prompts-editor'
 import { AiCorrectionLogs } from '@/components/settings/ai-correction-logs'
 import { reportClientError } from '@/lib/client-error'
+import { getProjectSettings, saveProjectSettings, saveSingleProjectSetting } from '@/app/actions/settings-actions'
 
 // Разнесенные компоненты
 import { AIConfigTab } from '@/components/settings/ai-config-tab'
@@ -57,21 +56,16 @@ const AI_KEY_MAP: Record<string, string> = {
 }
 
 export default function SettingsPage() {
-    const supabase = createClient()
     const [mounted, setMounted] = useState(false)
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [fetchingModels, setFetchingModels] = useState(false)
     const [fetchingThreadsId, setFetchingThreadsId] = useState(false)
 
-    // Переключатели видимости для ключей
     const [showKeys, setShowKeys] = useState<Record<string, boolean>>({})
-
-    // Динамический список моделей, получаемый из API
     const [availableModels, setAvailableModels] = useState<string[]>([])
     const [availableImageModels, setAvailableImageModels] = useState<string[]>([])
 
-    // Конфигурация глобальных значений по умолчанию
     const [config, setConfig] = useState<AIConfig>({
         provider: 'openrouter',
         model: 'anthropic/claude-3.5-sonnet',
@@ -83,7 +77,6 @@ export default function SettingsPage() {
         autoGenerateSocial: false
     })
 
-    // Хранилище ключей
     const [apiKeys, setApiKeys] = useState<ApiKeys>({
         openrouter: '',
         openai: '',
@@ -112,7 +105,6 @@ export default function SettingsPage() {
     })
 
     const [activeTab, setActiveTab] = useState('ai')
-
     const settingsTutorialSteps = useMemo(() => getSettingsTutorialSteps(setActiveTab), [setActiveTab])
 
     const [ingestionConfig, setIngestionConfig] = useState<Record<string, { isActive: boolean }>>({})
@@ -126,22 +118,19 @@ export default function SettingsPage() {
     const [autoIngestion, setAutoIngestion] = useState(true)
     const [safePublishMode, setSafePublishMode] = useState(true)
 
+    // ✅ Server Action — обходит RLS для project_settings
     const fetchSettings = useCallback(async () => {
         setLoading(true)
         try {
-            const { data, error } = await supabase
-                .from('project_settings')
-                .select('*')
-                .eq('project_key', PROJECT_KEY)
+            const result = await getProjectSettings()
+            if (!result.success) throw new Error(result.error)
 
-            if (error) throw error
-
-            const settingsMap = (data || []).reduce((acc: any, curr: any) => {
+            const settingsMap = (result.data || []).reduce((acc: any, curr: any) => {
                 acc[curr.key] = curr.value
                 return acc
             }, {})
 
-            // 1. Ключи
+            // 1. API-ключи
             setApiKeys(prev => {
                 const next = { ...prev }
                 Object.keys(next).forEach(k => {
@@ -174,23 +163,17 @@ export default function SettingsPage() {
 
             // 3. Сбор данных (ingestion)
             if (settingsMap.ingestion_config) {
-                try {
-                    setIngestionConfig(JSON.parse(settingsMap.ingestion_config))
-                } catch { }
+                try { setIngestionConfig(JSON.parse(settingsMap.ingestion_config)) } catch { }
             }
             if (settingsMap.ingest_schedule) {
-                try {
-                    setIngestSchedule(JSON.parse(settingsMap.ingest_schedule))
-                } catch { }
+                try { setIngestSchedule(JSON.parse(settingsMap.ingest_schedule)) } catch { }
             }
             if (settingsMap.auto_ingestion) setAutoIngestion(settingsMap.auto_ingestion === 'true')
             if (settingsMap.safe_publish_mode) setSafePublishMode(settingsMap.safe_publish_mode === 'true')
 
             // 4. Источники
             const dbData = await getDbSources()
-            if (Array.isArray(dbData)) {
-                setDbSources(dbData)
-            }
+            if (Array.isArray(dbData)) setDbSources(dbData)
 
         } catch (e: any) {
             toast.error(e.message)
@@ -202,13 +185,14 @@ export default function SettingsPage() {
         } finally {
             setLoading(false)
         }
-    }, [supabase])
+    }, [])
 
     useEffect(() => {
         setMounted(true)
         fetchSettings()
     }, [fetchSettings])
 
+    // ✅ Server Action — сохраняет через service_role
     const handleSave = async () => {
         setSaving(true)
         try {
@@ -229,13 +213,10 @@ export default function SettingsPage() {
                 { key: 'auto_ingestion', value: String(autoIngestion) },
                 { key: 'safe_publish_mode', value: String(safePublishMode) },
                 { key: 'ingestion_config', value: JSON.stringify(ingestionConfig) }
-            ].map((row) => ({ ...row, project_key: PROJECT_KEY }))
+            ]
 
-            const { error } = await supabase
-                .from('project_settings')
-                .upsert(rows, { onConflict: 'project_key,key' })
-
-            if (error) throw error
+            const result = await saveProjectSettings(rows)
+            if (!result.success) throw new Error(result.error)
             toast.success('Настройки сохранены')
         } catch (e: any) {
             toast.error(e.message)
@@ -244,14 +225,10 @@ export default function SettingsPage() {
         }
     }
 
+    // ✅ Server Action — одиночное обновление через service_role
     const updateSingleSetting = async (key: string, value: string) => {
-        try {
-            await supabase
-                .from('project_settings')
-                .upsert({ key, value, project_key: PROJECT_KEY }, { onConflict: 'project_key,key' })
-        } catch (e) {
-            console.error('Update single setting failed:', e)
-        }
+        const result = await saveSingleProjectSetting(key, value)
+        if (!result.success) console.error('[updateSingleSetting]', result.error)
     }
 
     const handleProviderChange = (val: string) => {
@@ -267,9 +244,7 @@ export default function SettingsPage() {
 
     const handleResetUrl = () => {
         const p = PROVIDERS.find(x => x.value === config.provider)
-        if (p) {
-            setConfig(prev => ({ ...prev, baseUrl: p.defaultUrl }))
-        }
+        if (p) setConfig(prev => ({ ...prev, baseUrl: p.defaultUrl }))
     }
 
     const toggleKeyVisibility = (keyName: string) => {
@@ -277,25 +252,25 @@ export default function SettingsPage() {
     }
 
     const handleFetchThreadsId = async () => {
-        if (!apiKeys.th_access_token) return;
-        setFetchingThreadsId(true);
+        if (!apiKeys.th_access_token) return
+        setFetchingThreadsId(true)
         try {
             const res = await fetch('/api/integrations/threads-metadata', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ accessToken: apiKeys.th_access_token })
-            });
-            const data = await res.json();
+            })
+            const data = await res.json()
             if (data.id) {
-                setApiKeys(prev => ({ ...prev, th_user_id: data.id }));
-                toast.success(`Threads ID получен: ${data.id}`);
+                setApiKeys(prev => ({ ...prev, th_user_id: data.id }))
+                toast.success(`Threads ID получен: ${data.id}`)
             } else {
-                toast.error(data.error || data.error?.message || 'Failed to fetch Threads ID');
+                toast.error(data.error || data.error?.message || 'Failed to fetch Threads ID')
             }
         } catch (e: any) {
-            toast.error(e.message);
+            toast.error(e.message)
         } finally {
-            setFetchingThreadsId(false);
+            setFetchingThreadsId(false)
         }
     }
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { getAiCorrectionLogs } from '@/app/actions/settings-actions'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Loader2, Terminal, Calendar, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -25,38 +25,21 @@ export function AiCorrectionLogs() {
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
 
-    const supabase = createClient()
-
+    // ✅ Server Action — обходит RLS для ai_correction_logs
     const fetchLogs = useCallback(async () => {
         setLoading(true)
         try {
-            const { data, error } = await supabase
-                .from('ai_correction_logs')
-                .select(`
-                    *,
-                    news_items (draft_title, title),
-                    review_items (draft_title)
-                `)
-                .order('created_at', { ascending: false })
-                .limit(50)
-
-            if (error) {
-                console.error('Supabase Fetch Error:', error)
-                throw new Error(error.message)
-            }
-
-            setLogs(data as any[])
+            const result = await getAiCorrectionLogs(50)
+            if (!result.success) throw new Error(result.error)
+            setLogs(result.data as LogItem[])
         } catch (e: any) {
-            console.error('Failed to fetch logs:', e.message || e)
-            toast.error('Не удалось загрузить историю')
+            toast.error(`Не удалось загрузить историю: ${e.message}`)
         } finally {
             setLoading(false)
         }
-    }, [supabase])
+    }, [])
 
-    useEffect(() => {
-        fetchLogs()
-    }, [fetchLogs])
+    useEffect(() => { fetchLogs() }, [fetchLogs])
 
     const filteredLogs = logs.filter(log =>
         log.instruction.toLowerCase().includes(search.toLowerCase()) ||
@@ -83,7 +66,7 @@ export function AiCorrectionLogs() {
                         <Input
                             placeholder="Поиск по инструкциям..."
                             value={search}
-                            onChange={(e) => setSearch(e.target.value)}
+                            onChange={e => setSearch(e.target.value)}
                             className="h-14 pl-12 pr-4 rounded-2xl bg-background/50 border-2 border-border/50 focus:border-purple-500/50 focus:ring-purple-500/10 transition-all duration-300 font-bold shadow-inner"
                         />
                     </div>
@@ -112,7 +95,7 @@ export function AiCorrectionLogs() {
                         </div>
                     ) : (
                         <div className="divide-y-2 divide-border/50">
-                            {filteredLogs.map((log) => {
+                            {filteredLogs.map(log => {
                                 const newsTitle = log.news_items?.draft_title || log.news_items?.title
                                 const reviewTitle = log.review_items?.draft_title
                                 const title = newsTitle || reviewTitle || 'Общий контекст'
@@ -141,11 +124,8 @@ export function AiCorrectionLogs() {
                                                 <Calendar className="w-3.5 h-3.5 text-muted-foreground opacity-50" />
                                                 <time className="text-[11px] font-black text-muted-foreground tabular-nums">
                                                     {new Date(log.created_at).toLocaleString('ru-RU', {
-                                                        day: '2-digit',
-                                                        month: '2-digit',
-                                                        year: 'numeric',
-                                                        hour: '2-digit',
-                                                        minute: '2-digit'
+                                                        day: '2-digit', month: '2-digit', year: 'numeric',
+                                                        hour: '2-digit', minute: '2-digit'
                                                     })}
                                                 </time>
                                             </div>
@@ -155,7 +135,6 @@ export function AiCorrectionLogs() {
                                             <p className="text-base font-bold text-foreground leading-relaxed mb-4 group-hover:translate-x-1 transition-transform duration-300">
                                                 {log.instruction}
                                             </p>
-
                                             {log.original_text_snippet && (
                                                 <div className="flex flex-col gap-2 p-5 rounded-[1.25rem] bg-slate-50/50 dark:bg-slate-900/40 border-2 border-border/40 text-sm shadow-inner group-hover:border-purple-500/20 transition-colors">
                                                     <span className="text-[9px] font-black text-purple-500 uppercase tracking-[0.2em] opacity-80">

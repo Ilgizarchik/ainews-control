@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useState, useEffect, useCallback, useMemo, Suspense } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { Save, FileText, GripVertical, Send, Globe } from 'lucide-react'
@@ -26,6 +25,12 @@ import {
   useSortable
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import {
+  getSystemPrompts,
+  savePromptContent,
+  savePromptsOrder,
+  getPromptsOrder
+} from '@/app/actions/prompt-actions'
 
 // --- БРЕНДОВЫЕ ИКОНКИ СОЦСЕТЕЙ ---
 
@@ -77,77 +82,28 @@ const getSocialConfig = (key: string) => {
   const keyLower = key.toLowerCase()
 
   if (keyLower.includes('_vk')) {
-    return {
-      icon: VkIcon,
-      color: '#0077FF',
-      bg: 'from-[#0077FF]/15 to-[#0077FF]/10',
-      borderColor: 'border-[#0077FF]/20',
-      textColor: 'text-[#0077FF]'
-    }
+    return { icon: VkIcon, color: '#0077FF', bg: 'from-[#0077FF]/15 to-[#0077FF]/10', borderColor: 'border-[#0077FF]/20', textColor: 'text-[#0077FF]' }
   }
   if (keyLower.includes('_tg')) {
-    return {
-      icon: Send,
-      color: '#0088CC',
-      bg: 'from-blue-500/15 to-blue-600/10',
-      borderColor: 'border-blue-500/20',
-      textColor: 'text-blue-600 dark:text-blue-400'
-    }
+    return { icon: Send, color: '#0088CC', bg: 'from-blue-500/15 to-blue-600/10', borderColor: 'border-blue-500/20', textColor: 'text-blue-600 dark:text-blue-400' }
   }
   if (keyLower.includes('_fb')) {
-    return {
-      icon: FbIcon,
-      color: '#1877F2',
-      bg: 'from-[#1877F2]/15 to-[#1877F2]/10',
-      borderColor: 'border-[#1877F2]/20',
-      textColor: 'text-[#1877F2]'
-    }
+    return { icon: FbIcon, color: '#1877F2', bg: 'from-[#1877F2]/15 to-[#1877F2]/10', borderColor: 'border-[#1877F2]/20', textColor: 'text-[#1877F2]' }
   }
   if (keyLower.includes('_ok')) {
-    return {
-      icon: OkIcon,
-      color: '#F97400',
-      bg: 'from-[#F97400]/15 to-[#F97400]/10',
-      borderColor: 'border-[#F97400]/20',
-      textColor: 'text-[#F97400]'
-    }
+    return { icon: OkIcon, color: '#F97400', bg: 'from-[#F97400]/15 to-[#F97400]/10', borderColor: 'border-[#F97400]/20', textColor: 'text-[#F97400]' }
   }
   if (keyLower.includes('_threads')) {
-    return {
-      icon: ThreadsIcon,
-      color: '#000000',
-      bg: 'from-zinc-500/15 to-zinc-600/10',
-      borderColor: 'border-zinc-500/20',
-      textColor: 'text-zinc-900 dark:text-zinc-100'
-    }
+    return { icon: ThreadsIcon, color: '#000000', bg: 'from-zinc-500/15 to-zinc-600/10', borderColor: 'border-zinc-500/20', textColor: 'text-zinc-900 dark:text-zinc-100' }
   }
   if (keyLower.includes('_x')) {
-    return {
-      icon: XIcon,
-      color: '#000000',
-      bg: 'from-zinc-500/15 to-zinc-600/10',
-      borderColor: 'border-zinc-500/20',
-      textColor: 'text-zinc-900 dark:text-zinc-100'
-    }
+    return { icon: XIcon, color: '#000000', bg: 'from-zinc-500/15 to-zinc-600/10', borderColor: 'border-zinc-500/20', textColor: 'text-zinc-900 dark:text-zinc-100' }
   }
   if (keyLower.includes('_site')) {
-    return {
-      icon: Globe,
-      color: '#10b981',
-      bg: 'from-emerald-500/15 to-emerald-600/10',
-      borderColor: 'border-emerald-500/20',
-      textColor: 'text-emerald-600 dark:text-emerald-400'
-    }
+    return { icon: Globe, color: '#10b981', bg: 'from-emerald-500/15 to-emerald-600/10', borderColor: 'border-emerald-500/20', textColor: 'text-emerald-600 dark:text-emerald-400' }
   }
 
-  // Default для системных промптов
-  return {
-    icon: FileText,
-    color: '#3B82F6',
-    bg: 'from-blue-500/15 to-blue-600/10',
-    borderColor: 'border-blue-500/20',
-    textColor: 'text-blue-600 dark:text-blue-400'
-  }
+  return { icon: FileText, color: '#3B82F6', bg: 'from-blue-500/15 to-blue-600/10', borderColor: 'border-blue-500/20', textColor: 'text-blue-600 dark:text-blue-400' }
 }
 
 // --- Компонент сортируемого элемента ---
@@ -180,21 +136,13 @@ function SortablePromptCard({ prompt, editedContent, isEdited, isSaving, onSave,
 
   const { icon: Icon, color, bg, borderColor, textColor } = getSocialConfig(prompt.key)
 
-  // Авто-ресайз textarea с предотвращением "скачка"
   React.useEffect(() => {
     const textarea = textareaRef.current
     if (textarea) {
-      // Временно отключаем прокрутку body, чтобы избежать "скачка" в некоторых браузерах (Yandex/Chrome)
-      // во время пересчета раскладки
-      const originalOverflow = document.body.style.overflow
       const scrollY = window.scrollY
-
       textarea.style.height = 'auto'
       textarea.style.height = `${textarea.scrollHeight}px`
-
-      // Гарантируем, что остаемся на той же позиции
       window.scrollTo(0, scrollY)
-      document.body.style.overflow = originalOverflow
     }
   }, [editedContent])
 
@@ -207,7 +155,6 @@ function SortablePromptCard({ prompt, editedContent, isEdited, isSaving, onSave,
     >
       <div className="flex items-center justify-between px-6 py-4 border-b-2 border-border/60 bg-gradient-to-r from-muted/50 to-muted/30">
         <div className="flex items-center gap-3">
-          {/* Ручка перетаскивания */}
           <div
             {...attributes}
             {...listeners}
@@ -259,7 +206,6 @@ function SortablePromptCard({ prompt, editedContent, isEdited, isSaving, onSave,
         </Button>
       </div>
 
-
       <div className="p-6 bg-gradient-to-br from-background to-muted/10">
         <textarea
           ref={textareaRef}
@@ -307,12 +253,11 @@ function SortablePromptCard({ prompt, editedContent, isEdited, isSaving, onSave,
           )}
         </div>
       </div>
-    </div >
+    </div>
   )
 }
 
 function PromptsContent() {
-  const supabase = useMemo(() => createClient(), [])
   const searchParams = useSearchParams()
   const router = useRouter()
 
@@ -320,6 +265,7 @@ function PromptsContent() {
   const [editedPrompts, setEditedPrompts] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState<Record<string, boolean>>({})
   const [mounted, setMounted] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
 
   const defaultTab = searchParams.get('tab') || 'system'
   const [activeTab, setActiveTab] = useState(defaultTab)
@@ -331,8 +277,6 @@ function PromptsContent() {
     })
   )
 
-
-
   // Категоризация промптов
   const systemPrompts = useMemo(() => prompts.filter(p => p.category === 'system' || !p.category), [prompts])
   const newsPrompts = useMemo(() => prompts.filter(p => p.category === 'news'), [prompts])
@@ -340,46 +284,43 @@ function PromptsContent() {
   const socialPrompts = useMemo(() => prompts.filter(p => p.category === 'social'), [prompts])
 
   const fetchPrompts = useCallback(async () => {
-    const { data: promptsData, error: promptsError } = await (supabase as any)
-      .from('system_prompts')
-      .select('id, key, content, category, updated_at')
-      .neq('key', 'parse_date')
+    setIsLoading(true)
+    try {
+      const [promptsResult, orderResult] = await Promise.all([
+        getSystemPrompts(),
+        getPromptsOrder(),
+      ])
 
-    if (promptsError) {
-      toast.error('Не удалось загрузить промпты')
-      return
-    }
-
-    const { data: settingsData } = await supabase
-      .from('project_settings')
-      .select('value')
-      .eq('project_key', 'ainews')
-      .eq('key', 'prompts_order')
-      .single()
-
-    let orderedPrompts = promptsData as any[]
-    const settings = settingsData as any
-
-    if (settings?.value) {
-      try {
-        const orderIds = JSON.parse(settings.value) as string[]
-        orderedPrompts.sort((a, b) => {
-          const indexA = orderIds.indexOf(String(a.id))
-          const indexB = orderIds.indexOf(String(b.id))
-          if (indexA !== -1 && indexB !== -1) return indexA - indexB
-          if (indexA !== -1) return -1
-          if (indexB !== -1) return 1
-          return a.key.localeCompare(b.key)
-        })
-      } catch (e) {
-        console.error('Failed to parse prompts order', e)
+      if (!promptsResult.success || !promptsResult.data) {
+        toast.error(`Не удалось загрузить промпты: ${promptsResult.error ?? 'неизвестная ошибка'}`)
+        return
       }
-    } else {
-      orderedPrompts.sort((a, b) => a.key.localeCompare(b.key))
-    }
 
-    setPrompts(orderedPrompts)
-  }, [supabase])
+      let orderedPrompts = promptsResult.data as any[]
+
+      if (orderResult.success && orderResult.order) {
+        try {
+          const orderIds = JSON.parse(orderResult.order) as string[]
+          orderedPrompts = [...orderedPrompts].sort((a, b) => {
+            const indexA = orderIds.indexOf(String(a.id))
+            const indexB = orderIds.indexOf(String(b.id))
+            if (indexA !== -1 && indexB !== -1) return indexA - indexB
+            if (indexA !== -1) return -1
+            if (indexB !== -1) return 1
+            return a.key.localeCompare(b.key)
+          })
+        } catch {
+          orderedPrompts.sort((a, b) => a.key.localeCompare(b.key))
+        }
+      } else {
+        orderedPrompts.sort((a, b) => a.key.localeCompare(b.key))
+      }
+
+      setPrompts(orderedPrompts)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
     setMounted(true)
@@ -409,20 +350,17 @@ function PromptsContent() {
     const idStr = String(id)
     setSaving(prev => ({ ...prev, [idStr]: true }))
 
-    const now = new Date().toISOString()
-    const { error } = await (supabase as any)
-      .from('system_prompts')
-      .update({ content, updated_at: now } as any)
-      .eq('id', id)
+    const result = await savePromptContent(id, content)
 
-    if (error) {
-      toast.error('Не удалось сохранить промпт')
+    if (!result.success) {
+      toast.error(`Не удалось сохранить промпт: ${result.error}`)
       setSaving(prev => ({ ...prev, [idStr]: false }))
       return
     }
 
-    toast.success('Промпт успешно сохранен')
+    toast.success('Промпт успешно сохранён')
 
+    const now = result.updated_at ?? new Date().toISOString()
     setPrompts(prev =>
       prev.map(p => (String(p.id) === idStr ? { ...p, content, updated_at: now } : p))
     )
@@ -449,17 +387,9 @@ function PromptsContent() {
         const newItems = arrayMove(items, oldIndex, newIndex)
         const newOrderIds = newItems.map(i => String(i.id))
 
-        supabase
-          .from('project_settings')
-          .upsert({
-            project_key: 'ainews',
-            key: 'prompts_order',
-            value: JSON.stringify(newOrderIds),
-            is_active: true
-          } as any)
-          .then(({ error }) => {
-            if (error) toast.error('Не удалось сохранить порядок')
-          })
+        savePromptsOrder(newOrderIds).then(({ success }) => {
+          if (!success) toast.error('Не удалось сохранить порядок')
+        })
 
         return newItems
       })
@@ -501,6 +431,14 @@ function PromptsContent() {
       </SortableContext>
     </DndContext>
   )
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto relative">

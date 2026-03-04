@@ -1,4 +1,10 @@
-/** @type {import('tailwindcss').Config} */
+/**
+ * Tailwind CSS v4 не использует этот файл.
+ * Конфигурация вынесена в globals.css через @theme директиву.
+ * Файл оставлен для совместимости с тулингом (IDE autocomplete).
+ *
+ * @type {import('tailwindcss').Config}
+ */
 const config = {
   darkMode: ["class"],
   content: [
@@ -7,17 +13,6 @@ const config = {
     "./app/**/*.{ts,tsx}",
     "./src/**/*.{ts,tsx}",
   ],
-  theme: {
-    extend: {
-      colors: {
-        background: "hsl(var(--background))",
-        foreground: "hsl(var(--foreground))",
-        border: "hsl(var(--border))",
-        input: "hsl(var(--input))",
-        ring: "hsl(var(--ring))",
-      },
-    },
-  },
-  plugins: [require("tailwindcss-animate")],
-};
-export default config;
+}
+
+export default config

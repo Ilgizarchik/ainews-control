@@ -14,8 +14,8 @@ const BACKUP_BUCKET = process.env.BACKUP_STORAGE_BUCKET || 'system-backups'
 
 async function requireAuthorizedUser() {
     const sessionClient = await createClient()
-    const { data: { user }, error } = await sessionClient.auth.getUser()
-    if (error || !user) {
+    const { data: { session }, error } = await sessionClient.auth.getSession()
+    if (error || !session?.user) {
         throw new Error('Unauthorized')
     }
 }

@@ -16,11 +16,20 @@ export function MaintenanceTab() {
 
     const fetchBackups = async () => {
         setLoading(true)
-        const result = await getRecentBackups()
-        if (result.success) {
-            setBackups(result.backups || [])
+        try {
+            const result = await getRecentBackups()
+            if (result.success) {
+                setBackups(result.backups || [])
+            } else {
+                toast.error(`Не удалось загрузить список бэкапов: ${result.error ?? 'неизвестная ошибка'}`)
+                setBackups([])
+            }
+        } catch (e: any) {
+            toast.error(`Критическая ошибка при загрузке бэкапов: ${e.message}`)
+            setBackups([])
+        } finally {
+            setLoading(false)
         }
-        setLoading(false)
     }
 
     useEffect(() => {

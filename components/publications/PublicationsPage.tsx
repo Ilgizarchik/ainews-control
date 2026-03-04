@@ -83,21 +83,24 @@ export function PublicationsPage() {
     const [mounted, setMounted] = useState(false)
 
     // Создаем шаги туториала с callback для переключения вкладок и открытия диалога
-    const publicationsSteps = useMemo(() => getPublicationsTutorialSteps(setActiveTab, () => setIsCreateOpen(true), () => setIsCreateOpen(false)), []);
+    const publicationsSteps = useMemo(() => getPublicationsTutorialSteps(handleTabChange, () => setIsCreateOpen(true), () => setIsCreateOpen(false)), []);
 
     useEffect(() => {
         setMounted(true)
+
+        // Восстанавливаем активный таб
+        const savedTab = localStorage.getItem('publications-active-tab') as Tab | null
+        if (savedTab && ['drafts', 'board', 'calendar'].includes(savedTab)) {
+            setActiveTab(savedTab)
+        }
+
+        // Восстанавливаем порядок табов
         const savedOrder = localStorage.getItem('publications-tab-order')
         if (savedOrder) {
             try {
                 const parsed = JSON.parse(savedOrder)
-                // Validate that we have valid tabs
                 if (Array.isArray(parsed) && parsed.every(t => ['drafts', 'board', 'calendar'].includes(t))) {
                     setTabOrder(parsed as Tab[])
-                    // Set the first tab as active if we have a saved order
-                    if (parsed.length > 0) {
-                        setActiveTab(parsed[0] as Tab)
-                    }
                 }
             } catch (e) {
                 console.error("Failed to parse saved tab order", e)
@@ -130,14 +133,20 @@ export function PublicationsPage() {
         }
     }
 
+    // Сохраняем активный таб при каждом переключении
+    function handleTabChange(tab: Tab) {
+        setActiveTab(tab)
+        localStorage.setItem('publications-active-tab', tab)
+    }
+
     return (
         <div className="flex flex-col h-full">
             <CreatePostDialog
                 open={isCreateOpen}
                 onOpenChange={setIsCreateOpen}
                 onSuccess={() => {
-                    // Switch to drafts tab when new post is created
-                    setActiveTab('drafts')
+                    // Переходим во вкладку черновиков при создании нового поста
+                    handleTabChange('drafts')
                     setRefreshKey(prev => prev + 1)
                 }}
             />
@@ -205,7 +214,7 @@ export function PublicationsPage() {
                                                 key={tab}
                                                 tab={tab}
                                                 activeTab={activeTab}
-                                                onClick={setActiveTab}
+                                                onClick={handleTabChange}
                                             />
                                         ))}
                                     </SortableContext>
@@ -217,7 +226,7 @@ export function PublicationsPage() {
                                 {tabOrder.map((tab) => (
                                     <button
                                         key={tab}
-                                        onClick={() => setActiveTab(tab)}
+                                        onClick={() => handleTabChange(tab)}
                                         className={cn(
                                             "flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all",
                                             activeTab === tab

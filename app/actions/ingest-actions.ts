@@ -7,8 +7,8 @@ import { revalidatePath } from 'next/cache'
 export async function triggerIngestion(sourceIds?: string[]) {
     try {
         const sessionClient = await createClient()
-        const { data: { user }, error: userError } = await sessionClient.auth.getUser()
-        if (userError || !user) {
+        const { data: { session }, error: sessionError } = await sessionClient.auth.getSession()
+        if (sessionError || !session?.user) {
             return { success: false, error: 'Unauthorized' }
         }
 

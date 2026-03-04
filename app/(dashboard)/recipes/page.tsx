@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
@@ -10,6 +9,13 @@ import { Globe, Send, Clock, X, Star, GripVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { TutorialButton } from '@/components/tutorial/TutorialButton'
 import { getRecipesTutorialSteps } from '@/lib/tutorial/tutorial-config'
+import {
+  getPublishRecipes,
+  setMainRecipe,
+  toggleRecipeActive,
+  updateRecipeDelay,
+  saveRecipesOrder
+} from '@/app/actions/settings-actions'
 
 import {
   DndContext,
@@ -29,7 +35,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
-// --- 1. ОФИЦИАЛЬНЫЕ БРЕНДОВЫЕ ИКОНКИ ---
+// --- ИКОНКИ СОЦСЕТЕЙ ---
 
 function VkIcon({ className, style }: { className?: string, style?: React.CSSProperties }) {
   return (
@@ -59,8 +65,6 @@ function ThreadsIcon({ className, style }: { className?: string, style?: React.C
   return (
     <svg role="img" viewBox="0 0 24 24" fill="currentColor" className={className} style={style} xmlns="http://www.w3.org/2000/svg">
       <path d="M12.002 2.002c-5.522 0-9.998 4.476-9.998 9.998 0 5.522 4.476 9.998 9.998 9.998 5.522 0 9.998-4.476 9.998-9.998 0-5.522-4.476-9.998-9.998-9.998zm0 18.498c-4.69 0-8.5-3.81-8.5-8.5 0-4.69 3.81-8.5 8.5-8.5 4.69 0 8.5 3.81 8.5 8.5 0 4.69-3.81 8.5-8.5 8.5zm3.75-8.5a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0zm-3.75 2.25a2.25 2.25 0 1 0 0-4.5 2.25 2.25 0 0 0 0 4.5zm6.5-2.25h-1.5a5.25 5.25 0 0 0-10.5 0 5.25 5.25 0 0 0 10.5 0v.75a.75.75 0 0 1-1.5 0v-.75a3.75 3.75 0 0 1-7.5 0 3.75 3.75 0 0 1 7.5 0h1.5a.75.75 0 0 1 0 1.5H12a5.25 5.25 0 0 1-5.25-5.25 5.25 5.25 0 0 1 5.25-5.25 5.25 5.25 0 0 1 5.25 5.25v.75z" />
-      <path d="M17.75 12a5.75 5.75 0 0 0-4.46-5.59 6.75 6.75 0 0 1 4.46 5.59z" fill="none" />
-      <path d="M12 6.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11zm0 9.5a4 4 0 1 1 0-8 4 4 0 0 1 0 8z" />
     </svg>
   )
 }
@@ -73,191 +77,85 @@ function XIcon({ className, style }: { className?: string, style?: React.CSSProp
   )
 }
 
-// --- 2. КОНФИГ ПЛАТФОРМ ---
+// --- КОНФИГ ПЛАТФОРМ ---
 
 const getPlatformConfig = (platformCode: string) => {
   const code = platformCode?.toLowerCase() || ''
   switch (code) {
     case 'tg':
-      return {
-        icon: Send,
-        colorClass: 'text-blue-500',
-        bgClass: 'bg-blue-50',
-        label: 'Telegram',
-        barColor: '#3B82F6' // синий-500
-      }
+      return { icon: Send, colorClass: 'text-blue-500', bgClass: 'bg-blue-50', label: 'Telegram', barColor: '#3B82F6' }
     case 'vk':
-      return {
-        icon: VkIcon,
-        colorClass: 'text-[#0077FF]',
-        bgClass: 'bg-[#0077FF]/10',
-        label: 'ВКонтакте',
-        barColor: '#0077FF',
-        customStyle: { color: '#0077FF' }
-      }
+      return { icon: VkIcon, colorClass: 'text-[#0077FF]', bgClass: 'bg-[#0077FF]/10', label: 'ВКонтакте', barColor: '#0077FF', customStyle: { color: '#0077FF' } }
     case 'ok':
-      return {
-        icon: OkIcon,
-        colorClass: 'text-[#F97400]',
-        bgClass: 'bg-[#F97400]/10',
-        label: 'Одноклассники',
-        barColor: '#F97400',
-        customStyle: { color: '#F97400' }
-      }
+      return { icon: OkIcon, colorClass: 'text-[#F97400]', bgClass: 'bg-[#F97400]/10', label: 'Одноклассники', barColor: '#F97400', customStyle: { color: '#F97400' } }
     case 'fb':
-      return {
-        icon: FbIcon,
-        colorClass: 'text-[#1877F2]',
-        bgClass: 'bg-[#1877F2]/10',
-        label: 'Facebook',
-        barColor: '#1877F2',
-        customStyle: { color: '#1877F2' }
-      }
+      return { icon: FbIcon, colorClass: 'text-[#1877F2]', bgClass: 'bg-[#1877F2]/10', label: 'Facebook', barColor: '#1877F2', customStyle: { color: '#1877F2' } }
     case 'threads':
-      return {
-        icon: ThreadsIcon,
-        colorClass: 'text-black dark:text-white',
-        bgClass: 'bg-zinc-100 dark:bg-zinc-800',
-        label: 'Threads',
-        barColor: '#000000'
-      }
+      return { icon: ThreadsIcon, colorClass: 'text-black dark:text-white', bgClass: 'bg-zinc-100 dark:bg-zinc-800', label: 'Threads', barColor: '#000000' }
     case 'x':
-      return {
-        icon: XIcon,
-        colorClass: 'text-black dark:text-white',
-        bgClass: 'bg-zinc-100 dark:bg-zinc-800',
-        label: 'X (Twitter)',
-        barColor: '#000000'
-      }
+      return { icon: XIcon, colorClass: 'text-black dark:text-white', bgClass: 'bg-zinc-100 dark:bg-zinc-800', label: 'X (Twitter)', barColor: '#000000' }
     case 'site':
-      return {
-        icon: Globe,
-        colorClass: 'text-emerald-500',
-        bgClass: 'bg-emerald-50',
-        label: 'Вебсайт',
-        barColor: '#10B981' // изумруд-500
-      }
+      return { icon: Globe, colorClass: 'text-emerald-500', bgClass: 'bg-emerald-50', label: 'Вебсайт', barColor: '#10B981' }
     default:
-      return {
-        icon: Globe,
-        colorClass: 'text-zinc-500',
-        bgClass: 'bg-zinc-50',
-        label: platformCode,
-        barColor: '#71717A' // цинк-500
-      }
+      return { icon: Globe, colorClass: 'text-zinc-500', bgClass: 'bg-zinc-50', label: platformCode, barColor: '#71717A' }
   }
 }
 
 export default function RecipesPage() {
   const [recipes, setRecipes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
 
   const recipesTutorialSteps = useMemo(() => getRecipesTutorialSteps(), [])
 
   const sensors = useSensors(
     useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
+  // ✅ Server Action — обходит RLS
   const fetchRecipes = useCallback(async () => {
-    // 1. Загружаем рецепты
-    const { data: recipesData, error } = await supabase.from('publish_recipes').select('*')
-    if (error) {
-      toast.error('Failed to load recipes')
-      setLoading(false)
-      return
-    }
-
-    // 2. Загружаем порядок
-    const { data: settingsData } = await supabase
-      .from('project_settings')
-      .select('value')
-      .eq('project_key', 'ainews')
-      .eq('key', 'recipes_order')
-      .single()
-
-    let orderedRecipes = recipesData as any[]
-    const settings = settingsData as any
-
-    if (settings?.value) {
-      try {
-        const orderIds = JSON.parse(settings.value) as string[]
-        orderedRecipes.sort((a, b) => {
-          const indexA = orderIds.indexOf(String(a.id))
-          const indexB = orderIds.indexOf(String(b.id))
-          if (indexA !== -1 && indexB !== -1) return indexA - indexB
-          if (indexA !== -1) return -1
-          if (indexB !== -1) return 1
-          return a.platform.localeCompare(b.platform)
-        })
-      } catch (e) {
-        console.error('Failed to parse recipes order', e)
-      }
+    setLoading(true)
+    const result = await getPublishRecipes()
+    if (!result.success) {
+      toast.error(`Не удалось загрузить рецепты: ${result.error}`)
     } else {
-      orderedRecipes.sort((a, b) => a.platform.localeCompare(b.platform))
+      setRecipes(result.data)
     }
-
-    setRecipes(orderedRecipes)
     setLoading(false)
-  }, [supabase])
+  }, [])
 
   useEffect(() => { fetchRecipes() }, [fetchRecipes])
 
   const handleSetMain = async (id: string, currentIsMain: boolean, isActive: boolean) => {
-    if (currentIsMain) return // Уже основной, ничего не делаем
+    if (currentIsMain) return
     if (!isActive) return toast.error('Основной канал должен быть активен')
-
-    const { error } = await supabase.rpc('set_main_recipe', { target_id: id } as any)
-    if (error) toast.error(error.message)
-    else {
-      toast.success('Основной канал обновлен')
-      fetchRecipes()
-    }
+    const result = await setMainRecipe(id)
+    if (!result.success) toast.error(result.error ?? 'Ошибка')
+    else { toast.success('Основной канал обновлен'); fetchRecipes() }
   }
 
   const handleToggleActive = async (id: string, newState: boolean) => {
-    const { error } = await supabase.rpc('toggle_recipe_active', { target_id: id, new_state: newState } as any)
-    if (error) toast.error(error.message)
-    else {
-      toast.success(newState ? 'Канал активирован' : 'Канал отключен')
-      fetchRecipes()
-    }
+    const result = await toggleRecipeActive(id, newState)
+    if (!result.success) toast.error(result.error ?? 'Ошибка')
+    else { toast.success(newState ? 'Канал активирован' : 'Канал отключен'); fetchRecipes() }
   }
 
   const handleUpdateDelay = async (id: string, delay: number) => {
-    const { error } = await supabase.from('publish_recipes').update({ delay_hours: delay }).eq('id', id)
-    if (error) throw new Error(error.message)
+    const result = await updateRecipeDelay(id, delay)
+    if (!result.success) throw new Error(result.error)
     await fetchRecipes()
   }
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
-
     if (active.id !== over?.id) {
-      setRecipes((items) => {
-        const oldIndex = items.findIndex((item) => item.id === active.id)
-        const newIndex = items.findIndex((item) => item.id === over?.id)
-
+      setRecipes(items => {
+        const oldIndex = items.findIndex(i => i.id === active.id)
+        const newIndex = items.findIndex(i => i.id === over?.id)
         const newItems = arrayMove(items, oldIndex, newIndex)
-
-        // Сохраняем новый порядок
-        const newOrderIds = newItems.map(i => String(i.id))
-
-        supabase
-          .from('project_settings')
-          .upsert({
-            project_key: 'ainews',
-            key: 'recipes_order',
-            value: JSON.stringify(newOrderIds),
-            is_active: true
-          })
-          .then(({ error }) => {
-            if (error) toast.error('Failed to save order')
-          })
-
+        saveRecipesOrder(newItems.map(i => String(i.id))).then(r => {
+          if (!r.success) toast.error('Не удалось сохранить порядок')
+        })
         return newItems
       })
     }
@@ -273,15 +171,8 @@ export default function RecipesPage() {
         <TutorialButton label="Помощь" steps={recipesTutorialSteps} variant="outline" className="h-10 px-4" />
       </div>
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext
-          items={recipes.map(r => r.id)}
-          strategy={verticalListSortingStrategy}
-        >
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={recipes.map(r => r.id)} strategy={verticalListSortingStrategy}>
           <div className="grid gap-4">
             {loading ? (
               <div className="text-center py-10 text-muted-foreground">Загрузка конфигурации...</div>
@@ -305,19 +196,8 @@ export default function RecipesPage() {
 }
 
 function SortableRecipeRow(props: any) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-  } = useSortable({ id: props.recipe.id })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  }
-
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: props.recipe.id })
+  const style = { transform: CSS.Transform.toString(transform), transition }
   return (
     <div ref={setNodeRef} style={style} className="relative group" data-tutorial={props.isFirst ? "recipes-row" : undefined}>
       <RecipeRow {...props} dragHandle={{ ...attributes, ...listeners }} />
@@ -333,11 +213,11 @@ function RecipeRow({
   dragHandle,
   isFirst
 }: {
-  recipe: any,
-  onToggleActive: (id: string, val: boolean) => void,
-  onSetMain: (id: string, isMain: boolean, isActive: boolean) => void,
-  onUpdateDelay: (id: string, delay: number) => Promise<void>,
-  dragHandle?: any,
+  recipe: any
+  onToggleActive: (id: string, val: boolean) => void
+  onSetMain: (id: string, isMain: boolean, isActive: boolean) => void
+  onUpdateDelay: (id: string, delay: number) => Promise<void>
+  dragHandle?: any
   isFirst?: boolean
 }) {
   const [delay, setDelay] = useState(String(recipe.delay_hours))
@@ -345,14 +225,11 @@ function RecipeRow({
 
   const isDirty = String(delay) !== String(recipe.delay_hours)
 
-  useEffect(() => {
-    setDelay(String(recipe.delay_hours))
-  }, [recipe.delay_hours])
+  useEffect(() => { setDelay(String(recipe.delay_hours)) }, [recipe.delay_hours])
 
   const handleSave = async () => {
     const val = parseFloat(delay)
     if (isNaN(val)) return toast.error('Введите корректное число')
-
     setIsSaving(true)
     try {
       await onUpdateDelay(recipe.id, val)
@@ -364,29 +241,16 @@ function RecipeRow({
     }
   }
 
-  const handleCancel = () => {
-    setDelay(String(recipe.delay_hours))
-  }
+  const handleCancel = () => setDelay(String(recipe.delay_hours))
 
-  const { icon: Icon, colorClass, bgClass, label, barColor, customStyle } = getPlatformConfig(recipe.platform)
+  const { icon: Icon, colorClass, bgClass, label, barColor, customStyle } = getPlatformConfig(recipe.platform) as any
 
   return (
-    <div
-      className={`
-        group relative overflow-hidden rounded-xl border border-border bg-card p-4 transition-all hover:shadow-md
-        ${!recipe.is_active ? 'opacity-80 grayscale-[0.3]' : ''}
-      `}
-    >
-      <div
-        className="absolute left-0 top-0 bottom-0 w-1"
-        style={{ backgroundColor: barColor }}
-      />
+    <div className={`group relative overflow-hidden rounded-xl border border-border bg-card p-4 transition-all hover:shadow-md ${!recipe.is_active ? 'opacity-80 grayscale-[0.3]' : ''}`}>
+      <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: barColor }} />
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pl-3">
-
-        {/* 1. Инфо о платформе + ручка перетаскивания */}
         <div className="flex items-center gap-3 min-w-[200px]">
-          {/* Ручка перетаскивания */}
           <div
             {...dragHandle}
             data-tutorial={isFirst ? "recipes-row-handle" : undefined}
@@ -397,32 +261,24 @@ function RecipeRow({
 
           <div
             className={`p-2.5 rounded-lg ${bgClass}`}
-            style={customStyle ? { backgroundColor: `${customStyle.color}1A` } : undefined} // Фолбэк на 10% непрозрачности
+            style={customStyle ? { backgroundColor: `${customStyle.color}1A` } : undefined}
           >
-            <Icon
-              className={`w-5 h-5 ${colorClass}`}
-              style={customStyle}
-            />
+            <Icon className={`w-5 h-5 ${colorClass}`} style={customStyle} />
           </div>
           <div className="flex flex-col">
-            <span className="font-semibold text-sm flex items-center gap-2">
-              {label}
-            </span>
+            <span className="font-semibold text-sm flex items-center gap-2">{label}</span>
             <span className="text-xs text-muted-foreground font-mono uppercase">{recipe.platform}</span>
           </div>
         </div>
 
-        {/* 2. Контролы */}
         <div className="flex items-center gap-4 flex-1 justify-end">
-
-          {/* Активность */}
           <div className="flex items-center justify-end gap-2 w-[120px]">
             <span className={`text-xs font-medium ${recipe.is_active ? 'text-emerald-600' : 'text-muted-foreground'}`}>
               {recipe.is_active ? 'Включено' : 'Выключено'}
             </span>
             <Switch
               checked={recipe.is_active}
-              onCheckedChange={(val) => onToggleActive(recipe.id, val)}
+              onCheckedChange={val => onToggleActive(recipe.id, val)}
               className="data-[state=checked]:bg-emerald-500"
               data-tutorial={isFirst ? "recipes-row-toggle" : undefined}
             />
@@ -430,15 +286,11 @@ function RecipeRow({
 
           <div className="h-8 w-[1px] bg-border hidden sm:block" />
 
-          {/* Основной канал (Звезда) */}
           <div className="flex items-center justify-center w-[60px]" data-tutorial={isFirst ? "recipes-row-star" : undefined}>
             <Button
               variant="ghost"
               size="icon"
-              className={cn(
-                "h-9 w-9 hover:bg-transparent",
-                recipe.is_main ? "text-yellow-500 hover:text-yellow-600" : "text-zinc-300 hover:text-yellow-400"
-              )}
+              className={cn("h-9 w-9 hover:bg-transparent", recipe.is_main ? "text-yellow-500 hover:text-yellow-600" : "text-zinc-300 hover:text-yellow-400")}
               onClick={() => onSetMain(recipe.id, recipe.is_main, recipe.is_active)}
               disabled={!recipe.is_active}
               title={recipe.is_main ? "Основной канал" : "Сделать основным"}
@@ -449,7 +301,6 @@ function RecipeRow({
 
           <div className="h-8 w-[1px] bg-border hidden sm:block" />
 
-          {/* Тайминг (Задержка) */}
           <div className="flex items-center justify-end gap-2 min-w-[280px]">
             <div className="relative w-28" data-tutorial={isFirst ? "recipes-row-delay" : undefined}>
               <Clock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
@@ -457,18 +308,12 @@ function RecipeRow({
                 type="number"
                 min="0"
                 value={delay}
-                onChange={(e) => setDelay(e.target.value)}
-                className={`
-                  pl-8 pr-8 h-9 text-sm
-                  ${isDirty ? 'border-orange-400 ring-1 ring-orange-400/20' : ''}
-                `}
+                onChange={e => setDelay(e.target.value)}
+                className={`pl-8 pr-8 h-9 text-sm ${isDirty ? 'border-orange-400 ring-1 ring-orange-400/20' : ''}`}
               />
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
-                ч.
-              </div>
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">ч.</div>
             </div>
 
-            {/* Кнопки действий */}
             <div className="w-[160px] flex justify-end">
               {isDirty && (
                 <div className="flex items-center gap-1 animate-in fade-in slide-in-from-left-2 duration-200">
@@ -494,7 +339,6 @@ function RecipeRow({
               )}
             </div>
           </div>
-
         </div>
       </div>
     </div>
