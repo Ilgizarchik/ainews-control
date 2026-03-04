@@ -8,9 +8,9 @@ const PROJECT_KEY = 'ainews'
 
 async function requireSession() {
     const sessionClient = await createClient()
-    const { data: { session }, error } = await sessionClient.auth.getSession()
-    if (error || !session?.user) throw new Error('Unauthorized')
-    return session
+    const { data: { user }, error } = await sessionClient.auth.getUser()
+    if (error || !user) throw new Error('Unauthorized')
+    return user
 }
 
 export async function getProjectSettings() {
