@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -91,10 +91,16 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
     const [scrapedText, setScrapedText] = useState<string | null>(null)
     const [scraping, setScraping] = useState(false)
     const [showScraperPreview, setShowScraperPreview] = useState(false)
+    const resolvedContentType: 'news' | 'review' = actualTable === 'review_items' ? 'review' : 'news'
 
     const editorSteps = useMemo(() => getEditorTutorialSteps(setActiveTab), [])
+    const onCloseRef = useRef(onClose)
 
     const supabase = useMemo(() => createClient(), [])
+
+    useEffect(() => {
+        onCloseRef.current = onClose
+    }, [onClose])
 
     const toPlainText = useCallback((value?: string) => {
         if (!value) return ''
@@ -112,26 +118,39 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
     const fetchContentData = useCallback(async () => {
         setLoading(true)
         try {
-            let { data, error } = await supabase
-                .from(contentType === 'review' ? 'review_items' : 'news_items')
-                .select('*')
-                .eq('id', contentId)
-                .single()
-
-            if (error || !data) {
-                const fallbackTable = contentType === 'review' ? 'news_items' : 'review_items'
-                const { data: fallbackData, error: fallbackError } = await supabase
-                    .from(fallbackTable)
-                    .select('*')
-                    .eq('id', contentId)
-                    .single()
-
-                if (fallbackError) throw error || fallbackError
-                data = fallbackData
-                setActualTable(fallbackTable)
-            } else {
-                setActualTable(contentType === 'review' ? 'review_items' : 'news_items')
+            const controller = new AbortController()
+            const timeoutId = setTimeout(() => controller.abort(), 15000)
+            let response: Response
+            try {
+                response = await fetch(
+                    `/api/publications/content/${contentId}?type=${contentType}`,
+                    {
+                        method: 'GET',
+                        cache: 'no-store',
+                        signal: controller.signal,
+                    }
+                )
+            } finally {
+                clearTimeout(timeoutId)
             }
+
+            let result: any = null
+            try {
+                result = await response.json()
+            } catch {
+                throw new Error(`HTTP ${response.status}`)
+            }
+
+            if (!response.ok || !result?.success) {
+                throw new Error(result?.error || `HTTP ${response.status}`)
+            }
+
+            const data = result.item as any
+            if (!data) {
+                throw new Error('Контент не найден')
+            }
+
+            setActualTable(result.actualTable || (contentType === 'review' ? 'review_items' : 'news_items'))
 
             if (data) {
                 const typedData = data as any
@@ -192,12 +211,16 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
 
             }
         } catch (e: any) {
-            toast.error(`Ошибка загрузки: ${e?.message || 'Неизвестная ошибка'}`)
-            onClose()
+            const isAbort = e?.name === 'AbortError'
+            const message = isAbort
+                ? 'Таймаут загрузки контента. Попробуйте еще раз.'
+                : (e?.message || 'Неизвестная ошибка')
+            toast.error(`Ошибка загрузки: ${message}`)
+            onCloseRef.current?.()
         } finally {
             setLoading(false)
         }
-    }, [contentId, contentType, onClose, supabase])
+    }, [contentId, contentType])
 
     useEffect(() => {
         if (isOpen && contentId) {
@@ -208,6 +231,8 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
     const handleSave = async () => {
         setSaving(true)
         try {
+            const isNewsTable = actualTable === 'news_items'
+            const targetTable = actualTable
             const updateData: any = {
                 draft_title: data.draft_title,
                 draft_announce: data.draft_announce,
@@ -223,10 +248,10 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
                 updateData[key] = announces[platform] || ''
             })
 
-            if (contentType === 'news') updateData.gate1_tags = data.gate1_tags
+            if (isNewsTable) updateData.gate1_tags = data.gate1_tags
 
             const { error } = await supabase
-                .from(contentType === 'review' ? 'review_items' : 'news_items')
+                .from(targetTable)
                 .update(updateData)
                 .eq('id', contentId)
 
@@ -235,7 +260,7 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
             const jobsToUpdate = PLATFORMS.map(platform => {
                 const newText = announces[platform]
                 if (!newText) return null
-                return supabase.from('publish_jobs').update({ social_content: newText }).eq(contentType === 'review' ? 'review_id' : 'news_id', contentId).eq('platform', platform).in('status', ['queued', 'cancelled'])
+                return supabase.from('publish_jobs').update({ social_content: newText }).eq(isNewsTable ? 'news_id' : 'review_id', contentId).eq('platform', platform).in('status', ['queued', 'cancelled'])
             }).filter(Boolean)
 
             if (jobsToUpdate.length > 0) await Promise.all(jobsToUpdate)
@@ -297,6 +322,7 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
     const handleGenerateField = async (field: 'draft_title' | 'draft_announce' | 'draft_longread') => {
         setGeneratingField(field)
         try {
+            const isNewsTable = actualTable === 'news_items'
             const plainTitle = toPlainText(data.draft_title)
             const plainAnnounce = toPlainText(data.draft_announce)
             const plainLongread = toPlainText(data.draft_longread)
@@ -313,8 +339,8 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    news_id: contentType === 'news' ? contentId : undefined,
-                    review_id: contentType === 'review' ? contentId : undefined,
+                    news_id: isNewsTable ? contentId : undefined,
+                    review_id: !isNewsTable ? contentId : undefined,
                     field,
                     extraContext
                 })
@@ -360,7 +386,7 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
     }
 
     const openPromptEditor = async (field: 'draft_title' | 'draft_announce' | 'draft_longread') => {
-        const prefix = contentType === 'review' ? 'review' : 'rewrite'
+        const prefix = actualTable === 'review_items' ? 'review' : 'rewrite'
         let key = ''
         switch (field) {
             case 'draft_title': key = `${prefix}_title`; break;
@@ -434,13 +460,14 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
         setShowScraperPreview(true)
         setScrapedText(null)
         try {
+            const isNewsTable = actualTable === 'news_items'
             const response = await fetch('/api/scraper', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     url: data.source_url,
-                    news_id: contentType === 'news' ? contentId : undefined,
-                    review_id: contentType === 'review' ? contentId : undefined
+                    news_id: isNewsTable ? contentId : undefined,
+                    review_id: !isNewsTable ? contentId : undefined
                 })
             })
             const result = await response.json()
@@ -551,11 +578,11 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
                                             </div>
                                         </div>
                                         <div data-tutorial="announce-input">
-                                            <RichEditor value={data.draft_announce} onChange={(v) => setData(p => ({ ...p, draft_announce: v }))} className="min-h-[200px] flex-1 rounded-2xl border-2" itemId={contentId} itemType={contentType as 'news' | 'review'} />
+                                            <RichEditor value={data.draft_announce} onChange={(v) => setData(p => ({ ...p, draft_announce: v }))} className="min-h-[200px] flex-1 rounded-2xl border-2" itemId={contentId} itemType={resolvedContentType} />
                                         </div>
                                     </div>
 
-                                    {contentType === 'news' && (
+                                    {resolvedContentType === 'news' && (
                                         <div className="space-y-4">
                                             <div className="flex items-center gap-2"><Label className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2"><Tag className="w-4 h-4" /> Теги</Label></div>
                                             <div data-tutorial="tags-section" className="p-6 border-2 border-border/50 rounded-2xl bg-muted/10 flex flex-wrap gap-3">
@@ -593,16 +620,16 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
                                         </div>
                                     </div>
                                     <div data-tutorial="article-content" className="flex-1 bg-background rounded-3xl border-2 overflow-hidden">
-                                        <RichEditor value={data.draft_longread} onChange={(v) => setData(p => ({ ...p, draft_longread: v }))} className="h-full border-0" itemId={contentId} itemType={contentType as 'news' | 'review'} />
+                                        <RichEditor value={data.draft_longread} onChange={(v) => setData(p => ({ ...p, draft_longread: v }))} className="h-full border-0" itemId={contentId} itemType={resolvedContentType} />
                                     </div>
                                 </TabsContent>
 
                                 <TabsContent value="media" className="mt-0 h-full flex flex-col">
                                     <div data-tutorial="media-content" className="flex-1 flex flex-col">
-                                        <MediaTab contentId={contentId} contentType={contentType} initialImageUrl={data.draft_image_url} onUpdated={(u: string, p: string) => setData(prev => ({ ...prev, draft_image_url: u, draft_image_prompt: p }))} tutorialSteps={editorSteps} />
+                                        <MediaTab contentId={contentId} contentType={resolvedContentType} initialImageUrl={data.draft_image_url} onUpdated={(u: string, p: string) => setData(prev => ({ ...prev, draft_image_url: u, draft_image_prompt: p }))} tutorialSteps={editorSteps} />
                                     </div>
                                 </TabsContent>
-                                <TabsContent value="social" className="mt-0 h-full flex flex-col"><PlatformAnnouncesTab contentId={contentId} contentType={contentType} baseAnnounce={data.draft_announce} longread={data.draft_longread} announces={announces} onChange={(pl, v) => setAnnounces(p => ({ ...p, [pl]: v }))} onAnnouncesGenerated={(a) => setAnnounces(p => ({ ...p, ...a }))} tutorialSteps={editorSteps} /></TabsContent>
+                                <TabsContent value="social" className="mt-0 h-full flex flex-col"><PlatformAnnouncesTab contentId={contentId} contentType={resolvedContentType} baseAnnounce={data.draft_announce} longread={data.draft_longread} announces={announces} onChange={(pl, v) => setAnnounces(p => ({ ...p, [pl]: v }))} onAnnouncesGenerated={(a) => setAnnounces(p => ({ ...p, ...a }))} tutorialSteps={editorSteps} /></TabsContent>
                             </div>
 
                             <DialogFooter className="px-8 py-5 border-t-2 bg-muted/10 shrink-0 flex items-center justify-between">
@@ -614,7 +641,7 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
                                         steps={editorSteps}
                                     />
 
-                                    {contentType === 'review' && data.factpack?.description && (
+                                    {resolvedContentType === 'review' && data.factpack?.description && (
                                         <Popover>
                                             <PopoverTrigger asChild>
                                                 <Button
@@ -703,7 +730,7 @@ export function NewsEditorDialog({ contentId, contentType = 'news', isOpen, onCl
                     onSave={handleMagicSave}
                     onHistoryUpdate={handleHistoryUpdate}
                     itemId={contentId}
-                    itemType={contentType}
+                    itemType={resolvedContentType}
                     initialHistory={correctionHistory}
                 />
             )}
