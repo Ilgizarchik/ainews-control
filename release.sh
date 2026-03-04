@@ -11,9 +11,9 @@ echo "Repo: $(pwd)"
 echo "Time: $(date)"
 echo "----------------------------------------"
 
-# 1. Build Check
-echo "[1/3] Building locally..."
-npm run build
+# 1. Skip local build (it's done on server in Docker)
+echo "[1/3] Skipping local build..."
+# npm run build
 
 # 2. Git Commit & Push
 echo "[2/3] Git operations..."

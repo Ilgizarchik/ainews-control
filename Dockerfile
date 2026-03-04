@@ -15,7 +15,10 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Build Next.js
-RUN npm run build
+# Use cache mount to speed up subsequent builds
+RUN --mount=type=cache,target=/app/.next/cache \
+    export NODE_OPTIONS='--max-old-space-size=4096'; \
+    npm run build
 
 FROM node:20-bookworm-slim AS runner
 WORKDIR /app
