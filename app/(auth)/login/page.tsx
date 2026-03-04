@@ -1,43 +1,45 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 import { Lock, Mail, Loader2 } from 'lucide-react'
+import { login as loginAction } from '@/app/actions/auth-actions'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) {
-        toast.error('Login failed', { description: error.message })
-      } else {
-        toast.success('Welcome back')
-        router.push('/publications')
-        router.refresh()
+      const formData = new FormData()
+      formData.append('email', email)
+      formData.append('password', password)
+
+      const result = await loginAction(formData)
+      if (result?.error) {
+        toast.error('Login failed', { description: result.error })
+        setLoading(false)
       }
-    } catch {
+    } catch (err: any) {
+      // Это нормальное поведение для Next.js redirect в серверных экшенах
+      if (err.message === 'NEXT_REDIRECT' || (err.digest && err.digest.includes('NEXT_REDIRECT'))) {
+        return
+      }
       toast.error('An unexpected error occurred')
-    } finally {
       setLoading(false)
     }
   }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4 relative overflow-hidden">
-      {/* Фоновый паттерн */}
       <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]">
         <div className="absolute left-0 right-0 top-0 -z-10 m-auto h-[310px] w-[310px] rounded-full bg-primary/20 opacity-20 blur-[100px]"></div>
       </div>

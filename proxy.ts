@@ -26,7 +26,9 @@ export async function proxy(request: NextRequest) {
   )
 
   // ВАЖНО: getUser() обновляет токен сессии. Не убирать.
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+  console.log(`[PROXY] Path: ${request.nextUrl.pathname}, User: ${user?.email || 'none'}, Error: ${authError?.message || 'none'}`)
 
   const isLoginPage = request.nextUrl.pathname.startsWith('/login')
   const isAuthRoute = request.nextUrl.pathname.startsWith('/auth')
