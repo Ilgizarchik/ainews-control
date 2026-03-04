@@ -2,9 +2,17 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
+import { PUBLICATIONS_CACHE_TAGS } from '@/lib/publications-cache'
 
 const PROJECT_KEY = 'ainews'
+
+function revalidatePublicationsRecipesCache() {
+    revalidateTag(PUBLICATIONS_CACHE_TAGS.recipes, 'max')
+    revalidateTag(PUBLICATIONS_CACHE_TAGS.jobs, 'max')
+    revalidateTag(PUBLICATIONS_CACHE_TAGS.board, 'max')
+    revalidateTag(PUBLICATIONS_CACHE_TAGS.calendar, 'max')
+}
 
 async function requireSession() {
     const sessionClient = await createClient()
@@ -126,6 +134,7 @@ export async function setMainRecipe(id: string) {
         const adminDb = createAdminClient()
         const { error } = await adminDb.rpc('set_main_recipe', { target_id: id } as any)
         if (error) throw error
+        revalidatePublicationsRecipesCache()
         revalidatePath('/recipes')
         return { success: true }
     } catch (e: any) {
@@ -140,6 +149,7 @@ export async function toggleRecipeActive(id: string, newState: boolean) {
         const adminDb = createAdminClient()
         const { error } = await adminDb.rpc('toggle_recipe_active', { target_id: id, new_state: newState } as any)
         if (error) throw error
+        revalidatePublicationsRecipesCache()
         revalidatePath('/recipes')
         return { success: true }
     } catch (e: any) {
@@ -157,6 +167,7 @@ export async function updateRecipeDelay(id: string, delay: number) {
             .update({ delay_hours: delay } as any)
             .eq('id', id)
         if (error) throw error
+        revalidatePublicationsRecipesCache()
         revalidatePath('/recipes')
         return { success: true }
     } catch (e: any) {
@@ -176,6 +187,7 @@ export async function saveRecipesOrder(orderIds: string[]) {
                 { onConflict: 'project_key,key' }
             )
         if (error) throw error
+        revalidatePublicationsRecipesCache()
         return { success: true }
     } catch (e: any) {
         console.error('[saveRecipesOrder]', e)

@@ -3,6 +3,14 @@
 import { createClient } from "@/lib/supabase/server"
 import { PublisherConfig, PublisherFactory } from "@/lib/publishers/factory"
 import { PublishContext } from "@/lib/publishers/types"
+import { revalidateTag } from "next/cache"
+import { PUBLICATIONS_CACHE_TAGS } from "@/lib/publications-cache"
+
+function revalidatePublicationsJobsCache() {
+    revalidateTag(PUBLICATIONS_CACHE_TAGS.jobs, 'max')
+    revalidateTag(PUBLICATIONS_CACHE_TAGS.board, 'max')
+    revalidateTag(PUBLICATIONS_CACHE_TAGS.calendar, 'max')
+}
 
 async function createAuthedClient() {
     const supabase = await createClient()
@@ -322,6 +330,7 @@ export async function publishItem(itemId: string, itemType: 'news' | 'review' = 
         await supabase.from(table).update({ status: 'approved_for_publish' }).eq('id', itemId);
     }
 
+    revalidatePublicationsJobsCache()
     return { success: true, results, publishedUrl, isScheduled: hasJobsInFuture };
 }
 
@@ -434,6 +443,9 @@ export async function publishSinglePlatform({ itemId, itemType, platform, conten
             }
         }
 
+        if (!isTest) {
+            revalidatePublicationsJobsCache()
+        }
         return { ...res, platform }
     } catch (e: any) {
         return { success: false, error: e.message, platform }
@@ -476,6 +488,7 @@ export async function cleanupDisabledPlatforms() {
             return { success: false, error: deleteError.message }
         }
 
+        revalidatePublicationsJobsCache()
         return { success: true, deletedCount: count ?? 0 }
     } catch (e: any) {
         console.error('[Cleanup] Critical error:', e)

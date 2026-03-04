@@ -46,13 +46,19 @@ export function useBoardJobs() {
 
   const [error, setError] = useState<string | null>(null)
 
-  const fetchJobs = useCallback(async (isInitial: boolean = false) => {
+  const fetchJobs = useCallback(async (isInitial: boolean = false, forceFresh: boolean = false) => {
     if (isInitial) setLoading(true)
     else setRefreshing(true)
     setError(null)
 
     try {
-      const response = await fetch('/api/publications/board-jobs', {
+      const params = new URLSearchParams()
+      if (forceFresh) params.set('fresh', '1')
+      const url = params.toString()
+        ? `/api/publications/board-jobs?${params.toString()}`
+        : '/api/publications/board-jobs'
+
+      const response = await fetch(url, {
         method: 'GET',
         cache: 'no-store',
         headers: { Accept: 'application/json' },
@@ -91,7 +97,7 @@ export function useBoardJobs() {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [supabase])
+  }, [])
 
   const updateJobOptimistically = useCallback((jobId: string, newDate: Date) => {
     setJobs(prev => prev.map(job =>
@@ -105,8 +111,7 @@ export function useBoardJobs() {
       .update({ publish_at: newDate.toISOString(), updated_at: new Date().toISOString() })
       .eq('id', jobId)
     if (error) throw error
-    // fetchJobs запустится в фоне, так как jobs.length > 0
-    await fetchJobs()
+    await fetchJobs(false, true)
   }
 
   const cancelJobOptimistically = useCallback((jobId: string) => {

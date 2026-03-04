@@ -204,7 +204,7 @@ export function BoardView() {
                 <p className="text-sm text-muted-foreground max-w-xs mt-1 mb-4">
                     {error}
                 </p>
-                <Button onClick={() => fetchJobs()} variant="outline">
+                <Button onClick={() => fetchJobs(false, true)} variant="outline">
                     Попробовать снова
                 </Button>
             </div>
@@ -500,7 +500,7 @@ export function BoardView() {
                             job={editingJob}
                             isOpen={!!editingJob}
                             onClose={() => setEditingJob(null)}
-                            onUpdate={fetchJobs}
+                            onUpdate={() => fetchJobs(false, true)}
                             onOptimisticCancel={cancelJobOptimistically}
                             onOptimisticRemove={removeNewsOptimistically}
                         />
@@ -513,7 +513,7 @@ export function BoardView() {
                             isOpen={!!editingContent}
                             onClose={() => setEditingContent(null)}
                             onSaved={() => {
-                                fetchJobs()
+                                fetchJobs(false, true)
                             }}
                             onOptimisticRemove={removeNewsOptimistically}
                         />

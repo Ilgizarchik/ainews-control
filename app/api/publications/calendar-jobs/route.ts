@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { getCalendarJobsCached, getCalendarJobsRaw } from '@/lib/publications-cache'
 
 export async function GET(request: NextRequest) {
   try {
@@ -23,28 +23,13 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const adminDb = createAdminClient()
-    const { data, error } = await adminDb
-      .from('publish_jobs')
-      .select(
-        `
-          *,
-          news_items (title, draft_title, canonical_url, image_url),
-          review_items (title_seed, draft_title)
-        `
-      )
-      .gte('publish_at', start)
-      .lt('publish_at', end)
-
-    if (error) {
-      return NextResponse.json(
-        { success: false, error: error.message || 'Failed to load jobs' },
-        { status: 500 }
-      )
-    }
+    const forceFresh = request.nextUrl.searchParams.get('fresh') === '1'
+    const jobs = forceFresh
+      ? await getCalendarJobsRaw(start, end)
+      : await getCalendarJobsCached(start, end)
 
     return NextResponse.json(
-      { success: true, jobs: data || [] },
+      { success: true, jobs: jobs || [] },
       { status: 200, headers: { 'Cache-Control': 'no-store' } }
     )
   } catch (error: any) {
@@ -54,4 +39,3 @@ export async function GET(request: NextRequest) {
     )
   }
 }
-

@@ -79,11 +79,11 @@ export function CalendarViewBig() {
         })
     }, [])
 
-    const refreshCalendar = useCallback(() => {
+    const refreshCalendar = useCallback((forceFresh: boolean = false) => {
         // Fetch jobs for current month view
         const start = subDays(startOfMonth(currentDate), 7)
         const end = addDays(endOfMonth(currentDate), 7)
-        fetchJobs(start, end)
+        fetchJobs(start, end, false, forceFresh)
     }, [currentDate, fetchJobs])
 
     useRealtime('publish_jobs', refreshCalendar)
@@ -191,10 +191,10 @@ export function CalendarViewBig() {
                     // Update locally first (optional, batch is tricky so maybe just re-fetch)
                     await updateBatchJobs(updates)
                     toast.success('Цепочка пересчитана')
-                    refreshCalendar()
+                    refreshCalendar(true)
                 } catch {
                     toast.error('Ошибка')
-                    refreshCalendar() // Restore on error
+                    refreshCalendar(true) // Restore on error
                 }
             } else {
                 updateJobOptimistically(event.id, start)
@@ -202,7 +202,7 @@ export function CalendarViewBig() {
                     await updateJobTime(event.id, start)
                 } catch {
                     toast.error('Ошибка перемещения')
-                    refreshCalendar() // Sync back
+                    refreshCalendar(true) // Sync back
                 }
             }
         } else {
@@ -211,7 +211,7 @@ export function CalendarViewBig() {
                 await updateJobTime(event.id, start)
             } catch {
                 toast.error('Ошибка перемещения')
-                refreshCalendar() // Sync back
+                refreshCalendar(true) // Sync back
             }
         }
     }
@@ -363,7 +363,7 @@ export function CalendarViewBig() {
                     job={editingJob}
                     isOpen={!!editingJob}
                     onClose={() => setEditingJob(null)}
-                    onUpdate={refreshCalendar}
+                    onUpdate={() => refreshCalendar(true)}
                     onOptimisticCancel={cancelJobOptimistically}
                     onOptimisticRemove={removeNewsOptimistically}
                 />

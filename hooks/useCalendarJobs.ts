@@ -23,7 +23,12 @@ export function useCalendarJobs() {
   const [refreshing, setRefreshing] = useState(false)
   const supabase = useMemo(() => createClient(), [])
 
-  const fetchJobs = useCallback(async (start: Date, end: Date, isInitial: boolean = false) => {
+  const fetchJobs = useCallback(async (
+    start: Date,
+    end: Date,
+    isInitial: boolean = false,
+    forceFresh: boolean = false
+  ) => {
     if (isInitial) setLoading(true)
     else setRefreshing(true)
 
@@ -32,6 +37,7 @@ export function useCalendarJobs() {
         start: start.toISOString(),
         end: end.toISOString(),
       })
+      if (forceFresh) params.set('fresh', '1')
       const response = await fetch(`/api/publications/calendar-jobs?${params.toString()}`, {
         method: 'GET',
         cache: 'no-store',
@@ -51,7 +57,7 @@ export function useCalendarJobs() {
     }
     setLoading(false)
     setRefreshing(false)
-  }, [supabase])
+  }, [])
 
   const updateJobOptimistically = useCallback((jobId: string, newDate: Date) => {
     setJobs(prev => prev.map(job =>
