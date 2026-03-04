@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function POST(req: NextRequest) {
     try {
+        const sessionClient = await createClient()
+        const { data: { user }, error: userError } = await sessionClient.auth.getUser()
+        if (userError || !user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+
         const formData = await req.formData()
         const file = formData.get('file') as File
 
@@ -11,9 +18,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Инициализируем админ-клиент Supabase для получения секретов
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        const supabase = createClient(supabaseUrl, supabaseKey)
+        const supabase = createAdminClient()
 
         // Получаем токен из базы
         const { data: settings, error: settingsError } = await supabase

@@ -10,10 +10,15 @@ type GeneratePlatformAnnouncesRequest = {
 }
 
 export async function POST(req: Request) {
-    const supabase = await createClient()
+    const sessionClient = await createClient()
     const supabaseAdmin = createAdminClient()
 
     try {
+        const { data: { user }, error: userError } = await sessionClient.auth.getUser()
+        if (userError || !user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+
         const { review_id, news_id, platforms }: GeneratePlatformAnnouncesRequest = await req.json()
         const contentId = review_id || news_id
         let tableName = news_id ? 'news_items' : 'review_items'
@@ -25,8 +30,8 @@ export async function POST(req: Request) {
         // 1. Получаем элемент контента (контекст пользователя)
         // 1. Получаем элемент контента (контекст пользователя) — с надежной проверкой
         let item: any = null
-        let { data, error: fetchError } = await (supabase
-            .from(tableName)
+        let { data, error: fetchError } = await (supabaseAdmin
+            .from(tableName as any)
             .select('draft_announce, draft_title, draft_longread, draft_longread_site')
             .eq('id', contentId)
             .single() as any)
@@ -36,8 +41,8 @@ export async function POST(req: Request) {
         } else {
             // Пробуем таблицу-фолбэк
             const fallbackTable = tableName === 'news_items' ? 'review_items' : 'news_items'
-            const { data: fallbackData, error: fallbackError } = await (supabase
-                .from(fallbackTable)
+            const { data: fallbackData, error: fallbackError } = await (supabaseAdmin
+                .from(fallbackTable as any)
                 .select('draft_announce, draft_title, draft_longread, draft_longread_site')
                 .eq('id', contentId)
                 .single() as any)
@@ -144,7 +149,7 @@ export async function POST(req: Request) {
 
                 // ИНКРЕМЕНТАЛЬНОЕ СОХРАНЕНИЕ: обновляем БД сразу для защиты от разрывов/таймаутов клиента
                 const platformKey = platform === 'site' ? 'draft_longread_site' : `draft_announce_${platform}`
-                const { error: updateError } = await supabase
+                const { error: updateError } = await supabaseAdmin
                     .from(tableName as any)
                     .update({ [platformKey]: generatedText.trim() })
                     .eq('id', contentId)

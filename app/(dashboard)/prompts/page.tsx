@@ -343,6 +343,7 @@ function PromptsContent() {
     const { data: promptsData, error: promptsError } = await (supabase as any)
       .from('system_prompts')
       .select('id, key, content, category, updated_at')
+      .neq('key', 'parse_date')
 
     if (promptsError) {
       toast.error('Не удалось загрузить промпты')

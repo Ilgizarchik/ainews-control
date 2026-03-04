@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import * as cheerio from 'cheerio'
 import { ProxyAgent, fetch as undiciFetch } from 'undici'
 import { JSDOM } from 'jsdom'
@@ -11,9 +12,18 @@ import path from 'path'
 
 const execPromise = promisify(exec)
 
+async function requireAuthorizedUser() {
+    const sessionClient = await createClient()
+    const { data: { user }, error } = await sessionClient.auth.getUser()
+    if (error || !user) {
+        throw new Error('Unauthorized')
+    }
+    return user
+}
+
 // Помощник для работы с выбранным AI-провайдером
 async function callAiCompletion(systemPrompt: string, userContent: string) {
-    const supabase = await createClient()
+    const supabase = createAdminClient()
 
     // 1. Получаем глобальные настройки AI
     const { data: settings } = await supabase
@@ -99,7 +109,7 @@ async function callAiCompletion(systemPrompt: string, userContent: string) {
 }
 
 async function fetchHtmlWithPythonBridge(url: string): Promise<string> {
-    const supabase = await createClient()
+    const supabase = createAdminClient()
     const { data: proxyData } = await supabase
         .from('project_settings')
         .select('*')
@@ -165,6 +175,8 @@ async function fetchHtmlWithPythonBridge(url: string): Promise<string> {
 export async function scanUrlForSelectors(url: string) {
     process.stdout.write(`\n>>> [Server Action] scanUrlForSelectors STARTED for: ${url}\n`);
     try {
+        await requireAuthorizedUser()
+
         // 1. Получаем HTML через Bridge или фолбэк Node.js
         const html = await fetchHtmlWithPythonBridge(url)
 
@@ -183,7 +195,7 @@ export async function scanUrlForSelectors(url: string) {
         }
 
         // 3. Получаем системный промпт
-        const supabase = await createClient()
+        const supabase = createAdminClient()
         const { data: promptData } = await supabase
             .from('system_prompts')
             .select('content')
@@ -243,6 +255,8 @@ export async function scanUrlForSelectors(url: string) {
 
 export async function testSelectors(url: string, selectors: any) {
     try {
+        await requireAuthorizedUser()
+
         if (!selectors.container) throw new Error('Container selector missing')
 
         const isPlaceholder = (u: string | undefined) => {
@@ -393,7 +407,8 @@ export async function testSelectors(url: string, selectors: any) {
 }
 
 export async function saveSource(source: any) {
-    const supabase = await createClient()
+    await requireAuthorizedUser()
+    const supabase = createAdminClient()
     const { error } = await supabase
         .from('ingestion_sources')
         .upsert(source, { onConflict: 'id' } as any)
@@ -403,7 +418,8 @@ export async function saveSource(source: any) {
 }
 
 export async function getDbSources() {
-    const supabase = await createClient()
+    await requireAuthorizedUser()
+    const supabase = createAdminClient()
     const { data, error } = await supabase
         .from('ingestion_sources')
         .select('*')
@@ -414,7 +430,8 @@ export async function getDbSources() {
 }
 
 export async function deleteSource(id: string) {
-    const supabase = await createClient()
+    await requireAuthorizedUser()
+    const supabase = createAdminClient()
     const { error } = await supabase
         .from('ingestion_sources')
         .delete()
@@ -425,7 +442,8 @@ export async function deleteSource(id: string) {
 }
 
 export async function toggleSourceActive(id: string, state: boolean) {
-    const supabase = await createClient()
+    await requireAuthorizedUser()
+    const supabase = createAdminClient()
     const { error } = await supabase
         .from('ingestion_sources')
         .update({ is_active: state })

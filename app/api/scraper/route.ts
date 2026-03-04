@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { scrapeArticleText } from '@/lib/scraper-service'
 
 export async function POST(req: Request) {
-    const supabase = await createClient()
+    const supabase = createAdminClient()
 
     try {
         const body = await req.json()
@@ -14,18 +14,34 @@ export async function POST(req: Request) {
 
         // Если передан ID, но нет URL, берем из базы
         if (!targetUrl && (news_id || review_id)) {
-            const table = news_id ? 'news_items' : 'review_items'
-            const id = news_id || review_id
-            console.log(`[Scraper API] Looking up URL in table ${table} for ID: ${id}`)
+            if (news_id) {
+                console.log(`[Scraper API] Looking up URL in table news_items for ID: ${news_id}`)
+                const { data, error } = await supabase
+                    .from('news_items')
+                    .select('canonical_url')
+                    .eq('id', news_id)
+                    .single()
 
-            // В news_items это точно canonical_url. 
-            const { data, error } = await supabase.from(table).select('canonical_url').eq('id', id).single()
+                if (error) {
+                    console.error(`[Scraper API] DB lookup error for news_items/${news_id}:`, error)
+                } else {
+                    targetUrl = (data as any)?.canonical_url
+                    console.log(`[Scraper API] Found URL in DB: ${targetUrl}`)
+                }
+            } else if (review_id) {
+                console.log(`[Scraper API] Looking up URL in table review_items for ID: ${review_id}`)
+                const { data, error } = await supabase
+                    .from('review_items')
+                    .select('published_url')
+                    .eq('id', review_id)
+                    .single()
 
-            if (error) {
-                console.error(`[Scraper API] DB lookup error for ${table}/${id}:`, error)
-            } else {
-                targetUrl = data?.canonical_url
-                console.log(`[Scraper API] Found URL in DB: ${targetUrl}`)
+                if (error) {
+                    console.error(`[Scraper API] DB lookup error for review_items/${review_id}:`, error)
+                } else {
+                    targetUrl = (data as any)?.published_url
+                    console.log(`[Scraper API] Found URL in DB: ${targetUrl}`)
+                }
             }
         }
 

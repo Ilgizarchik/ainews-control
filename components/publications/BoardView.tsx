@@ -614,6 +614,7 @@ function NewsGroupCard({ group, activePlatforms, onEdit, onOpenEditor, onAddJob 
                         src={`/api/telegram/photo/${group.draft_image_file_id}`}
                         alt=""
                         fill
+                        unoptimized
                         sizes="(max-width: 1024px) 100vw, 320px"
                         className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
                     />

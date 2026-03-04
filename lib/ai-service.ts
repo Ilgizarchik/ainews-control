@@ -1,5 +1,5 @@
 import { fetch as undiciFetch, ProxyAgent } from 'undici';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { logErrorToTelegram } from './logger-service';
 
 export interface AISettings {
@@ -20,8 +20,35 @@ const PROVIDER_BASE_URLS: Record<string, string> = {
     'custom': 'http://localhost:11434/v1'
 }
 
+const parseBool = (value: unknown): boolean => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') return value.toLowerCase() === 'true';
+    return false;
+}
+
+const buildEnvFallbackSettings = (): AISettings => {
+    const envProvider = process.env.AI_PROVIDER || 'openrouter';
+    return {
+        ai_provider: envProvider,
+        ai_model: process.env.AI_MODEL || 'anthropic/claude-3.5-sonnet',
+        ai_base_url: process.env.AI_BASE_URL || PROVIDER_BASE_URLS[envProvider as keyof typeof PROVIDER_BASE_URLS] || 'https://openrouter.ai/api/v1',
+        ai_proxy_url: process.env.AI_PROXY_URL,
+        ai_proxy_enabled: process.env.AI_PROXY_ENABLED === 'true',
+        ai_image_provider: process.env.AI_IMAGE_PROVIDER,
+        ai_image_model: process.env.AI_IMAGE_MODEL,
+        keys: {
+            openai: process.env.AI_KEY_OPENAI || '',
+            openrouter: process.env.AI_KEY_OPENROUTER || '',
+            anthropic: process.env.AI_KEY_ANTHROPIC || '',
+            custom: process.env.AI_KEY_CUSTOM || '',
+            default: process.env.AI_API_KEY || ''
+        }
+    };
+}
+
 export async function getAISettings(): Promise<AISettings> {
-    const supabase = await createClient();
+    // Use admin client here to avoid RLS issues in cron/background jobs where no user session exists.
+    const supabase = createAdminClient();
     const { data, error } = await supabase
         .from('project_settings')
         .select('key, value')
@@ -38,38 +65,24 @@ export async function getAISettings(): Promise<AISettings> {
     // Если подключение к БД не удалось, используем env как фолбэк
     if (error) {
         console.error('[getAISettings] Supabase error, using ENV fallback:', error);
-        const envProvider = process.env.AI_PROVIDER || 'openrouter';
-        return {
-            ai_provider: envProvider,
-            ai_model: process.env.AI_MODEL || 'anthropic/claude-3.5-sonnet',
-            ai_base_url: process.env.AI_BASE_URL || PROVIDER_BASE_URLS[envProvider as keyof typeof PROVIDER_BASE_URLS] || 'https://openrouter.ai/api/v1',
-            ai_proxy_url: process.env.AI_PROXY_URL,
-            ai_proxy_enabled: process.env.AI_PROXY_ENABLED === 'true',
-            ai_image_provider: process.env.AI_IMAGE_PROVIDER,
-            ai_image_model: process.env.AI_IMAGE_MODEL,
-            keys: {
-                openai: process.env.AI_KEY_OPENAI || '',
-                openrouter: process.env.AI_KEY_OPENROUTER || '',
-                anthropic: process.env.AI_KEY_ANTHROPIC || '',
-                custom: process.env.AI_KEY_CUSTOM || '',
-                default: process.env.AI_API_KEY || ''
-            }
-        };
+        return buildEnvFallbackSettings();
     }
 
     if (!data || data.length === 0) {
-        console.error('[getAISettings] No data returned from project_settings');
-        throw new Error('No AI settings found in database');
+        console.warn('[getAISettings] No AI settings found in project_settings. Using ENV fallback.');
+        return buildEnvFallbackSettings();
     }
 
     const map = data.reduce((acc, { key, value }) => ({ ...acc, [key]: value }), {} as any);
+    const provider = map.ai_provider || 'openrouter';
+    const baseUrl = map.ai_base_url || PROVIDER_BASE_URLS[provider as keyof typeof PROVIDER_BASE_URLS] || 'https://openrouter.ai/api/v1';
 
     return {
-        ai_provider: map.ai_provider || 'openrouter',
+        ai_provider: provider,
         ai_model: map.ai_model || 'gpt-4o-mini',
-        ai_base_url: map.ai_base_url || 'https://openrouter.ai/api/v1',
+        ai_base_url: baseUrl,
         ai_proxy_url: map.ai_proxy_url,
-        ai_proxy_enabled: map.ai_proxy_enabled === 'true',
+        ai_proxy_enabled: parseBool(map.ai_proxy_enabled),
         ai_image_provider: map.ai_image_provider,
         ai_image_model: map.ai_image_model,
         keys: {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { fetch as undiciFetch, ProxyAgent } from 'undici';
 
 interface GenerateNewsDraftRequest {
@@ -8,9 +9,15 @@ interface GenerateNewsDraftRequest {
 }
 
 export async function POST(req: Request) {
-    const supabase = await createClient();
+    const sessionClient = await createClient();
+    const adminDb = createAdminClient();
 
     try {
+        const { data: { user }, error: userError } = await sessionClient.auth.getUser();
+        if (userError || !user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const { news_id, user_chat_id }: GenerateNewsDraftRequest = await req.json();
 
         if (!news_id) {
@@ -18,7 +25,7 @@ export async function POST(req: Request) {
         }
 
         // 1. Получаем новость
-        const { data: rawNewsItem, error: fetchError } = await supabase
+        const { data: rawNewsItem, error: fetchError } = await adminDb
             .from('news_items')
             .select('*') // Нужны cleaned_text, title, возможно existing image_url
             .eq('id', news_id)
@@ -32,10 +39,10 @@ export async function POST(req: Request) {
 
         // 2. Получаем промпты и настройки AI
         const [aiSettings, prompts] = await Promise.all([
-            supabase.from('project_settings').select('key, value').in('key', [
+            adminDb.from('project_settings').select('key, value').in('key', [
                 'ai_provider', 'ai_api_key', 'ai_model', 'ai_base_url', 'ai_proxy_url'
             ]),
-            supabase.from('system_prompts').select('key, content').in('key', [
+            adminDb.from('system_prompts').select('key, content').in('key', [
                 'rewrite_longread', 'rewrite_announce', 'image_prompt'
             ])
         ]);
@@ -150,7 +157,7 @@ export async function POST(req: Request) {
             drafts_updated_at: new Date().toISOString()
         };
 
-        const { error: updateError } = await (supabase
+        const { error: updateError } = await (adminDb
             .from('news_items') as any)
             .update(updatePayload)
             .eq('id', news_id);

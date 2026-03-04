@@ -6,80 +6,156 @@ import { promisify } from 'util'
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
+import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 const execPromise = promisify(exec)
+const BACKUP_BUCKET = process.env.BACKUP_STORAGE_BUCKET || 'system-backups'
+
+async function requireAuthorizedUser() {
+    const sessionClient = await createClient()
+    const { data: { user }, error } = await sessionClient.auth.getUser()
+    if (error || !user) {
+        throw new Error('Unauthorized')
+    }
+}
+
+async function ensureBackupBucket(adminDb: ReturnType<typeof createAdminClient>) {
+    const { error: bucketError } = await adminDb.storage.getBucket(BACKUP_BUCKET)
+    if (!bucketError) return
+
+    const { error: createError } = await adminDb.storage.createBucket(BACKUP_BUCKET, {
+        public: false,
+        fileSizeLimit: '4GB'
+    })
+
+    if (createError && !/already exists/i.test(createError.message || '')) {
+        throw createError
+    }
+}
 
 export async function createSystemBackup() {
+    let tempDir = ''
+    let tempBackupPath = ''
     try {
+        await requireAuthorizedUser()
+
+        const adminDb = createAdminClient()
+        await ensureBackupBucket(adminDb)
+
         const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14)
         const backupName = `full_system_backup_${timestamp}.tar.gz`
-        const publicPath = path.join(process.cwd(), 'public')
-        const backupPath = path.join(publicPath, backupName)
-        const tempDir = path.join(os.tmpdir(), `backup_${timestamp}`)
+        tempDir = path.join(os.tmpdir(), `backup_${timestamp}`)
+        tempBackupPath = path.join(os.tmpdir(), backupName)
+        const sqlDumpPath = path.join(tempDir, 'supabase_backup.sql')
 
         if (!fs.existsSync(tempDir)) {
             fs.mkdirSync(tempDir, { recursive: true })
         }
 
-        // 1. Получаем строку подключения Supabase из окружения или настроек
-        // В целях безопасности попробуем взять из настроек, если нет в process.env
-        const supabaseUrl = 'postgresql://postgres.rshqequtbqvrqbgfykhq:ZPz-M2F-T7i-5qR@aws-1-eu-west-3.pooler.supabase.com:6543/postgres'
+        const supabaseDbUrl = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL
+        if (!supabaseDbUrl) {
+            return { success: false, error: 'SUPABASE_DB_URL is not configured on server' }
+        }
 
         console.log('[Backup] Starting Supabase DB dump...')
-        await execPromise(`pg_dump "${supabaseUrl}" > ${path.join(tempDir, 'supabase_backup.sql')}`)
+        await execPromise(`pg_dump "$BACKUP_DB_URL" > "${sqlDumpPath}"`, {
+            env: { ...process.env, BACKUP_DB_URL: supabaseDbUrl }
+        })
 
-        // 2. Архивируем всё: исходники проекта + дампы БД
+        // 2. Архивируем все: исходники проекта + дамп БД
         console.log('[Backup] Archiving everything (Source + DB)...')
 
         const projectRoot = process.cwd()
-        const tempBackupPath = path.join(os.tmpdir(), backupName)
-
-        // Пояснение к команде:
-        // Создаем архив в /tmp, чтобы избежать ошибки "file changed as we read it"
-        // --exclude... : пропускаем тяжелые/временные папки
         await execPromise(`tar -czf "${tempBackupPath}" \
             --exclude=node_modules \
             --exclude=.next \
             --exclude=.git \
-            --exclude="public/full_system_backup_*.tar.gz" \
+            --exclude=.venv \
+            --exclude=logs \
+            --exclude=public/full_system_backup_*.tar.gz \
             -C "${projectRoot}" . \
-            -C "${tempDir}" .`)
+            -C "${tempDir}" supabase_backup.sql`)
 
-        // 3. Перемещаем архив в public
-        fs.renameSync(tempBackupPath, backupPath)
+        // 3. Загружаем архив в Supabase Storage
+        const backupBuffer = fs.readFileSync(tempBackupPath)
+        const { error: uploadError } = await adminDb.storage
+            .from(BACKUP_BUCKET)
+            .upload(backupName, backupBuffer, {
+                upsert: true,
+                contentType: 'application/gzip'
+            })
 
-        // 4. Удаляем временные файлы
-        fs.rmSync(tempDir, { recursive: true, force: true })
+        if (uploadError) {
+            throw uploadError
+        }
 
-        console.log(`[Backup] Created successfully in ${publicPath}: ${backupName}`)
+        console.log(`[Backup] Created and uploaded to bucket ${BACKUP_BUCKET}: ${backupName}`)
         revalidatePath('/settings')
 
         return {
             success: true,
             filename: backupName,
-            downloadUrl: `/api/maintenance/download/${backupName}`
+            downloadUrl: `/api/maintenance/download/${encodeURIComponent(backupName)}`
         }
     } catch (error: any) {
         console.error('[Backup] Error:', error)
         return { success: false, error: error.message }
+    } finally {
+        if (tempDir) {
+            fs.rmSync(tempDir, { recursive: true, force: true })
+        }
+        if (tempBackupPath && fs.existsSync(tempBackupPath)) {
+            fs.rmSync(tempBackupPath, { force: true })
+        }
     }
 }
 
 export async function getRecentBackups() {
     try {
+        await requireAuthorizedUser()
+
+        const adminDb = createAdminClient()
+        await ensureBackupBucket(adminDb)
+
+        const { data: files, error } = await adminDb.storage
+            .from(BACKUP_BUCKET)
+            .list('', { limit: 200, sortBy: { column: 'created_at', order: 'desc' } })
+
+        if (error) {
+            throw error
+        }
+
+        const storageBackups = (files || [])
+            .filter(f => f.name.startsWith('full_system_backup_') && f.name.endsWith('.tar.gz'))
+            .map(f => ({
+                name: f.name,
+                size: Number((f.metadata as any)?.size || 0),
+                createdAt: (f as any).created_at || (f as any).updated_at || new Date(0).toISOString(),
+                url: `/api/maintenance/download/${encodeURIComponent(f.name)}`
+            }))
+
+        // Backward compatibility: include old local backups from /public
         const publicPath = path.join(process.cwd(), 'public')
-        const files = fs.readdirSync(publicPath)
-        const backups = files
-            .filter(f => f.startsWith('full_system_backup_') && f.endsWith('.tar.gz'))
-            .map(f => {
-                const stats = fs.statSync(path.join(publicPath, f))
-                return {
-                    name: f,
-                    size: stats.size,
-                    createdAt: stats.birthtime.toISOString(),
-                    url: `/api/maintenance/download/${f}`
-                }
-            })
+        const localBackups = fs.existsSync(publicPath)
+            ? fs.readdirSync(publicPath)
+                .filter(f => f.startsWith('full_system_backup_') && f.endsWith('.tar.gz'))
+                .map(f => {
+                    const stats = fs.statSync(path.join(publicPath, f))
+                    return {
+                        name: f,
+                        size: stats.size,
+                        createdAt: stats.birthtime.toISOString(),
+                        url: `/api/maintenance/download/${encodeURIComponent(f)}`
+                    }
+                })
+            : []
+
+        const mergedByName = new Map<string, { name: string; size: number; createdAt: string; url: string }>()
+        localBackups.forEach(item => mergedByName.set(item.name, item))
+        storageBackups.forEach(item => mergedByName.set(item.name, item))
+
+        const backups = Array.from(mergedByName.values())
             .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
         return { success: true, backups }
@@ -90,14 +166,28 @@ export async function getRecentBackups() {
 
 export async function deleteBackup(filename: string) {
     try {
-        const publicPath = path.join(process.cwd(), 'public')
-        const filePath = path.join(publicPath, filename)
-        if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath)
-            revalidatePath('/settings')
-            return { success: true }
+        await requireAuthorizedUser()
+
+        const adminDb = createAdminClient()
+        await ensureBackupBucket(adminDb)
+
+        if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+            return { success: false, error: 'Invalid filename' }
         }
-        return { success: false, error: 'File not found' }
+
+        const { error } = await adminDb.storage.from(BACKUP_BUCKET).remove([filename])
+        // Storage remove can fail for legacy local-only backups; keep going.
+        if (error && !/not found/i.test(error.message || '')) {
+            return { success: false, error: error.message }
+        }
+
+        const legacyPath = path.join(process.cwd(), 'public', filename)
+        if (fs.existsSync(legacyPath)) {
+            fs.unlinkSync(legacyPath)
+        }
+
+        revalidatePath('/settings')
+        return { success: true }
     } catch (error: any) {
         return { success: false, error: error.message }
     }

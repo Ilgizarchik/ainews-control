@@ -4,8 +4,17 @@ import { createClient } from "@/lib/supabase/server"
 import { PublisherConfig, PublisherFactory } from "@/lib/publishers/factory"
 import { PublishContext } from "@/lib/publishers/types"
 
-async function getPublisherConfig(projectKey: string = 'ainews'): Promise<PublisherConfig> {
+async function createAuthedClient() {
     const supabase = await createClient()
+    const { data: { user }, error } = await supabase.auth.getUser()
+    if (error || !user) {
+        throw new Error('Unauthorized')
+    }
+    return supabase
+}
+
+async function getPublisherConfig(projectKey: string = 'ainews', supabaseClient?: any): Promise<PublisherConfig> {
+    const supabase = supabaseClient || await createAuthedClient()
     const { data } = await supabase
         .from('project_settings')
         .select('*')
@@ -118,7 +127,7 @@ async function updateJob(supabase: any, jobId: string, status: 'published' | 'er
 }
 
 export async function publishItem(itemId: string, itemType: 'news' | 'review' = 'news', publishAt?: string) {
-    const supabase = await createClient()
+    const supabase = await createAuthedClient()
 
     // 1. Получаем элемент
     const table = itemType === 'news' ? 'news_items' : 'review_items';
@@ -138,7 +147,7 @@ export async function publishItem(itemId: string, itemType: 'news' | 'review' = 
     }
     const item = itemRaw as any;
 
-    const config = await getPublisherConfig();
+    const config = await getPublisherConfig('ainews', supabase);
     const { data: safeModeSetting } = await supabase.from('project_settings').select('value').eq('key', 'safe_publish_mode').single() as any
     const isSafeMode = safeModeSetting?.value === 'true'
 
@@ -324,8 +333,8 @@ export async function publishSinglePlatform({ itemId, itemType, platform, conten
     bypassSafeMode?: boolean;
     isTest?: boolean;
 }) {
-    const supabase = await createClient()
-    const config = await getPublisherConfig()
+    const supabase = await createAuthedClient()
+    const config = await getPublisherConfig('ainews', supabase)
 
     const { data: safeModeSetting } = await supabase.from('project_settings').select('value').eq('key', 'safe_publish_mode').single() as any
     const isSafeMode = (safeModeSetting?.value === 'true') && !bypassSafeMode
@@ -439,7 +448,7 @@ export async function publishSinglePlatform({ itemId, itemType, platform, conten
  */
 export async function cleanupDisabledPlatforms() {
     try {
-        const supabase = await createClient()
+        const supabase = await createAuthedClient()
 
         // 1. Получаем список активных платформ из рецептов
         const { data: recipes, error: recipesError } = await supabase

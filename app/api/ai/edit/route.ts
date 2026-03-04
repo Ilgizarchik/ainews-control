@@ -1,10 +1,17 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { fetch as undiciFetch, ProxyAgent } from 'undici';
 
 export async function POST(req: Request) {
-    const supabase = await createClient();
+    const sessionClient = await createClient();
+    const adminDb = createAdminClient();
     try {
+        const { data: { user }, error: userError } = await sessionClient.auth.getUser();
+        if (userError || !user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const { text, instruction, apiKey, baseUrl, model, provider, proxyUrl, itemId, itemType } = await req.json();
 
         // 0. Сохраняем историю правок
@@ -20,20 +27,20 @@ export async function POST(req: Request) {
 
             try {
                 // 1. Пробуем основную таблицу
-                let { data: current, error: fetchError } = await supabase
-                    .from(table)
+                let { data: current, error: fetchError } = await (adminDb
+                    .from(table as any)
                     .select('correction_history')
                     .eq('id', validItemId)
-                    .maybeSingle()
+                    .maybeSingle() as any)
 
                 // 2. Фолбэк на другую таблицу, если не найдено
                 if (!current && !fetchError) {
                     const fallbackTable = table === 'news_items' ? 'review_items' : 'news_items'
-                    const { data: fallbackCurrent, error: _fallbackError } = await supabase
-                        .from(fallbackTable)
+                    const { data: fallbackCurrent, error: _fallbackError } = await (adminDb
+                        .from(fallbackTable as any)
                         .select('correction_history')
                         .eq('id', validItemId)
-                        .maybeSingle()
+                        .maybeSingle() as any)
 
                     if (fallbackCurrent) {
                         current = fallbackCurrent
@@ -46,12 +53,12 @@ export async function POST(req: Request) {
                     console.error('[AI Edit API] Error fetching history:', fetchError)
                 }
 
-                console.log('[AI Edit API] Current history found:', !!current, current?.correction_history?.length, 'in table:', table)
+                console.log('[AI Edit API] Current history found:', !!current, (current as any)?.correction_history?.length, 'in table:', table)
 
                 // Продолжаем только если элемент существует
                 if (current) {
-                    const history = Array.isArray(current?.correction_history)
-                        ? current.correction_history
+                    const history = Array.isArray((current as any)?.correction_history)
+                        ? (current as any).correction_history
                         : []
 
                     // Добавляем новую инструкцию
@@ -66,10 +73,10 @@ export async function POST(req: Request) {
                     console.log('[AI Edit API] Saving new history:', history.length, 'items', 'to', table)
 
                     // Обновляем историю элемента
-                    const { error: updateError } = await supabase
-                        .from(table)
+                    const { error: updateError } = await (adminDb
+                        .from(table as any)
                         .update({ correction_history: history })
-                        .eq('id', validItemId)
+                        .eq('id', validItemId) as any)
 
                     if (updateError) {
                         console.error('[AI Edit API] Error updating history:', updateError)
@@ -79,7 +86,7 @@ export async function POST(req: Request) {
 
                     // Пишем в глобальный лог только если элемент существует
                     try {
-                        const { error: globalLogError } = await supabase.from('ai_correction_logs').insert({
+                        const { error: globalLogError } = await (adminDb as any).from('ai_correction_logs').insert({
                             news_id: (table === 'news_items') ? validItemId : null,
                             review_id: (table === 'review_items') ? validItemId : null,
                             instruction: instruction || 'No instruction provided',
@@ -102,7 +109,7 @@ export async function POST(req: Request) {
         }
 
         // 1. Получаем системный промпт из БД
-        const { data: promptData } = await supabase
+        const { data: promptData } = await adminDb
             .from('system_prompts')
             .select('content')
             .eq('key', 'dashboard_edit_text')

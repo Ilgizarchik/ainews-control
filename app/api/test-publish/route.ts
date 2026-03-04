@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 import { TelegramPublisher } from '@/lib/publishers/telegram'
 import { TildaPublisher } from '@/lib/publishers/tilda'
@@ -7,7 +7,7 @@ import { TildaPublisher } from '@/lib/publishers/tilda'
 export const dynamic = 'force-dynamic'
 
 export async function GET(_req: Request) {
-    const supabase = await createClient()
+    const supabase = createAdminClient()
 
     // 1. Получаем конфиг (имитируем логику getPublisherConfig)
     const { data: settingsData } = await supabase

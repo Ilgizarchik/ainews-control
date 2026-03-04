@@ -154,6 +154,14 @@ export function SystemPromptsEditor() {
         return <div className="p-4 text-center text-muted-foreground animate-pulse">Загрузка промптов...</div>
     }
 
+    if (!loading && prompts.length === 0) {
+        return (
+            <div className="p-6 rounded-2xl border border-border/60 bg-muted/20 text-center text-sm text-muted-foreground">
+                Промпты не найдены или недоступны. Нажмите &quot;Обновить данные&quot; или проверьте доступ к `system_prompts`.
+            </div>
+        )
+    }
+
     return (
         <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b-2 border-border/50 pb-8">

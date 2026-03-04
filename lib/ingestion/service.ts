@@ -2,7 +2,7 @@ import * as cheerio from 'cheerio'
 import Parser from 'rss-parser'
 import { fetch as undiciFetch, ProxyAgent } from 'undici'
 import { LEGACY_SOURCES, IngestionSource } from './sources'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient as createParamsClient, SupabaseClient } from '@supabase/supabase-js'
 import { Database } from '@/types/database.types'
 import { processGate1 } from '../generation-service'
@@ -26,7 +26,7 @@ export type ParsedItem = {
 // Помощник для прокси
 async function getProxyConfig() {
     try {
-        const supabase = await createClient()
+        const supabase = createAdminClient()
         const { data } = await supabase
             .from('project_settings')
             .select('key, value')
@@ -328,9 +328,14 @@ async function parseOhotnikiSearch(source: IngestionSource): Promise<ParsedItem[
 // ------------------------------------------------------------------
 
 export async function runIngestion(sourceIds?: string[], client?: SupabaseClient<Database>) {
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!client && !serviceRoleKey) {
+        throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set. Ingestion requires service role access with RLS enabled.')
+    }
+
     const supabase = (client || createParamsClient<Database>(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY! || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        serviceRoleKey!,
         {
             auth: {
                 persistSession: false

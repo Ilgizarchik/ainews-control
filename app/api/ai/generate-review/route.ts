@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { fetch as undiciFetch, ProxyAgent } from 'undici';
 
 interface ReviewGenerationRequest {
@@ -15,9 +16,15 @@ interface ReviewGenerationRequest {
 export const maxDuration = 300; // 5 минут для поддержки Pro-плана
 
 export async function POST(req: Request) {
-    const supabase = await createClient();
+    const sessionClient = await createClient();
+    const adminDb = createAdminClient();
 
     try {
+        const { data: { user }, error: userError } = await sessionClient.auth.getUser();
+        if (userError || !user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const { title_seed, factpack, draft_image_file_id, user_chat_id, web_search }: ReviewGenerationRequest = await req.json();
 
 
@@ -27,10 +34,10 @@ export async function POST(req: Request) {
 
         // 1. Получаем настройки AI и промты из БД
         const [aiSettings, prompts] = await Promise.all([
-            supabase.from('project_settings').select('key, value').in('key', [
+            adminDb.from('project_settings').select('key, value').in('key', [
                 'ai_provider', 'ai_api_key', 'ai_model', 'ai_base_url', 'ai_proxy_url', 'review_ai_model', 'ai_proxy_enabled'
             ]),
-            supabase.from('system_prompts').select('key, content').in('key', [
+            adminDb.from('system_prompts').select('key, content').in('key', [
                 'review_title', 'review_announce', 'review_longread'
             ])
         ]);
@@ -198,7 +205,7 @@ EDITORIAL_DRAFT:\n${longread}`,
             status: 'needs_review'
         };
 
-        const { data: reviewItem, error: insertError } = await supabase
+        const { data: reviewItem, error: insertError } = await adminDb
             .from('review_items')
             .insert(insertPayload)
             .select('id, draft_title, draft_announce, draft_longread')

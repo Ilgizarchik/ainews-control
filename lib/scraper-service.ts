@@ -1,7 +1,7 @@
 import { fetch as undiciFetch, ProxyAgent } from 'undici';
 import { JSDOM } from 'jsdom';
 import { Readability } from '@mozilla/readability';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
@@ -11,7 +11,7 @@ const execPromise = promisify(exec);
 // Helper to get proxy configuration
 async function getProxyConfig(): Promise<{ url: string; enabled: boolean } | null> {
     try {
-        const supabase = await createClient();
+        const supabase = createAdminClient();
         const { data } = await supabase
             .from('project_settings')
             .select('key, value')

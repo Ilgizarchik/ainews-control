@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/client'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { PublisherFactory } from './factory'
 import type { Tables, TablesUpdate } from '@/types/database.types'
 import { PublishContext, PublishResult } from './types'
@@ -43,7 +43,8 @@ export interface PublishSettings {
 }
 
 export class PublishService {
-    private supabase = createClient()
+    // Service is executed in backend jobs/cron; use service-role client to avoid auth-context issues.
+    private supabase = createAdminClient()
 
     async processPublication(jobId: string): Promise<PublishResult> {
 

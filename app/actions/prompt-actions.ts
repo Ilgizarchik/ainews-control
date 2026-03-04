@@ -1,14 +1,23 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 
 export async function getSystemPrompts() {
     try {
-        const supabase = await createClient()
-        const { data, error } = await supabase
+        // Validate caller session first, then use admin client to avoid RLS-empty reads.
+        const sessionClient = await createClient()
+        const { data: { user }, error: userError } = await sessionClient.auth.getUser()
+        if (userError || !user) {
+            throw new Error('Unauthorized')
+        }
+
+        const adminDb = createAdminClient()
+        const { data, error } = await adminDb
             .from('system_prompts')
             .select('*')
+            .neq('key', 'parse_date')
             .order('category', { ascending: true })
             .order('key', { ascending: true })
 
@@ -22,8 +31,14 @@ export async function getSystemPrompts() {
 
 export async function updateSystemPrompt(id: number, payload: any) {
     try {
-        const supabase = await createClient()
-        const { error } = await supabase
+        const sessionClient = await createClient()
+        const { data: { user }, error: userError } = await sessionClient.auth.getUser()
+        if (userError || !user) {
+            throw new Error('Unauthorized')
+        }
+
+        const adminDb = createAdminClient()
+        const { error } = await adminDb
             .from('system_prompts')
             .update(payload)
             .eq('id', id)
