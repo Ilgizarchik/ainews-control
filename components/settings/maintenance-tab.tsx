@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2, Download, Trash2, Database, ShieldCheck, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
-import { createSystemBackup, getRecentBackups, deleteBackup } from '@/app/actions/maintenance-actions'
+import { createSystemBackup, deleteBackup } from '@/app/actions/maintenance-actions'
 import { formatDistanceToNow } from 'date-fns'
 import { ru } from 'date-fns/locale'
 
@@ -17,7 +17,12 @@ export function MaintenanceTab() {
     const fetchBackups = async () => {
         setLoading(true)
         try {
-            const result = await getRecentBackups()
+            const res = await fetch('/api/maintenance/backups', {
+                method: 'GET',
+                cache: 'no-store',
+                headers: { 'Accept': 'application/json' },
+            })
+            const result = await res.json()
             if (result.success) {
                 setBackups(result.backups || [])
             } else {
