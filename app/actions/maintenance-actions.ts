@@ -11,6 +11,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 const execPromise = promisify(exec)
 const BACKUP_BUCKET = process.env.BACKUP_STORAGE_BUCKET || 'system-backups'
+const BACKUP_BUCKET_FILE_SIZE_LIMIT = process.env.BACKUP_BUCKET_FILE_SIZE_LIMIT
 const MAX_BACKUPS_IN_RESPONSE = Math.min(
     Math.max(Number(process.env.BACKUP_LIST_MAX || '100') || 100, 10),
     500
@@ -26,10 +27,28 @@ async function ensureBackupBucket(adminDb: ReturnType<typeof createAdminClient>)
     const { error: bucketError } = await adminDb.storage.getBucket(BACKUP_BUCKET)
     if (!bucketError) return
 
-    const { error: createError } = await adminDb.storage.createBucket(BACKUP_BUCKET, {
+    if (!/not found|does not exist/i.test(bucketError.message || '')) {
+        throw bucketError
+    }
+
+    const createPayload: { public: boolean; fileSizeLimit?: string } = {
         public: false,
-        fileSizeLimit: '4GB'
-    })
+    }
+    if (BACKUP_BUCKET_FILE_SIZE_LIMIT) {
+        createPayload.fileSizeLimit = BACKUP_BUCKET_FILE_SIZE_LIMIT
+    }
+
+    let { error: createError } = await adminDb.storage.createBucket(BACKUP_BUCKET, createPayload)
+
+    // Fallback: some projects reject explicit size limits on bucket creation.
+    if (
+        createError &&
+        createPayload.fileSizeLimit &&
+        /maximum allowed size/i.test(createError.message || '')
+    ) {
+        const retry = await adminDb.storage.createBucket(BACKUP_BUCKET, { public: false })
+        createError = retry.error
+    }
 
     if (createError && !/already exists/i.test(createError.message || '')) {
         throw createError
