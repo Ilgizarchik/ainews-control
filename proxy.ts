@@ -1,79 +1,56 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function proxy(request: NextRequest) {
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
+export async function middleware(request: NextRequest) {
+  let supabaseResponse = NextResponse.next({
+    request,
   })
-
-  // Коллекция кук для установки в итоговый ответ
-  const cookiesToSet: { name: string, value: string, options: CookieOptions }[] = []
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value
+        getAll() {
+          return request.cookies.getAll()
         },
-        set(name: string, value: string, options: CookieOptions) {
-          request.cookies.set({ name, value, ...options })
-          cookiesToSet.push({ name, value, options })
-          // Обновляем response, чтобы прокинуть новые заголовки в следующие обработчики
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
-          cookiesToSet.forEach(c => response.cookies.set(c.name, c.value, c.options))
-        },
-        remove(name: string, options: CookieOptions) {
-          request.cookies.set({ name, value: '', ...options })
-          cookiesToSet.push({ name, value: '', options })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
-          cookiesToSet.forEach(c => response.cookies.set(c.name, c.value, c.options))
+        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          supabaseResponse = NextResponse.next({ request })
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          )
         },
       },
     }
   )
 
-  // Обновление сессии пользователя - критически важно для Edge Runtime
+  // ВАЖНО: getUser() обновляет токен сессии. Не убирать.
   const { data: { user } } = await supabase.auth.getUser()
 
   const isLoginPage = request.nextUrl.pathname.startsWith('/login')
+  const isAuthRoute = request.nextUrl.pathname.startsWith('/auth')
   const isApiCron = request.nextUrl.pathname.startsWith('/api/cron/')
 
-  if (!user && !isLoginPage && !isApiCron) {
+  // Редирект на логин если нет сессии
+  if (!user && !isLoginPage && !isAuthRoute && !isApiCron) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
+  // Редирект с логина если уже залогинен
   if (user && isLoginPage) {
     const url = request.nextUrl.clone()
     url.pathname = '/publications'
     return NextResponse.redirect(url)
   }
 
-  return response
+  return supabaseResponse
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - Any file with an extension (e.g. svg, png, jpg, etc.)
-     */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
