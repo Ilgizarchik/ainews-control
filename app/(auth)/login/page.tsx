@@ -27,6 +27,14 @@ export default function LoginPage() {
       if (result && 'error' in result && result.error) {
         toast.error('Login failed', { description: result.error })
         setLoading(false)
+        return
+      }
+
+      if (result && 'success' in result && result.success) {
+        toast.success('Welcome back!')
+        // Рефреш страницы чтобы быть уверенным в куках перед переходом
+        router.push('/publications')
+        router.refresh()
       }
     } catch (err: any) {
       console.error('Login handle error:', err)

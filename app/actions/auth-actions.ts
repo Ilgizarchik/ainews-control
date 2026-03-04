@@ -20,9 +20,8 @@ export async function login(formData: FormData) {
         return { error: error.message }
     }
 
-    console.log(`[AUTH] Login success for ${email}, redirecting to /publications...`)
-    // revalidatePath('/', 'layout')
-    redirect('/publications')
+    console.log(`[AUTH] Login success for ${email}, returning success...`)
+    return { success: true }
 }
 
 export async function signOut() {
